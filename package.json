@@ -1,0 +1,70 @@
+{
+  "name": "@pyric/pad",
+  "description": "The modern ES Module, TypeScript-ready real-time collaborative code and text editing engine for the Pyric ecosystem",
+  "version": "2.0.0",
+  "author": "David East & Pyric Ecosystem Contributors",
+  "contributors": [
+    "David East <dceast@gmail.com>",
+    "Michael Lehenbauer <michael@firebase.com>"
+  ],
+  "homepage": "https://github.com/davideast/pyrepad",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/davideast/pyrepad.git"
+  },
+  "browser": {
+    "jsdom": false
+  },
+  "bugs": {
+    "url": "https://github.com/firebase/firepad/issues"
+  },
+  "licenses": [
+    {
+      "type": "MIT",
+      "url": "http://firebase.mit-license.org/"
+    }
+  ],
+  "keywords": [
+    "text",
+    "word",
+    "editor",
+    "firebase",
+    "realtime",
+    "collaborative"
+  ],
+  "main": "dist/firepad.min.js",
+  "files": [
+    "dist/**",
+    "LICENSE",
+    "README.md",
+    "package.json"
+  ],
+  "dependencies": {
+    "firebase": "^7.13.2"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.9.0",
+    "@babel/preset-env": "^7.9.0",
+    "@pyric/cli": "^0.1.0-alpha.17",
+    "codemirror": "^5.58.2",
+    "jasmine-core": "^3.5.0",
+    "jsdom": "^29.1.1",
+    "monaco-editor": "^0.20.0",
+    "typescript": "^5.5.0",
+    "vite": "^5.3.0"
+  },
+  "scripts": {
+    "test": "bun test test/specs/*.spec.js",
+    "dev": "vite",
+    "build": "bun run build:bundle",
+    "build:bundle": "bun -e \"require('./tools/bundle.js')\"",
+    "typecheck": "tsc --noEmit",
+    "test:integration": "PYRIC_SANDBOX=1 bun test test/specs/integration.spec.js",
+    "test:seam": "bun test test/specs/sync-seam.spec.js",
+    "test:e2e:sandbox": "bun test test/specs/e2e-sandbox.spec.js",
+    "test:formatting": "bun test test/specs/pure-formatting.spec.js",
+    "test:headless:speed": "bun test test/specs/headless-speed.spec.js",
+    "test:ot:ghost": "bun test test/specs/ot-ghost.spec.js",
+    "verify:agentive:harness": "bun test test/specs/agentive-harness.spec.js"
+  }
+}

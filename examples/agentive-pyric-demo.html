@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Firepad 2026: Agentive UI & Pyric Sandbox Collaboration Demo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Interactive demonstration of Firepad's 2026 AI-native Operational Transformation engine, Pyric Sandbox in-memory RTDB, and real-time MCP agent bridge." />
+  
+  <!-- Fonts: Outfit, Inter, and JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- CodeMirror 5 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+  
+  <!-- Firepad 2026 Bundle -->
+  <link rel="stylesheet" href="../dist/firepad.css" />
+  <script src="../dist/firepad.js"></script>
+
+  <style>
+    :root {
+      --bg-primary: #0a0f1d;
+      --bg-secondary: #0f172a;
+      --bg-glass: rgba(30, 41, 59, 0.7);
+      --bg-glass-hover: rgba(30, 41, 59, 0.9);
+      --border-color: rgba(96, 165, 250, 0.2);
+      --border-glow: rgba(59, 130, 246, 0.5);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-blue: #3b82f6;
+      --accent-glow: #60a5fa;
+      --accent-purple: #8b5cf6;
+      --accent-green: #10b981;
+      --accent-red: #ef4444;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: radial-gradient(circle at 50% 0%, #1e1b4b 0%, var(--bg-primary) 70%);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    header {
+      padding: 1.5rem 2rem;
+      border-bottom: 1px solid var(--border-color);
+      background: rgba(10, 15, 29, 0.85);
+      backdrop-filter: blur(12px);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
+    }
+
+    .brand h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.4rem;
+      font-weight: 700;
+      background: linear-gradient(90deg, #ffffff, var(--accent-glow));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand span {
+      font-size: 0.75rem;
+      background: rgba(59, 130, 246, 0.15);
+      color: var(--accent-glow);
+      padding: 3px 8px;
+      border-radius: 20px;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+
+    .header-status {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 20px;
+      background: rgba(16, 185, 129, 0.1);
+      color: var(--accent-green);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      font-weight: 500;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-green);
+      box-shadow: 0 0 8px var(--accent-green);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.15); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr 380px;
+      gap: 1.5rem;
+      padding: 1.5rem 2rem;
+      max-width: 1920px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    @media (max-width: 1400px) {
+      main { grid-template-columns: 1fr 1fr; }
+      .ai-panel { grid-column: span 2; }
+    }
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; }
+      .ai-panel { grid-column: span 1; }
+    }
+
+    .editor-card, .ai-panel, .console-card {
+      background: var(--bg-glass);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      backdrop-filter: blur(16px);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      transition: border-color 0.3s ease, transform 0.2s ease;
+    }
+
+    .editor-card:hover, .ai-panel:hover {
+      border-color: var(--border-glow);
+    }
+
+    .card-header {
+      padding: 1rem 1.25rem;
+      background: rgba(15, 23, 42, 0.6);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .card-title {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .user-tag {
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+    .user-david { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+    .user-reviewer { background: rgba(139, 92, 246, 0.2); color: #c4b5fd; border: 1px solid rgba(139, 92, 246, 0.3); }
+    .user-ai { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+
+    .editor-wrapper {
+      flex: 1;
+      position: relative;
+      min-height: 420px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .editor-wrapper > div, .firepad {
+      flex: 1;
+      display: flex !important;
+      flex-direction: column;
+      height: 100%;
+      min-height: 420px;
+    }
+
+    .CodeMirror {
+      position: relative !important;
+      flex: 1;
+      height: 100% !important;
+      min-height: 420px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      background: transparent !important;
+    }
+
+    .ai-panel {
+      padding: 1.25rem;
+      gap: 1.25rem;
+      height: fit-content;
+    }
+
+    .ai-hero {
+      text-align: center;
+      padding: 1rem;
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1));
+      border-radius: 12px;
+      border: 1px solid rgba(59, 130, 246, 0.2);
+    }
+
+    .ai-hero h2 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.15rem;
+      color: #ffffff;
+      margin-bottom: 4px;
+    }
+
+    .ai-hero p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .ai-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .btn {
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      border: 1px solid transparent;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-blue), #2563eb);
+      color: #ffffff;
+      box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+    }
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #60a5fa, var(--accent-blue));
+      box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
+      transform: translateY(-1px);
+    }
+
+    .btn-purple {
+      background: linear-gradient(135deg, var(--accent-purple), #7c3aed);
+      color: #ffffff;
+      box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+    }
+    .btn-purple:hover {
+      background: linear-gradient(135deg, #a78bfa, var(--accent-purple));
+      box-shadow: 0 6px 20px rgba(139, 92, 246, 0.5);
+      transform: translateY(-1px);
+    }
+
+    .btn-outline {
+      background: rgba(30, 41, 59, 0.5);
+      color: var(--text-main);
+      border-color: rgba(148, 163, 184, 0.2);
+    }
+    .btn-outline:hover {
+      background: rgba(30, 41, 59, 0.9);
+      border-color: var(--accent-glow);
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, var(--accent-green), #059669);
+      color: #ffffff;
+    }
+    .btn-danger {
+      background: linear-gradient(135deg, var(--accent-red), #dc2626);
+      color: #ffffff;
+    }
+
+    .ghost-card {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px dashed var(--accent-blue);
+      border-radius: 10px;
+      padding: 1rem;
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      animation: slideDown 0.3s ease;
+    }
+
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .ghost-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--accent-glow);
+    }
+
+    .ghost-desc {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    .diff-preview {
+      background: rgba(0, 0, 0, 0.4);
+      padding: 8px;
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: #34d399;
+      white-space: pre-wrap;
+      border-left: 3px solid #34d399;
+    }
+
+    .console-section {
+      grid-column: 1 / -1;
+      height: 200px;
+    }
+
+    .console-logs {
+      padding: 1rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: #cbd5e1;
+      overflow-y: auto;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .log-entry {
+      display: flex;
+      gap: 10px;
+      line-height: 1.4;
+    }
+
+    .log-time { color: #64748b; flex-shrink: 0; }
+    .log-tag { font-weight: 600; flex-shrink: 0; }
+    .tag-mcp { color: var(--accent-purple); }
+    .tag-seam { color: var(--accent-blue); }
+    .tag-ot { color: var(--accent-green); }
+    .tag-info { color: #f59e0b; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="brand-icon">⚡</div>
+      <div>
+        <h1>Firepad 2026</h1>
+      </div>
+      <span>AGENTIVE UI + PYRIC SANDBOX</span>
+    </div>
+    <div class="header-status">
+      <span class="status-badge">
+        <span class="status-dot"></span> Pyric RTDB Memory Sandbox Active
+      </span>
+      <span>60 FPS Sync Seam</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- Editor 1: Dev David -->
+    <div class="editor-card">
+      <div class="card-header">
+        <div class="card-title">
+          <span>🧑‍💻 Primary Editor</span>
+          <span class="user-tag user-david">dev-david</span>
+        </div>
+        <span style="font-size: 0.75rem; color: var(--text-muted);">ReactiveStream: operations</span>
+      </div>
+      <div class="editor-wrapper">
+        <div id="editor-david"></div>
+      </div>
+    </div>
+
+    <!-- Editor 2: Live Peer Reviewer -->
+    <div class="editor-card">
+      <div class="card-header">
+        <div class="card-title">
+          <span>👁️ Live Synchronized Peer</span>
+          <span class="user-tag user-reviewer">peer-reviewer</span>
+        </div>
+        <span style="font-size: 0.75rem; color: var(--text-muted);">pyric-sandbox://seam/demo</span>
+      </div>
+      <div class="editor-wrapper">
+        <div id="editor-peer"></div>
+      </div>
+    </div>
+
+    <!-- AI Co-Pilot & MCP Collaboration Panel -->
+    <div class="ai-panel">
+      <div class="ai-hero">
+        <h2>🤖 Pyric AI Co-Pilot</h2>
+        <p>2026 Agentive UI over MCP Bridge</p>
+      </div>
+
+      <div class="ai-controls">
+        <button class="btn btn-outline" onclick="simulateAIThinking()">
+          ✨ Trigger AI Analysis (stream_thinking)
+        </button>
+        <button class="btn btn-primary" id="btn-propose" onclick="proposeRefactor()">
+          🚀 Propose Refactor (OT Ghost Diff)
+        </button>
+        <button class="btn btn-purple" onclick="simulateConcurrentHumanEdit()">
+          ⚡ Type While Pending (OT Rebase Test)
+        </button>
+      </div>
+
+      <!-- Active Ghost Suggestion Card -->
+      <div class="ghost-card" id="ghost-card">
+        <div class="ghost-header">
+          <span>💡 Suggested AI Refactoring</span>
+          <span class="user-tag user-ai">copilot-gemini</span>
+        </div>
+        <div class="ghost-desc" id="ghost-explanation">
+          Converting standard JavaScript function to ES6 Arrow Function with JSDoc typing.
+        </div>
+        <div class="diff-preview" id="ghost-diff-preview">+ /** @return {number} */
++ const calculateSum = (a, b) => a + b;</div>
+        <div style="display: flex; gap: 8px; margin-top: 5px;">
+          <button class="btn btn-success" style="flex: 1; padding: 8px;" onclick="acceptDiff()">
+            ✅ Promote Diff
+          </button>
+          <button class="btn btn-danger" style="flex: 1; padding: 8px;" onclick="dismissDiff()">
+            ❌ Dismiss
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Activity Console -->
+    <div class="console-card console-section">
+      <div class="card-header" style="padding: 0.75rem 1.25rem;">
+        <div class="card-title" style="font-size: 0.85rem;">
+          <span>🖥️ Live Pyric Sandbox & MCP Bridge Event Log</span>
+        </div>
+        <button class="btn btn-outline" style="padding: 3px 8px; font-size: 0.7rem;" onclick="clearConsole()">Clear Logs</button>
+      </div>
+      <div class="console-logs" id="console-logs"></div>
+    </div>
+  </main>
+
+  <script>
+    var pyricDb, ref, davidAdapter, peerAdapter, davidFirepad, peerFirepad, mcpBridge;
+
+    function log(tag, tagClass, message) {
+      var consoleEl = document.getElementById('console-logs');
+      var now = new Date();
+      var timeStr = now.toTimeString().split(' ')[0] + '.' + String(now.getMilliseconds()).padStart(3, '0');
+      
+      var entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.innerHTML = '<span class="log-time">[' + timeStr + ']</span>' +
+                        '<span class="log-tag ' + tagClass + '">[' + tag + ']</span>' +
+                        '<span>' + message + '</span>';
+      consoleEl.appendChild(entry);
+      consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
+
+    function clearConsole() {
+      document.getElementById('console-logs').innerHTML = '';
+      log('INFO', 'tag-info', 'Console cleared.');
+    }
+
+    window.onload = function() {
+      log('INFO', 'tag-info', 'Initializing Pyric Realtime Database Memory Sandbox...');
+      
+      // 1. Create offline Pyric RTDB memory sandbox
+      pyricDb = firepad.PyricSandbox.createDatabase();
+      ref = pyricDb.ref('/pyric-sandbox/seam/demo-pad');
+
+      // 2. Setup CodeMirror instances
+      var cmDavid = CodeMirror(document.getElementById('editor-david'), {
+        lineNumbers: true,
+        mode: 'javascript',
+        theme: 'material-darker',
+        lineWrapping: true
+      });
+      var cmPeer = CodeMirror(document.getElementById('editor-peer'), {
+        lineNumbers: true,
+        mode: 'javascript',
+        theme: 'material-darker',
+        lineWrapping: true
+      });
+
+      // 3. Setup SyncSeam Reactive Adapters
+      davidAdapter = new firepad.SyncSeam.PyricSandboxAdapter(ref, 'dev-david', '#3b82f6');
+      peerAdapter = new firepad.SyncSeam.PyricSandboxAdapter(ref, 'peer-reviewer', '#8b5cf6');
+
+      log('SEAM', 'tag-seam', 'ReactiveStream channels created for operations, presence, and agentive.');
+
+      // 4. Initialize Firepads over PyricSandboxAdapters
+      davidFirepad = new firepad.Firepad(ref, cmDavid, {
+        syncAdapter: davidAdapter,
+        userId: 'dev-david',
+        userColor: '#3b82f6',
+        defaultText: '// 2026 Agentive UI Collaboration Demo\nfunction calculateSum(a, b) {\n  return a + b;\n}\n\nconsole.log("Result:", calculateSum(10, 20));'
+      });
+
+      // 5. Connect Pyric MCP Server Collaboration Bridge
+      davidFirepad.on('ready', function() {
+        log('SEAM', 'tag-seam', 'Primary Editor synchronized with Pyric Sandbox (revision A0).');
+        
+        peerFirepad = new firepad.Firepad(ref, cmPeer, {
+          syncAdapter: peerAdapter,
+          userId: 'peer-reviewer',
+          userColor: '#8b5cf6'
+        });
+        
+        peerFirepad.on('ready', function() {
+          log('SEAM', 'tag-seam', 'Peer Reviewer synchronized at 60fps.');
+        });
+
+        var davidEngine = firepad.DocumentEngine.create(davidAdapter);
+        mcpBridge = firepad.PyricMCPBridge.createBridge(davidEngine, davidAdapter, 'copilot-gemini');
+        log('MCP', 'tag-mcp', 'PyricMCPBridge connected. AI agent ready for commands.');
+      });
+    };
+
+    function simulateAIThinking() {
+      if (!mcpBridge) return;
+      log('MCP', 'tag-mcp', 'Received RPC command: stream_thinking');
+      mcpBridge.streamThinking('Analyzing AST type annotations and modern syntax opportunities...');
+      log('INFO', 'tag-info', 'AI status set to "thinking". Active collaborators notified.');
+    }
+
+    function proposeRefactor() {
+      if (!mcpBridge) return;
+      log('MCP', 'tag-mcp', 'Received RPC command: propose_diff');
+      
+      // Propose inserting a JSDoc header right before calculateSum (position 39)
+      var textLen = davidFirepad ? davidFirepad.getText().length : 133;
+      var insertPos = Math.min(39, textLen);
+      var remainLen = Math.max(0, textLen - insertPos);
+      var op = new firepad.TextOperation()
+        .retain(insertPos)
+        .insert('/** @return {number} */\n')
+        .retain(remainLen);
+
+      mcpBridge.proposeRefactor(op, 'Add JSDoc return type notation for better IDE autocompletion').then(function(proposal) {
+        log('OT', 'tag-ot', 'GhostDiff created at revision ' + proposal.baseRevision + ' without mutating authoritative document.');
+        document.getElementById('ghost-card').style.display = 'flex';
+      });
+    }
+
+    function simulateConcurrentHumanEdit() {
+      if (!davidFirepad) return;
+      log('SEAM', 'tag-seam', 'Human dev-david typed concurrent comment at line 0...');
+      
+      // Insert a comment at position 0 while ghost suggestion is waiting
+      var cm = davidFirepad.codeMirror_;
+      cm.replaceRange('// [REVIEWED BY HUMAN]\n', { line: 0, ch: 0 });
+      
+      log('OT', 'tag-ot', 'Operational Transformation math executed: GhostDiff rebased seamlessly over human insertion!');
+      
+      // Update preview card to reflect rebased position
+      var expEl = document.getElementById('ghost-explanation');
+      expEl.innerHTML += '<br><strong style="color: #60a5fa;">⚡ OT Rebased against human insertion!</strong>';
+    }
+
+    function acceptDiff() {
+      if (!mcpBridge) return;
+      log('MCP', 'tag-mcp', 'Received RPC command: promote_diff');
+      mcpBridge.promoteDiff().then(function(ack) {
+        log('SEAM', 'tag-seam', 'Authoritative commit confirmed! Revision incremented to A' + ack.revision + '.');
+        document.getElementById('ghost-card').style.display = 'none';
+      }).catch(function(e) {
+        log('INFO', 'tag-info', 'Commit failed: ' + e.message);
+      });
+    }
+
+    function dismissDiff() {
+      if (!mcpBridge) return;
+      log('MCP', 'tag-mcp', 'Received RPC command: dismiss_diff');
+      mcpBridge.dismissDiff();
+      document.getElementById('ghost-card').style.display = 'none';
+      log('OT', 'tag-ot', 'GhostDiff dismissed. Authoritative document untouched.');
+    }
+  </script>
+</body>
+</html>

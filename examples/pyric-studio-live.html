@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Firepad 2026: ES Module Live Studio & Pyric SharedWorker Demo</title>
+  
+  <!-- CodeMirror Dependencies -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+  
+  <!-- Firepad Modern CSS and JS Bundle -->
+  <link rel="stylesheet" href="../dist/firepad.css">
+  <script src="../dist/firepad.js"></script>
+
+  <!-- Modern Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-gradient: radial-gradient(circle at top left, #0d1b38 0%, #060b18 50%, #02050e 100%);
+      --surface-color: rgba(16, 26, 54, 0.65);
+      --surface-border: rgba(59, 130, 246, 0.25);
+      --surface-glow: 0 10px 35px -10px rgba(37, 99, 235, 0.35);
+      --primary-blue: #3b82f6;
+      --accent-purple: #8b5cf6;
+      --accent-cyan: #06b6d4;
+      --accent-emerald: #10b981;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --glass-blur: blur(16px);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg-gradient);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 1.5rem 2rem;
+      overflow-x: hidden;
+    }
+
+    /* Top Navigation Header */
+    .app-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.75rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+    }
+
+    .logo-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--primary-blue), var(--accent-purple));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+      animation: pulseGlow 4s ease-in-out infinite alternate;
+    }
+
+    @keyframes pulseGlow {
+      0% { box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4); }
+      10% { box-shadow: 0 4px 25px rgba(139, 92, 246, 0.6); }
+    }
+
+    .brand-text h1 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(to right, #ffffff, #cbd5e1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .badge {
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      padding: 0.28rem 0.65rem;
+      border-radius: 999px;
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(6, 182, 212, 0.2));
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #34d399;
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.04);
+      padding: 0.4rem 0.85rem;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--accent-emerald);
+      box-shadow: 0 0 8px var(--accent-emerald);
+      animation: blink 2s infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .btn-studio {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      text-decoration: none;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #ffffff;
+      background: linear-gradient(135deg, #3b82f6, #4f46e5);
+      padding: 0.45rem 1rem;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+      transition: all 0.2s ease;
+    }
+
+    .btn-studio:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(59, 130, 246, 0.5);
+      background: linear-gradient(135deg, #2563eb, #4338ca);
+    }
+
+    /* Main Grid Layout */
+    .grid-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr 320px;
+      gap: 1.5rem;
+      flex: 1;
+    }
+
+    @media (max-width: 1400px) {
+      .grid-layout {
+        grid-template-columns: 1fr 1fr;
+      }
+      .ai-sidebar {
+        grid-column: span 2;
+      }
+    }
+
+    .card {
+      background: var(--surface-color);
+      backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--surface-border);
+      border-radius: 16px;
+      box-shadow: var(--surface-glow);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .card-header {
+      padding: 0.95rem 1.25rem;
+      background: rgba(0, 0, 0, 0.25);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      font-weight: 600;
+      font-size: 0.92rem;
+    }
+
+    .user-avatar {
+      width: 26px;
+      height: 26px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+
+    .avatar-david { background: var(--primary-blue); color: #fff; }
+    .avatar-reviewer { background: var(--accent-purple); color: #fff; }
+
+    .user-tag {
+      font-size: 0.72rem;
+      padding: 0.15rem 0.55rem;
+      border-radius: 6px;
+      font-weight: 500;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .tag-david { background: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.3); }
+    .tag-reviewer { background: rgba(139, 92, 246, 0.2); color: #c4b5fd; border: 1px solid rgba(139, 92, 246, 0.3); }
+
+    .seam-status {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Editor Wrapper & Flex Layout */
+    .editor-wrapper {
+      flex: 1;
+      position: relative;
+      min-height: 420px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .editor-wrapper > div, .firepad {
+      flex: 1;
+      display: flex !important;
+      flex-direction: column;
+      height: 100%;
+      min-height: 420px;
+    }
+
+    .CodeMirror {
+      position: relative !important;
+      flex: 1;
+      height: 100% !important;
+      min-height: 420px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      background: transparent !important;
+    }
+
+    /* AI Co-Pilot Sidebar */
+    .ai-sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .ai-panel {
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .ai-header-title {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      font-weight: 700;
+      font-size: 1.05rem;
+      color: #34d399;
+    }
+
+    .ai-desc {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .btn-action {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .btn-ai {
+      background: linear-gradient(135deg, #059669, #10b981);
+      color: #ffffff;
+      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.25);
+    }
+
+    .btn-ai:hover {
+      background: linear-gradient(135deg, #047857, #059669);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+    }
+
+    .btn-ot {
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      color: #ffffff;
+      box-shadow: 0 4px 15px rgba(59, 130, 246, 0.25);
+    }
+
+    .btn-ot:hover {
+      background: linear-gradient(135deg, #1d4ed8, #2563eb);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+    }
+
+    .ghost-card {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px dashed var(--accent-cyan);
+      border-radius: 12px;
+      padding: 1rem;
+      display: none;
+      flex-direction: column;
+      gap: 0.75rem;
+      animation: slideIn 0.3s ease-out;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .ghost-title {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--accent-cyan);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .ghost-explanation {
+      font-size: 0.82rem;
+      color: #e2e8f0;
+      line-height: 1.5;
+      padding: 0.65rem;
+      background: rgba(0, 0, 0, 0.35);
+      border-radius: 8px;
+      border-left: 3px solid var(--accent-cyan);
+    }
+
+    .ghost-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .btn-small {
+      flex: 1;
+      padding: 0.55rem;
+      border-radius: 8px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      cursor: pointer;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      transition: background 0.15s ease;
+    }
+
+    .btn-accept { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+    .btn-accept:hover { background: rgba(16, 185, 129, 0.35); }
+    .btn-dismiss { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+    .btn-dismiss:hover { background: rgba(239, 68, 68, 0.35); }
+
+    /* Live Event Console Bottom Panel */
+    .console-section {
+      margin-top: 1.5rem;
+    }
+
+    .console-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 1.25rem;
+      background: rgba(0, 0, 0, 0.4);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .console-log-area {
+      height: 145px;
+      overflow-y: auto;
+      padding: 0.85rem 1.25rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      background: rgba(0, 0, 0, 0.35);
+    }
+
+    .log-entry {
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+      line-height: 1.4;
+      animation: fadeIn 0.2s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .log-time { color: #64748b; font-size: 0.75rem; }
+    .log-tag { font-weight: 700; padding: 0.1rem 0.45rem; border-radius: 4px; font-size: 0.7rem; }
+    .tag-seam { background: rgba(59, 130, 246, 0.25); color: #93c5fd; }
+    .tag-mcp { background: rgba(16, 185, 129, 0.25); color: #6ee7b7; }
+    .tag-ot { background: rgba(6, 182, 212, 0.25); color: #67e8f9; }
+    .tag-info { background: rgba(245, 158, 11, 0.25); color: #fde047; }
+
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
+    ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
+  </style>
+</head>
+<body>
+  <!-- App Header -->
+  <header class="app-header">
+    <div class="brand">
+      <div class="logo-icon">⚡</div>
+      <div class="brand-text">
+        <h1>Firepad 2026</h1>
+      </div>
+      <div class="badge">ES Module Studio Live</div>
+    </div>
+    
+    <div class="header-actions">
+      <div class="status-indicator">
+        <span class="pulse-dot"></span>
+        <span>Connected to Pyric SharedWorker</span>
+      </div>
+      <button onclick="window.resetSandbox()" class="btn-small" style="background: #ef444420; color: #fca5a5; border: 1px solid #ef444450; padding: 0.45rem 0.85rem; border-radius: 0.5rem; font-weight: 600; cursor: pointer;">
+        🗑️ Reset Sandbox & Reload
+      </button>
+      <a href="/__pyric/ui/rtdb" target="_blank" class="btn-studio">
+        📊 Open Pyric Studio (RTDB Tab) ↗
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Work area -->
+  <main class="grid-layout">
+    <!-- Editor 1: Primary Developer -->
+    <section class="card">
+      <header class="card-header">
+        <div class="user-info">
+          <span class="user-avatar avatar-david">D</span>
+          <span>Primary Editor</span>
+          <span class="user-tag tag-david">dev-david</span>
+        </div>
+        <span class="seam-status">ES Module: firebase/database</span>
+      </header>
+      <div class="editor-wrapper">
+        <div id="editor-david"></div>
+      </div>
+    </section>
+
+    <!-- Editor 2: Peer Collaborator -->
+    <section class="card">
+      <header class="card-header">
+        <div class="user-info">
+          <span class="user-avatar avatar-reviewer">P</span>
+          <span>Live Synchronized Peer</span>
+          <span class="user-tag tag-reviewer">peer-reviewer</span>
+        </div>
+        <span class="seam-status">SharedWorker: /pyric-studio-live</span>
+      </header>
+      <div class="editor-wrapper">
+        <div id="editor-peer"></div>
+      </div>
+    </section>
+
+    <!-- Sidebar: AI Co-Pilot & Studio Controls -->
+    <aside class="ai-sidebar">
+      <div class="card ai-panel">
+        <div class="ai-header-title">
+          <span>🤖 Pyric AI Co-Pilot</span>
+        </div>
+        <p class="ai-desc">
+          Commands execute over ES modules into Pyric's SharedWorker. Watch operations, presence cursors, and AI ghost diffs stream cleanly into Pyric Studio's Realtime Database dashboard!
+        </p>
+        
+        <button class="btn-action btn-ai" onclick="window.simulateAIThinking()">
+          ✨ Trigger AI Analysis (stream_thinking)
+        </button>
+
+        <button class="btn-action btn-ot" onclick="window.proposeRefactor()">
+          🚀 Propose Refactor (OT Ghost Diff)
+        </button>
+
+        <!-- Dynamic OT Ghost Diff Visualizer -->
+        <div id="ghost-card" class="ghost-card">
+          <div class="ghost-title">
+            <span>PROPOSED GHOST DIFF</span>
+            <span>rev: <strong id="ghost-rev">A1</strong></span>
+          </div>
+          <div class="ghost-explanation" id="ghost-explanation">
+            Adding JSDoc type notation to improve IDE completion.
+          </div>
+          <div class="ghost-actions">
+            <button class="btn-small btn-accept" onclick="window.acceptDiff()">Promote Diff ✓</button>
+            <button class="btn-small btn-dismiss" onclick="window.dismissDiff()">Dismiss ✕</button>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Bottom Console Section -->
+  <section class="card console-section">
+    <header class="console-header">
+      <span>💻 Live SharedWorker & Pyric Studio Event Log</span>
+      <button class="btn-small" style="flex: none; padding: 0.3rem 0.7rem; color: #cbd5e1;" onclick="window.clearLogs()">Clear Logs</button>
+    </header>
+    <div id="console-log-area" class="console-log-area"></div>
+  </section>
+
+  <!-- ES Module Script linking Firebase modular SDK to Pyric Sandbox SharedWorker -->
+  <script type="module">
+    // When served by Vite during local development, @pyric/cli/vite maps canonical 'firebase/*' imports directly to 'pyric/*' mirrors!
+    import { initializeApp } from 'firebase/app';
+    import { getDatabase, ref, child, onValue, onChildAdded, onChildChanged, onChildRemoved, off, get, set, remove, runTransaction, push, update } from 'firebase/database';
+
+    // Initialize Firebase client app registry against Pyric's local SharedWorker
+    const app = initializeApp({ projectId: 'demo-studio-pad' });
+    const db = getDatabase(app);
+    const modularRef = ref(db, '/pyric-studio-live');
+
+    // Logging utility
+    const logArea = document.getElementById('console-log-area');
+    function log(tag, tagClass, message) {
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      const now = new Date().toISOString().split('T')[1].slice(0, 12);
+      entry.innerHTML = `<span class="log-time">[${now}]</span><span class="log-tag ${tagClass}">[${tag}]</span><span>${message}</span>`;
+      logArea.appendChild(entry);
+      logArea.scrollTop = logArea.scrollHeight;
+    }
+    window.clearLogs = () => { logArea.innerHTML = ''; };
+    window.resetSandbox = () => {
+      log('WARN', 'tag-warn', 'Resetting Pyric SharedWorker database sandbox...');
+      remove(modularRef).then(() => {
+        window.location.reload();
+      }).catch((err) => {
+        console.error('Reset error:', err);
+        window.location.reload();
+      });
+    };
+
+    log('INFO', 'tag-info', 'Initializing Pyric Realtime Database over ES Modules (firebase/database)...');
+
+    /**
+     * Modular-to-Seam Adapter Helper
+     * Bridges modern Firebase/Pyric modular SDK reference objects into the rich interface expected by PyricSandboxAdapter.
+     */
+    function wrapModularRef(r) {
+      const refObj = {
+        key: r.key,
+        get root() { return r.root === r ? this : wrapModularRef(r.root); },
+        toString: () => r.toString(),
+        child: (pathStr) => wrapModularRef(child(r, pathStr)),
+        push: (val) => {
+          const pushedRef = push(r, val);
+          return wrapModularRef(pushedRef);
+        },
+        update: (val) => update(r, val),
+        on: (eventType, cb) => {
+          if (eventType === 'value') return onValue(r, cb);
+          if (eventType === 'child_added') return onChildAdded(r, cb);
+          if (eventType === 'child_changed') return onChildChanged(r, cb);
+          if (eventType === 'child_removed') return onChildRemoved(r, cb);
+        },
+        off: () => off(r),
+        once: (eventType, cb) => {
+          if (eventType === 'value') {
+            get(r).then(cb).catch((err) => console.error('get error:', err));
+          }
+        },
+        set: (val) => set(r, val),
+        remove: () => remove(r),
+        transaction: (updateFn, onComplete) => {
+          runTransaction(r, updateFn)
+            .then((res) => {
+              if (onComplete) onComplete(null, res.committed, res.snapshot);
+            })
+            .catch((err) => {
+              if (onComplete) onComplete(err, false, null);
+            });
+        }
+      };
+      return refObj;
+    }
+
+    const seamRef = wrapModularRef(modularRef);
+    window.db = db;
+    window.modularRef = modularRef;
+    window.seamRef = seamRef;
+
+    // Initialize Primary Editor
+    const davidAdapter = new firepad.SyncSeam.PyricSandboxAdapter(seamRef, 'dev-david', '#3b82f6');
+    window.davidAdapter = davidAdapter;
+    davidAdapter.on('ready', () => { log('SEAM', 'tag-seam', 'davidAdapter connected and ready!'); });
+
+    const cmDavid = CodeMirror(document.getElementById('editor-david'), {
+      lineNumbers: true,
+      mode: 'javascript',
+      theme: 'material-darker',
+      lineWrapping: true
+    });
+
+    const defaultText = '// 2026 Agentive UI Collaboration Demo\n' +
+                        '// Watch these exact edits appear in Pyric Studio (/__pyric/ui/rtdb)!\n\n' +
+                        'function calculateSum(a, b) {\n' +
+                        '  return a + b;\n' +
+                        '}\n\n' +
+                        'console.log("Result:", calculateSum(10, 20));\n';
+
+    let davidFirepad = null;
+    try {
+      davidFirepad = new firepad.Firepad(seamRef, cmDavid, {
+        syncAdapter: davidAdapter,
+        defaultText: defaultText,
+        userId: 'dev-david',
+        userColor: '#3b82f6'
+      });
+      window.davidFirepad = davidFirepad;
+    } catch(e) {
+      log('ERR', 'tag-ot', `Firepad construction error: ${e.message || e}`);
+      console.error(e);
+    }
+
+    let mcpBridge = null;
+
+    // Sequentialize initialization to ensure defaultText revision (A0) commits cleanly before secondary client connects
+    davidFirepad.on('ready', () => {
+      log('SEAM', 'tag-seam', 'Primary Editor synchronized with Pyric SharedWorker RTDB (revision A0).');
+
+      const peerAdapter = new firepad.SyncSeam.PyricSandboxAdapter(seamRef, 'peer-reviewer', '#8b5cf6');
+      const cmPeer = CodeMirror(document.getElementById('editor-peer'), {
+        lineNumbers: true,
+        mode: 'javascript',
+        theme: 'material-darker',
+        lineWrapping: true,
+        readOnly: false
+      });
+
+      const peerFirepad = new firepad.Firepad(seamRef, cmPeer, {
+        syncAdapter: peerAdapter,
+        userId: 'peer-reviewer',
+        userColor: '#8b5cf6'
+      });
+
+      peerFirepad.on('ready', () => {
+        log('SEAM', 'tag-seam', 'Peer Reviewer synchronized over SharedWorker at 60fps.');
+      });
+
+      // Initialize AI MCP Collaboration Bridge
+      const davidEngine = firepad.DocumentEngine.create(davidAdapter);
+      mcpBridge = firepad.PyricMCPBridge.createBridge(davidEngine, davidAdapter, 'copilot-gemini');
+      log('MCP', 'tag-mcp', 'PyricMCPBridge connected to SharedWorker. Open Pyric Studio to monitor RTDB tree!');
+
+      // Expose to window for debugging and automated diagnostics
+      window.davidFirepad = davidFirepad;
+      window.peerFirepad = peerFirepad;
+      window.davidAdapter = davidAdapter;
+      window.peerAdapter = peerAdapter;
+      window.mcpBridge = mcpBridge;
+    });
+
+    // Expose AI button interaction handlers to window
+    window.simulateAIThinking = () => {
+      if (!mcpBridge) return;
+      log('MCP', 'tag-mcp', 'Received RPC command: stream_thinking');
+      mcpBridge.streamThinking('Analyzing AST type annotations and modern syntax opportunities...');
+      log('INFO', 'tag-info', 'AI status set to "thinking". Active collaborators notified via SharedWorker.');
+    };
+
+    window.proposeRefactor = () => {
+      if (!mcpBridge || !window.davidFirepad) return;
+      log('MCP', 'tag-mcp', 'Received RPC command: propose_diff');
+
+      // Dynamically calculate base lengths to preserve Operational Transformation invariants
+      const textLen = window.davidFirepad.getText().length;
+      const insertPos = Math.min(68, textLen);
+      const remainLen = Math.max(0, textLen - insertPos);
+      const op = new firepad.TextOperation()
+        .retain(insertPos)
+        .insert('/** @return {number} */\n')
+        .retain(remainLen);
+
+      mcpBridge.proposeRefactor(op, 'Add JSDoc return type notation for better IDE autocompletion').then((proposal) => {
+        log('OT', 'tag-ot', `GhostDiff created at revision A${proposal.baseRevision} without mutating authoritative document.`);
+        document.getElementById('ghost-rev').innerText = `A${proposal.baseRevision}`;
+        document.getElementById('ghost-card').style.display = 'flex';
+      });
+    };
+
+    window.acceptDiff = () => {
+      if (!mcpBridge) return;
+      log('MCP', 'tag-mcp', 'Received RPC command: promote_diff');
+      mcpBridge.promoteDiff().then((ack) => {
+        log('SEAM', 'tag-seam', `Authoritative commit confirmed! Revision incremented to A${ack.revision} in SharedWorker RTDB.`);
+        document.getElementById('ghost-card').style.display = 'none';
+      }).catch((e) => {
+        log('INFO', 'tag-info', `Commit failed: ${e.message}`);
+      });
+    };
+
+    window.dismissDiff = () => {
+      if (!mcpBridge) return;
+      log('MCP', 'tag-mcp', 'Received RPC command: dismiss_diff');
+      mcpBridge.dismissDiff();
+      document.getElementById('ghost-card').style.display = 'none';
+      log('OT', 'tag-ot', 'GhostDiff dismissed. Authoritative document untouched.');
+    };
+  </script>
+</body>
+</html>
