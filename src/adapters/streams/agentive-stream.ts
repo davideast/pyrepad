@@ -80,8 +80,8 @@ export class AgentiveStreamHandler {
     if (hasValidRef) {
       try {
         this.ref!.child("agentive").off();
-      } catch (_err) {
-        // Suppress disconnection cleanup errors
+      } catch (err) {
+        console.warn("Unexpected error during agentive stream teardown:", err);
       }
     }
   }

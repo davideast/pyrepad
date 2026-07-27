@@ -118,8 +118,8 @@ export class PresenceStreamHandler {
         if (hasUserId) {
           this.ref!.child("users/" + currentUserId).remove();
         }
-      } catch (_err) {
-        // Suppress disconnection cleanup errors
+      } catch (err) {
+        console.warn("Unexpected error during presence stream teardown:", err);
       }
     }
   }

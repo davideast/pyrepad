@@ -254,8 +254,11 @@ export class PyricSandboxAdapter implements SyncSeam {
           ? this.ref.root.child(".info/connected")
           : this.ref.child(".info/connected");
         connRef.off();
-      } catch (_err) {
-        // Ignore disconnection cleanup error
+      } catch (err) {
+        console.warn(
+          "Unexpected error during adapter connection teardown:",
+          err,
+        );
       }
     }
 
