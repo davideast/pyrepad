@@ -2,7 +2,13 @@
  * Independent protocol stream handler for collaborative user cursor presence.
  */
 import { Cursor } from "../../core/index.ts";
-import { RefLike, SnapLike, PresenceEvent } from "../types.ts";
+import {
+  RefLike,
+  SnapLike,
+  PresenceEvent,
+  getSnapKey,
+  getSnapVal,
+} from "../types.ts";
 import { ReactiveStream } from "../reactive-stream.ts";
 
 export class PresenceStreamHandler {
@@ -49,12 +55,11 @@ export class PresenceStreamHandler {
     snap: SnapLike,
     state: "active" | "disconnected",
   ): void {
-    const userId =
-      snap.key || (typeof snap.name === "function" ? snap.name() : null);
+    const userId = getSnapKey(snap);
     const isSelfOrInvalid = !userId || userId === this.getUserId();
     if (isSelfOrInvalid) return;
 
-    const data = (snap.val() as Record<string, unknown>) || {};
+    const data = (getSnapVal(snap) as Record<string, unknown>) || {};
     const hasCursorData = Boolean(data && data.cursor);
     if (!hasCursorData) return;
 
@@ -70,8 +75,7 @@ export class PresenceStreamHandler {
   }
 
   private handleUserRemoved(snap: SnapLike): void {
-    const userId =
-      snap.key || (typeof snap.name === "function" ? snap.name() : null);
+    const userId = getSnapKey(snap);
     const isValidPeer = Boolean(userId && userId !== this.getUserId());
     if (!isValidPeer) return;
 

@@ -2,7 +2,13 @@
  * Independent protocol stream handler for document history and operational transformations.
  */
 import { TextOperation } from "../../core/index.ts";
-import { RefLike, SnapLike, TextOperationEvent } from "../types.ts";
+import {
+  RefLike,
+  SnapLike,
+  TextOperationEvent,
+  getSnapKey,
+  getSnapVal,
+} from "../types.ts";
 import { ReactiveStream } from "../reactive-stream.ts";
 
 export function revisionToId(rev: number): string {
@@ -46,13 +52,11 @@ export class HistoryStreamHandler {
 
     const historyRef = this.ref!.child("history");
     historyRef.on("child_added", (snap: SnapLike) => {
-      const revId =
-        snap.key || (typeof snap.name === "function" ? snap.name() : null);
+      const revId = getSnapKey(snap);
       const isMissingKey = !revId;
       if (isMissingKey) return;
 
-      this.pendingRevisions[revId!] =
-        typeof snap.val === "function" ? snap.val() : null;
+      this.pendingRevisions[revId!] = getSnapVal(snap);
       const isAdapterReady = this.ctx.isReady();
       if (isAdapterReady) {
         this.drainPendingRevisions();
@@ -61,8 +65,7 @@ export class HistoryStreamHandler {
   }
 
   composeInitialRevisions(snap: SnapLike): void {
-    let rawVal =
-      snap && typeof snap.val === "function" ? snap.val() : snap || {};
+    let rawVal = getSnapVal(snap);
     const isObjectVal = typeof rawVal === "object" && rawVal !== null;
     if (!isObjectVal) rawVal = {};
 
@@ -142,10 +145,8 @@ export class HistoryStreamHandler {
       const hasMatchingSent = Boolean(this.sent && revId === this.sent.id);
       if (hasMatchingSent) {
         const isSelfAuthor = data.a === this.ctx.getUserId();
-        const isOpEqual =
-          typeof this.sent!.op.equals === "function"
-            ? this.sent!.op.equals(op)
-            : true;
+        const hasEqualsMethod = typeof this.sent!.op.equals === "function";
+        const isOpEqual = hasEqualsMethod ? this.sent!.op.equals(op) : true;
         const isAuthoritativeMatch = isSelfAuthor && isOpEqual;
 
         if (isAuthoritativeMatch) {
@@ -172,6 +173,15 @@ export class HistoryStreamHandler {
     author: string,
     callback?: (err: Error | null, committed?: boolean) => void,
   ): void {
+    const isInvalidRef = !this.ref || typeof this.ref.child !== "function";
+    if (isInvalidRef) {
+      callback?.(
+        new Error("Database reference is uninitialized or destroyed"),
+        false,
+      );
+      return;
+    }
+
     const revStr = revisionToId(this.revision);
     const userId = this.ctx.getUserId();
     const isSelfAuthor = author === userId;
@@ -180,37 +190,35 @@ export class HistoryStreamHandler {
     }
 
     const historyRef = this.ref!.child("history").child(revStr);
-    const transactionFn = historyRef.transaction;
-    const hasTransaction = typeof transactionFn === "function";
-
-    if (hasTransaction) {
-      transactionFn.call(
-        historyRef,
-        (current: unknown) => {
-          const isUnclaimed = current === null || current === undefined;
-          if (isUnclaimed) {
-            const opData =
-              typeof (operation as unknown as Record<string, unknown>)
-                .toJSON === "function"
-                ? (operation as { toJSON(): unknown }).toJSON()
-                : operation;
-            return {
-              a: author,
-              o: opData,
-              t: Date.now(),
-            };
-          }
-          return undefined;
-        },
-        (err: Error | null, committed: boolean) => {
-          const hasCallback = typeof callback === "function";
-          if (hasCallback) callback!(err, committed);
-        },
-      );
-    } else {
-      const hasCallback = typeof callback === "function";
-      if (hasCallback) callback!(new Error("Transaction unsupported"), false);
+    const isTransactionUnsupported =
+      typeof historyRef.transaction !== "function";
+    if (isTransactionUnsupported) {
+      callback?.(new Error("Transaction unsupported"), false);
+      return;
     }
+
+    historyRef.transaction(
+      (current: unknown) => {
+        const isAlreadyClaimed = current !== null && current !== undefined;
+        if (isAlreadyClaimed) return undefined;
+
+        const hasToJSON =
+          operation &&
+          typeof (operation as Record<string, unknown>).toJSON === "function";
+        const opData = hasToJSON
+          ? (operation as { toJSON(): unknown }).toJSON()
+          : operation;
+
+        return {
+          a: author,
+          o: opData,
+          t: Date.now(),
+        };
+      },
+      (err: Error | null, committed: boolean) => {
+        callback?.(err, committed);
+      },
+    );
   }
 
   dispose(): void {
