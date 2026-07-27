@@ -1,42 +1,33 @@
 
-name: CI Tests
+name: Pyrepad CI ⚡
 
 on:
   pull_request:
-    branches-ignore: 'gh-pages'
   push:
-    branches-ignore: 'gh-pages'
-
-env:
-  CI: true
+    branches:
+      - main
 
 jobs:
-  unit:
+  verify:
+    name: Build & Test (Bun)
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version:
-          - 10.x
     steps:
-      - uses: actions/checkout@v1
-      - uses: actions/setup-node@v1
-        with:
-          node-version: ${{ matrix.node-version }}
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Cache npm
-        uses: actions/cache@v1
+      - name: Setup Bun 🚀
+        uses: oven-sh/setup-bun@v2
         with:
-          path: ~/.npm
-          key: ${{ runner.os }}-node-${{ matrix.node-version }}-${{ hashFiles('**/package-lock.json') }}
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm install
+        run: bun install --frozen-lockfile
 
-      - name: Run tests
-        run: npm run travis
+      - name: Typecheck TypeScript definitions
+        run: bun run typecheck
 
-      - name: Coveralls
-        uses: coverallsapp/github-action@master
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          path-to-lcov: ./test/coverage/lcov.info
+      - name: Build distribution bundles
+        run: bun run build
+
+      - name: Verify 102 unit & seam test suites
+        run: bun test test/specs/*.spec.js
