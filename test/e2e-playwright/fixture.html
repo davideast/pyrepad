@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>PyricPad Playwright Collaborative Fixture</title>
+    <link rel="stylesheet" href="/node_modules/codemirror/lib/codemirror.css" />
+    <link rel="stylesheet" href="/dist/firepad.css" />
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        margin: 0;
+        padding: 20px;
+        background: #0f172a;
+        color: #f8fafc;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        height: 100vh;
+        box-sizing: border-box;
+      }
+      h1 {
+        font-size: 1.25rem;
+        margin: 0;
+        color: #38bdf8;
+      }
+      .viewports-container {
+        display: flex;
+        gap: 20px;
+        flex: 1;
+      }
+      .viewport {
+        flex: 1;
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .viewport-header {
+        padding: 12px 16px;
+        background: #0f172a;
+        border-bottom: 1px solid #334155;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .client-title {
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .status-badge {
+        font-size: 0.75rem;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+      .status-badge.online {
+        background: #059669;
+        color: #ecfdf5;
+      }
+      .status-badge.offline {
+        background: #dc2626;
+        color: #fef2f2;
+      }
+      .actions {
+        display: flex;
+        gap: 8px;
+      }
+      button {
+        background: #3b82f6;
+        color: white;
+        border: none;
+        padding: 6px 12px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      button:hover {
+        background: #2563eb;
+      }
+      button.danger {
+        background: #ef4444;
+      }
+      button.danger:hover {
+        background: #dc2626;
+      }
+      .editor-wrapper {
+        flex: 1;
+        position: relative;
+      }
+      .CodeMirror {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 100% !important;
+        font-size: 14px;
+        background: #0f172a;
+        color: #e2e8f0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>PyricPad Tier C: Multi-Client Collaborative Acceptance Harness</h1>
+    <div class="viewports-container">
+      <div id="viewport-a" class="viewport">
+        <div class="viewport-header">
+          <div class="client-title">
+            <span style="color: #ef4444">●</span> Client Alice
+            <span id="status-a" class="status-badge online">online</span>
+          </div>
+          <div class="actions">
+            <button id="btn-disconnect-a" class="danger">Disconnect</button>
+            <button id="btn-reconnect-a" style="display: none">Reconnect</button>
+          </div>
+        </div>
+        <div id="editor-container-a" class="editor-wrapper"></div>
+      </div>
+
+      <div id="viewport-b" class="viewport">
+        <div class="viewport-header">
+          <div class="client-title">
+            <span style="color: #3b82f6">●</span> Client Bob
+            <span id="status-b" class="status-badge online">online</span>
+          </div>
+          <div class="actions">
+            <button id="btn-disconnect-b" class="danger">Disconnect</button>
+            <button id="btn-reconnect-b" style="display: none">Reconnect</button>
+          </div>
+        </div>
+        <div id="editor-container-b" class="editor-wrapper"></div>
+      </div>
+    </div>
+    <script src="/node_modules/codemirror/lib/codemirror.js"></script>
+    <script src="/dist/firepad.js"></script>
+    <script type="module" src="/test/e2e-playwright/fixture.js"></script>
+  </body>
+</html>

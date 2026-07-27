@@ -15,3 +15,5 @@ dist/
 _site/
 .firebase/
 .pyric/
+test-results/
+playwright-report/
