@@ -1,5 +1,9 @@
 /**
- * @pyric/pad/adapters
- * Stream-Partitioned Database & Network Synchronization Seam
+ * @pyric/pad/adapters - Stream-Partitioned Modular Database Adapters and SyncSeam interface.
  */
-export const VERSION = "2.0.0";
+export * from "./types.ts";
+export * from "./reactive-stream.ts";
+export * from "./pyric-sandbox-adapter.ts";
+export * from "./streams/history-stream.ts";
+export * from "./streams/presence-stream.ts";
+export * from "./streams/agentive-stream.ts";
