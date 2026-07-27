@@ -4,7 +4,7 @@ import reactHooksPlugin from "eslint-plugin-react-hooks";
 
 export default [
   {
-    files: ["packages/**/*.{ts,js,tsx,jsx}", "src/**/*.{ts,js,tsx,jsx}"],
+    files: ["src/**/*.{ts,js,tsx,jsx}"],
     languageOptions: {
       parser: tsParser,
       ecmaVersion: "latest",
@@ -44,8 +44,8 @@ export default [
     }
   },
   {
-    // Zero-DOM Headless Server Guarantee for @pyrepad/core
-    files: ["packages/core/**/*.{ts,js}"],
+    // Zero-DOM Headless Server Guarantee for @pyric/pad/core
+    files: ["src/core/**/*.{ts,js}"],
     rules: {
       "no-restricted-globals": [
         "error",
