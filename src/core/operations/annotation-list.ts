@@ -36,18 +36,22 @@ export class AnnotationList {
     this.wrapOperation_(
       new Span(span.pos, 0),
       (oldPos: number, old: Node | null) => {
-        assert(!old || old.next === null);
+        const isTerminatedOrEmpty = old === null || old.next === null;
+        assert(isTerminatedOrEmpty);
         const toInsert = new Node(span.length, annotation);
-        if (!old) {
+        const isListEmptyAtInsert = old === null;
+        if (isListEmptyAtInsert) {
           return toInsert;
         } else {
-          assert(span.pos > oldPos && span.pos < oldPos + old.length);
+          const isWithinExistingNode =
+            span.pos > oldPos && span.pos < oldPos + old!.length;
+          assert(isWithinExistingNode);
           const newNodes = new Node(0, NullAnnotation);
-          newNodes.next = new Node(span.pos - oldPos, old.annotation);
+          newNodes.next = new Node(span.pos - oldPos, old!.annotation);
           newNodes.next.next = toInsert;
           toInsert.next = new Node(
-            oldPos + old.length - span.pos,
-            old.annotation,
+            oldPos + old!.length - span.pos,
+            old!.annotation,
           );
           return newNodes.next;
         }
@@ -56,26 +60,31 @@ export class AnnotationList {
   }
 
   removeSpan(span: Span): void {
-    if (span.length === 0) return;
+    const isZeroLength = span.length === 0;
+    if (isZeroLength) return;
 
     this.wrapOperation_(span, (oldPos: number, old: Node | null) => {
-      assert(old !== null);
+      const hasOldNode = old !== null;
+      assert(hasOldNode);
       const newNodes = new Node(0, NullAnnotation);
       let current = newNodes;
-      if (span.pos > oldPos && old) {
-        current.next = new Node(span.pos - oldPos, old.annotation);
+      const beginsAfterOldPos = old !== null && span.pos > oldPos;
+      if (beginsAfterOldPos) {
+        current.next = new Node(span.pos - oldPos, old!.annotation);
         current = current.next;
       }
 
-      while (old && span.end() > oldPos + old.length) {
+      while (old !== null && span.end() > oldPos + old.length) {
         oldPos += old.length;
         old = old.next;
       }
 
-      if (old) {
-        const afterChars = oldPos + old.length - span.end();
-        if (afterChars > 0) {
-          current.next = new Node(afterChars, old.annotation);
+      const hasSurvivingTail = old !== null;
+      if (hasSurvivingTail) {
+        const afterChars = oldPos + old!.length - span.end();
+        const hasSuffixAfterRemoval = afterChars > 0;
+        if (hasSuffixAfterRemoval) {
+          current.next = new Node(afterChars, old!.annotation);
         }
       }
       return newNodes.next;
@@ -86,19 +95,24 @@ export class AnnotationList {
     span: Span,
     updateFn: (annotation: any, length: number) => any,
   ): void {
-    if (span.length === 0) return;
+    const isZeroLength = span.length === 0;
+    if (isZeroLength) return;
 
     this.wrapOperation_(span, (oldPos: number, old: Node | null) => {
-      assert(old !== null);
+      const hasOldNode = old !== null;
+      assert(hasOldNode);
       const newNodes = new Node(0, NullAnnotation);
       let current = newNodes;
       let currentPos = oldPos;
 
-      if (old) {
+      const hasPrefixNode = old !== null;
+      if (hasPrefixNode) {
         const beforeChars = span.pos - currentPos;
-        assert(beforeChars < old.length);
-        if (beforeChars > 0) {
-          current.next = new Node(beforeChars, old.annotation);
+        const isBeforeLengthValid = beforeChars < old!.length;
+        assert(isBeforeLengthValid);
+        const hasUnmodifiedPrefix = beforeChars > 0;
+        if (hasUnmodifiedPrefix) {
+          current.next = new Node(beforeChars, old!.annotation);
           current = current.next;
           currentPos += current.length;
         }
@@ -113,20 +127,23 @@ export class AnnotationList {
         currentPos = oldPos;
       }
 
-      if (old) {
+      const hasSuffixNode = old !== null;
+      if (hasSuffixNode) {
         const updateChars = span.end() - currentPos;
-        if (updateChars > 0) {
-          assert(updateChars < old.length);
+        const hasPartialNodeUpdate = updateChars > 0;
+        if (hasPartialNodeUpdate) {
+          const isUpdateLengthValid = updateChars < old!.length;
+          assert(isUpdateLengthValid);
           current.next = new Node(
             updateChars,
-            updateFn(old.annotation, updateChars),
+            updateFn(old!.annotation, updateChars),
           );
           current = current.next;
           currentPos += current.length;
 
           current.next = new Node(
-            oldPos + old.length - currentPos,
-            old.annotation,
+            oldPos + old!.length - currentPos,
+            old!.annotation,
           );
         }
       }
@@ -166,22 +183,26 @@ export class AnnotationList {
       prev = current;
       current = current.next;
     }
-    if (current === null && currentPos !== pos) {
+    const isOutOfBounds = current === null && currentPos !== pos;
+    if (isOutOfBounds) {
       throw new Error("pos exceeds the bounds of the AnnotationList");
     }
 
     const res: OldAnnotatedSpan[] = [];
-    if (currentPos === pos && prev) {
-      res.push(new OldAnnotatedSpan(currentPos - prev.length, prev));
+    const isAtExactBoundaryWithPrev = currentPos === pos && prev !== null;
+    if (isAtExactBoundaryWithPrev) {
+      res.push(new OldAnnotatedSpan(currentPos - prev!.length, prev!));
     }
-    if (current) {
-      res.push(new OldAnnotatedSpan(currentPos, current));
+    const hasCurrentNode = current !== null;
+    if (hasCurrentNode) {
+      res.push(new OldAnnotatedSpan(currentPos, current!));
     }
     return res;
   }
 
   getAnnotatedSpansForSpan(span: Span): Span[] {
-    if (span.length === 0) return [];
+    const isZeroLength = span.length === 0;
+    if (isZeroLength) return [];
     const oldSpans: Span[] = [];
     const res = this.getAffectedNodes_(span);
     let currentPos = res.startPos;
@@ -204,8 +225,12 @@ export class AnnotationList {
     let current = this.head_.next;
     let prev: Node | null = null;
     while (current !== null) {
-      if (prev) {
-        assert(!prev.annotation.equals(current.annotation));
+      const hasPredecessor = prev !== null;
+      if (hasPredecessor) {
+        const isAnnotationDistinct = !prev!.annotation.equals(
+          current.annotation,
+        );
+        assert(isAnnotationDistinct);
       }
       prev = current;
       current = current.next;
