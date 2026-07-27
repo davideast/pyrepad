@@ -1,6 +1,4 @@
-/**
- * Initialization and network simulation script for PyricPad Playwright acceptance fixture.
- */
+import { CodeMirror5Adapter } from "/src/editors/index.ts";
 
 function createDisconnectableRef(baseRef) {
   var state = {
@@ -233,6 +231,9 @@ function initializeHarness() {
     useSyncSeam: true,
   });
 
+  var driverA = new CodeMirror5Adapter(cmA);
+  var driverB = new CodeMirror5Adapter(cmB);
+
   window.testHarness = {
     padA: padA,
     padB: padB,
@@ -240,6 +241,8 @@ function initializeHarness() {
     cmB: cmB,
     refA: refA,
     refB: refB,
+    driverA: driverA,
+    driverB: driverB,
   };
 
   setupNetworkControls("a", refA);
