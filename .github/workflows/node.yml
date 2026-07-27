@@ -26,6 +26,9 @@ jobs:
       - name: Typecheck TypeScript definitions
         run: bun run typecheck
 
+      - name: Verify ESLint complexity & architecture guardrails
+        run: bun run lint
+
       - name: Build distribution bundles
         run: bun run build
 

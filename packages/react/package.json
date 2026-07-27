@@ -1,0 +1,14 @@
+{
+  "name": "@pyrepad/react",
+  "version": "2.0.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@pyrepad/core": "workspace:*",
+    "@pyrepad/adapters": "workspace:*",
+    "@pyrepad/editors": "workspace:*"
+  }
+}
