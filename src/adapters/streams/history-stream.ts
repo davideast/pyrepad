@@ -219,8 +219,8 @@ export class HistoryStreamHandler {
     if (hasValidRef) {
       try {
         this.ref!.child("history").off();
-      } catch (_err) {
-        // Suppress disconnection cleanup errors
+      } catch (err) {
+        console.warn("Unexpected error during history stream teardown:", err);
       }
     }
   }
