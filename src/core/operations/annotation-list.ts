@@ -9,7 +9,11 @@ import {
   NewAnnotatedSpan,
   Span,
 } from "./annotation-node.ts";
-import { wrapOperation, getAffectedNodes } from "./annotation-mutations.ts";
+import {
+  wrapOperation,
+  getAffectedNodes,
+  type AffectedNodesResult,
+} from "./annotation-mutations.ts";
 
 export class AnnotationList {
   head_: Node;
@@ -28,7 +32,7 @@ export class AnnotationList {
     this.changeHandler_ = changeHandler;
   }
 
-  insertAnnotatedSpan(span: any, annotation: any): void {
+  insertAnnotatedSpan(span: Span, annotation: any): void {
     this.wrapOperation_(
       new Span(span.pos, 0),
       (oldPos: number, old: Node | null) => {
@@ -51,25 +55,25 @@ export class AnnotationList {
     );
   }
 
-  removeSpan(removeSpan: any): void {
-    if (removeSpan.length === 0) return;
+  removeSpan(span: Span): void {
+    if (span.length === 0) return;
 
-    this.wrapOperation_(removeSpan, (oldPos: number, old: Node | null) => {
+    this.wrapOperation_(span, (oldPos: number, old: Node | null) => {
       assert(old !== null);
       const newNodes = new Node(0, NullAnnotation);
       let current = newNodes;
-      if (removeSpan.pos > oldPos && old) {
-        current.next = new Node(removeSpan.pos - oldPos, old.annotation);
+      if (span.pos > oldPos && old) {
+        current.next = new Node(span.pos - oldPos, old.annotation);
         current = current.next;
       }
 
-      while (old && removeSpan.end() > oldPos + old.length) {
+      while (old && span.end() > oldPos + old.length) {
         oldPos += old.length;
         old = old.next;
       }
 
       if (old) {
-        const afterChars = oldPos + old.length - removeSpan.end();
+        const afterChars = oldPos + old.length - span.end();
         if (afterChars > 0) {
           current.next = new Node(afterChars, old.annotation);
         }
@@ -79,7 +83,7 @@ export class AnnotationList {
   }
 
   updateSpan(
-    span: any,
+    span: Span,
     updateFn: (annotation: any, length: number) => any,
   ): void {
     if (span.length === 0) return;
@@ -131,7 +135,7 @@ export class AnnotationList {
   }
 
   wrapOperation_(
-    span: any,
+    span: Span,
     operationFn: (pos: number, node: Node | null) => Node | null,
   ): void {
     wrapOperation(this.head_, span, operationFn, (o, n) =>
@@ -139,7 +143,7 @@ export class AnnotationList {
     );
   }
 
-  getAffectedNodes_(span: any): any {
+  getAffectedNodes_(span: Span): AffectedNodesResult {
     return getAffectedNodes(this.head_, span);
   }
 
@@ -176,16 +180,16 @@ export class AnnotationList {
     return res;
   }
 
-  getAnnotatedSpansForSpan(span: any): any[] {
+  getAnnotatedSpansForSpan(span: Span): Span[] {
     if (span.length === 0) return [];
-    const oldSpans: any[] = [];
+    const oldSpans: Span[] = [];
     const res = this.getAffectedNodes_(span);
     let currentPos = res.startPos;
     let current = res.start;
     while (current !== null && currentPos < span.end()) {
       const start = Math.max(currentPos, span.pos);
       const end = Math.min(currentPos + current.length, span.end());
-      const oldSpan: any = new Span(start, end - start);
+      const oldSpan = new Span(start, end - start);
       oldSpan.annotation = current.annotation;
       oldSpans.push(oldSpan);
 

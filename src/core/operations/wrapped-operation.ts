@@ -1,23 +1,12 @@
 /**
  * A WrappedOperation contains an operation and corresponding metadata.
  */
-function copy(source: Record<string, any>, target: Record<string, any>): void {
-  for (const key in source) {
-    if (Object.prototype.hasOwnProperty.call(source, key)) {
-      target[key] = source[key];
-    }
-  }
-}
-
 function composeMeta(a: any, b: any): any {
   if (a && typeof a === "object") {
     if (typeof a.compose === "function") {
       return a.compose(b);
     }
-    const meta: Record<string, any> = {};
-    copy(a, meta);
-    copy(b, meta);
-    return meta;
+    return { ...a, ...b };
   }
   return b;
 }
@@ -45,13 +34,15 @@ export class WrappedOperation {
   }
 
   invert(...args: any[]): WrappedOperation {
-    const meta = this.meta;
-    return new WrappedOperation(
-      this.wrapped.invert(...args),
-      meta && typeof meta === "object" && typeof meta.invert === "function"
-        ? meta.invert(...args)
-        : meta,
-    );
+    let nextMeta = this.meta;
+    const isInvertible =
+      nextMeta !== null &&
+      typeof nextMeta === "object" &&
+      typeof nextMeta.invert === "function";
+    if (isInvertible) {
+      nextMeta = nextMeta.invert(...args);
+    }
+    return new WrappedOperation(this.wrapped.invert(...args), nextMeta);
   }
 
   compose(other: WrappedOperation): WrappedOperation {

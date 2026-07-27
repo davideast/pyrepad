@@ -1,6 +1,8 @@
 /**
  * Transformation mathematics for concurrent Operational Transformations.
  */
+import { TextOp } from "./text-op.ts";
+
 export function transformAttributes(
   attributes1: Record<string, any>,
   attributes2: Record<string, any>,
@@ -37,16 +39,16 @@ export function transformAttributes(
 interface TransformCtx {
   operation1prime: any;
   operation2prime: any;
-  ops1: any[];
-  ops2: any[];
+  ops1: TextOp[];
+  ops2: TextOp[];
   state: { i1: number; i2: number };
 }
 
 function transformRetainRetain(
   ctx: TransformCtx,
-  op1: any,
-  op2: any,
-): [any, any] {
+  op1: TextOp,
+  op2: TextOp,
+): [TextOp | undefined, TextOp | undefined] {
   const attributesPrime = transformAttributes(
     op1.attributes || {},
     op2.attributes || {},
@@ -72,9 +74,9 @@ function transformRetainRetain(
 
 function transformDeleteDelete(
   ctx: TransformCtx,
-  op1: any,
-  op2: any,
-): [any, any] {
+  op1: TextOp,
+  op2: TextOp,
+): [TextOp | undefined, TextOp | undefined] {
   if (op1.chars > op2.chars) {
     op1.chars -= op2.chars;
     op2 = ctx.ops2[ctx.state.i2++];
@@ -90,9 +92,9 @@ function transformDeleteDelete(
 
 function transformDeleteRetain(
   ctx: TransformCtx,
-  op1: any,
-  op2: any,
-): [any, any] {
+  op1: TextOp,
+  op2: TextOp,
+): [TextOp | undefined, TextOp | undefined] {
   let minl: number;
   if (op1.chars > op2.chars) {
     minl = op2.chars;
@@ -113,9 +115,9 @@ function transformDeleteRetain(
 
 function transformRetainDelete(
   ctx: TransformCtx,
-  op1: any,
-  op2: any,
-): [any, any] {
+  op1: TextOp,
+  op2: TextOp,
+): [TextOp | undefined, TextOp | undefined] {
   let minl: number;
   if (op1.chars > op2.chars) {
     minl = op2.chars;

@@ -3,8 +3,8 @@
  */
 import { Span } from "../span.ts";
 
-export function assert(bool: any, text?: string): void {
-  if (!bool) {
+export function assert(condition: unknown, text?: string): asserts condition {
+  if (!condition) {
     throw new Error(
       "AnnotationList assertion failed" + (text ? ": " + text : ""),
     );

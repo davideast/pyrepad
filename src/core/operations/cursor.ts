@@ -2,6 +2,8 @@
  * A collaborative cursor with a `position` and a `selectionEnd`.
  * Both are zero-based indexes into the document.
  */
+import { TextOp } from "./text-op.ts";
+
 export class Cursor {
   position: number;
   selectionEnd: number;
@@ -26,12 +28,11 @@ export class Cursor {
     return other;
   }
 
-  transform(other: any): Cursor {
+  transform(other: { ops: TextOp[] }): Cursor {
     const transformIndex = (index: number): number => {
       let newIndex = index;
       const ops = other.ops;
-      for (let i = 0, l = ops.length; i < l; i++) {
-        const op = ops[i];
+      for (const op of ops) {
         if (op.isRetain()) {
           index -= op.chars;
         } else if (op.isInsert()) {

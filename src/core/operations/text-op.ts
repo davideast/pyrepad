@@ -9,29 +9,46 @@ export class TextOp {
 
   constructor(type: "retain" | "insert" | "delete", ...args: any[]) {
     this.type = type;
+    this.initializePayload(args);
+  }
 
-    if (type === "insert") {
-      this.text = args[0];
-      if (typeof this.text !== "string") {
-        throw new Error("insert op requires text string");
+  private initializePayload(args: any[]): void {
+    const [payload, attributes = {}] = args;
+
+    const isTextValid = typeof payload === "string";
+    const isCharsValid = typeof payload === "number";
+    const areAttributesValid =
+      typeof attributes === "object" && attributes !== null;
+
+    switch (this.type) {
+      case "insert": {
+        if (!isTextValid) {
+          throw new Error("insert op requires text string");
+        }
+        if (!areAttributesValid) {
+          throw new Error("attributes must be an object");
+        }
+        this.text = payload;
+        this.attributes = attributes;
+        break;
       }
-      this.attributes = args[1] || {};
-      if (typeof this.attributes !== "object") {
-        throw new Error("attributes must be an object");
+      case "delete": {
+        if (!isCharsValid) {
+          throw new Error("delete op requires chars number");
+        }
+        this.chars = payload;
+        break;
       }
-    } else if (type === "delete") {
-      this.chars = args[0];
-      if (typeof this.chars !== "number") {
-        throw new Error("delete op requires chars number");
-      }
-    } else if (type === "retain") {
-      this.chars = args[0];
-      if (typeof this.chars !== "number") {
-        throw new Error("retain op requires chars number");
-      }
-      this.attributes = args[1] || {};
-      if (typeof this.attributes !== "object") {
-        throw new Error("attributes must be an object");
+      case "retain": {
+        if (!isCharsValid) {
+          throw new Error("retain op requires chars number");
+        }
+        if (!areAttributesValid) {
+          throw new Error("attributes must be an object");
+        }
+        this.chars = payload;
+        this.attributes = attributes;
+        break;
       }
     }
   }

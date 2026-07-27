@@ -8,28 +8,32 @@ export function toAST(operation: any): any[] {
   let currentLine: any = { type: "line", attributes: {}, children: [] };
   ast.push(currentLine);
 
-  if (!operation || !operation.ops) {
+  const isInvalidOperation = !operation || !operation.ops;
+  if (isInvalidOperation) {
     return ast;
   }
 
   for (let i = 0; i < operation.ops.length; i++) {
     const op = operation.ops[i];
-    if (op.isInsert()) {
-      const text = op.text;
-      const attrs = op.attributes || {};
-      const parts = text.split("\n");
-      for (let j = 0; j < parts.length; j++) {
-        if (j > 0) {
-          currentLine = { type: "line", attributes: {}, children: [] };
-          ast.push(currentLine);
-        }
-        if (parts[j].length > 0) {
-          currentLine.children.push({
-            type: "text",
-            text: parts[j],
-            attributes: Object.assign({}, attrs),
-          });
-        }
+    const isInsertOp = op.isInsert();
+    if (!isInsertOp) continue;
+
+    const text = op.text;
+    const attrs = op.attributes || {};
+    const parts = text.split("\n");
+    for (let j = 0; j < parts.length; j++) {
+      const isSubsequentLine = j > 0;
+      if (isSubsequentLine) {
+        currentLine = { type: "line", attributes: {}, children: [] };
+        ast.push(currentLine);
+      }
+      const hasTextContent = parts[j].length > 0;
+      if (hasTextContent) {
+        currentLine.children.push({
+          type: "text",
+          text: parts[j],
+          attributes: Object.assign({}, attrs),
+        });
       }
     }
   }
@@ -37,8 +41,13 @@ export function toAST(operation: any): any[] {
 }
 
 function processASTChild(op: TextOperation, child: any): void {
-  if (!child || !child.text) return;
-  if (child.attributes && Object.keys(child.attributes).length > 0) {
+  const hasValidText = Boolean(child && child.text);
+  if (!hasValidText) return;
+
+  const hasAttributes = Boolean(
+    child.attributes && Object.keys(child.attributes).length > 0,
+  );
+  if (hasAttributes) {
     op.insert(child.text, child.attributes);
   } else {
     op.insert(child.text);
@@ -47,16 +56,19 @@ function processASTChild(op: TextOperation, child: any): void {
 
 export function fromAST(ast: any[]): TextOperation {
   const op = new TextOperation();
-  if (!Array.isArray(ast)) {
+  const isValidAST = Array.isArray(ast);
+  if (!isValidAST) {
     return op;
   }
 
   for (let i = 0; i < ast.length; i++) {
-    if (i > 0) {
+    const isSubsequentLine = i > 0;
+    if (isSubsequentLine) {
       op.insert("\n");
     }
     const line = ast[i];
-    if (!line.children || line.children.length === 0) continue;
+    const hasChildren = Boolean(line.children && line.children.length > 0);
+    if (!hasChildren) continue;
     for (let j = 0; j < line.children.length; j++) {
       processASTChild(op, line.children[j]);
     }
@@ -65,66 +77,131 @@ export function fromAST(ast: any[]): TextOperation {
 }
 
 export function toMarkdown(operation: any): string {
-  if (!operation || !operation.ops) {
+  const isInvalidOperation = !operation || !operation.ops;
+  if (isInvalidOperation) {
     return "";
   }
   let md = "";
   for (let i = 0; i < operation.ops.length; i++) {
     const op = operation.ops[i];
-    if (op.isInsert()) {
-      const txt = op.text;
-      const attrs = op.attributes || {};
-      let styled = txt;
-      if (attrs.b && !txt.includes("\n")) {
-        styled = "**" + styled + "**";
-      }
-      if (attrs.i && !txt.includes("\n")) {
-        styled = "_" + styled + "_";
-      }
-      if (attrs["list-type"] === "u") {
+    const isInsertOp = op.isInsert();
+    if (!isInsertOp) continue;
+
+    const txt = op.text;
+    const attrs = op.attributes || {};
+    let styled = txt;
+
+    const isSingleLineBold = Boolean(attrs.b && !txt.includes("\n"));
+    if (isSingleLineBold) {
+      styled = "**" + styled + "**";
+    }
+
+    const isSingleLineItalic = Boolean(attrs.i && !txt.includes("\n"));
+    if (isSingleLineItalic) {
+      styled = "_" + styled + "_";
+    }
+
+    const listType = attrs["list-type"] as "u" | "o" | undefined;
+    switch (listType) {
+      case "u": {
         md += "- " + styled;
-      } else if (attrs["list-type"] === "o") {
+        break;
+      }
+      case "o": {
         md += "1. " + styled;
-      } else {
+        break;
+      }
+      default: {
         md += styled;
+        break;
       }
     }
   }
   return md;
 }
 
+interface BlockParseResult {
+  blockType: "u" | "o" | "text";
+  strippedLine: string;
+}
+
+function parseBlockPrefix(line: string): BlockParseResult {
+  const isUnordered = line.startsWith("- ");
+  if (isUnordered) {
+    return { blockType: "u", strippedLine: line.slice(2) };
+  }
+
+  const dotIndex = line.indexOf(". ");
+  const hasPossibleOrderedPrefix = dotIndex > 0 && dotIndex <= 6;
+  if (hasPossibleOrderedPrefix) {
+    const prefix = line.slice(0, dotIndex);
+    const isAllDigits = [...prefix].every((ch) => ch >= "0" && ch <= "9");
+    if (isAllDigits) {
+      return { blockType: "o", strippedLine: line.slice(dotIndex + 2) };
+    }
+  }
+
+  return { blockType: "text", strippedLine: line };
+}
+
+function parseInlineStyles(
+  content: string,
+  attrs: Record<string, any>,
+): string {
+  let text = content;
+  const hasMinBoldLength = text.length >= 4;
+  const isBoldWrapped =
+    hasMinBoldLength && text.startsWith("**") && text.endsWith("**");
+  if (isBoldWrapped) {
+    attrs.b = true;
+    text = text.slice(2, -2);
+  }
+
+  const hasMinItalicLength = text.length >= 2;
+  const isItalicWrapped =
+    hasMinItalicLength && text.startsWith("_") && text.endsWith("_");
+  if (isItalicWrapped) {
+    attrs.i = true;
+    text = text.slice(1, -1);
+  }
+
+  return text;
+}
+
 export function fromMarkdown(markdownStr: string): TextOperation {
   const op = new TextOperation();
   const lines = (markdownStr || "").split("\n");
+
   for (let i = 0; i < lines.length; i++) {
-    if (i > 0) {
+    const isSubsequentLine = i > 0;
+    if (isSubsequentLine) {
       op.insert("\n");
     }
-    let line = lines[i];
+
     const attrs: Record<string, any> = {};
-    if (line.indexOf("- ") === 0) {
-      attrs["list-type"] = "u";
-      line = line.substring(2);
-    } else if (/^\d+\.\s/.test(line)) {
-      attrs["list-type"] = "o";
-      line = line.replace(/^\d+\.\s/, "");
+    const blockResult = parseBlockPrefix(lines[i]);
+
+    switch (blockResult.blockType) {
+      case "u": {
+        attrs["list-type"] = "u";
+        break;
+      }
+      case "o": {
+        attrs["list-type"] = "o";
+        break;
+      }
+      case "text": {
+        break;
+      }
     }
 
-    const boldMatch = line.match(/^\*\*(.*)\*\*$/);
-    if (boldMatch) {
-      attrs.b = true;
-      line = boldMatch[1];
-    }
-    const italicMatch = line.match(/^\_(.*)\_$/);
-    if (italicMatch) {
-      attrs.i = true;
-      line = italicMatch[1];
-    }
+    const content = parseInlineStyles(blockResult.strippedLine, attrs);
 
-    if (Object.keys(attrs).length > 0) {
-      op.insert(line, attrs);
+    const hasExtractedAttributes = Object.keys(attrs).length > 0;
+    if (hasExtractedAttributes) {
+      op.insert(content, attrs);
     } else {
-      op.insert(line);
+      op.insert(content);
     }
   }
   return op;
