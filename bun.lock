@@ -26,6 +26,33 @@
         "vite": "^5.3.0",
       },
     },
+    "packages/adapters": {
+      "name": "@pyrepad/adapters",
+      "version": "2.0.0",
+      "dependencies": {
+        "@pyrepad/core": "workspace:*",
+      },
+    },
+    "packages/core": {
+      "name": "@pyrepad/core",
+      "version": "2.0.0",
+    },
+    "packages/editors": {
+      "name": "@pyrepad/editors",
+      "version": "2.0.0",
+      "dependencies": {
+        "@pyrepad/core": "workspace:*",
+      },
+    },
+    "packages/react": {
+      "name": "@pyrepad/react",
+      "version": "2.0.0",
+      "dependencies": {
+        "@pyrepad/adapters": "workspace:*",
+        "@pyrepad/core": "workspace:*",
+        "@pyrepad/editors": "workspace:*",
+      },
+    },
   },
   "packages": {
     "@asamuzakjp/css-color": ["@asamuzakjp/css-color@5.1.11", "", { "dependencies": { "@asamuzakjp/generational-cache": "^1.0.1", "@csstools/css-calc": "^3.2.0", "@csstools/css-color-parser": "^4.1.0", "@csstools/css-parser-algorithms": "^4.0.0", "@csstools/css-tokenizer": "^4.0.0" } }, "sha512-KVw6qIiCTUQhByfTd78h2yD1/00waTmm9uy/R7Ck/ctUyAPj+AEDLkQIdJW0T8+qGgj3j5bpNKK7Q3G+LedJWg=="],
@@ -503,6 +530,14 @@
     "@protobufjs/pool": ["@protobufjs/pool@1.1.0", "", {}, "sha512-0kELaGSIDBKvcgS4zkjz1PeddatrjYcmMWOlAuAPwAeccUrPHdUqo/J6LiymHHEiJT5NrF1UVwxY14f+fy4WQw=="],
 
     "@protobufjs/utf8": ["@protobufjs/utf8@1.1.2", "", {}, "sha512-b1UQwcEZ4yCnMCD8DAL1VlbvBJE9/IX4FTIp7BG1xYpf29SLazLSrqUkj4w7Y5y7cCVP6E5tcqqcI0xemPkHug=="],
+
+    "@pyrepad/adapters": ["@pyrepad/adapters@workspace:packages/adapters"],
+
+    "@pyrepad/core": ["@pyrepad/core@workspace:packages/core"],
+
+    "@pyrepad/editors": ["@pyrepad/editors@workspace:packages/editors"],
+
+    "@pyrepad/react": ["@pyrepad/react@workspace:packages/react"],
 
     "@pyric/cli": ["@pyric/cli@0.1.0-alpha.17", "", { "dependencies": { "@inbrowser/agent": "0.4.2", "@modelcontextprotocol/sdk": "^1.0.0", "create-pyric": "^0.1.0-alpha.17", "esbuild": "^0.28.0", "fake-indexeddb": "^6.0.0", "pyric": "^0.1.0-alpha.17", "pyric-admin": "^0.1.0-alpha.17", "ws": "^8.18.0", "zod": "^3.23.0" }, "peerDependencies": { "vite": "^5.0.0 || ^6.0.0 || ^7.0.0" }, "optionalPeers": ["vite"], "bin": { "pyric": "dist/cli/index.js" } }, "sha512-YKJVfStbRzObzQLfbAz85RZ9L9eGDXegNQY75vMwW/FfClmkMmlvWMk1ayBr8jdq/SdVAxtNwqQVyFuSX5urSw=="],
 
