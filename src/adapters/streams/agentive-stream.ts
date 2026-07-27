@@ -1,7 +1,13 @@
 /**
  * Independent protocol stream handler for AI tentative ghost diffs and agent status updates.
  */
-import { RefLike, SnapLike, AgentivePresenceEvent } from "../types.ts";
+import {
+  RefLike,
+  SnapLike,
+  AgentivePresenceEvent,
+  getSnapKey,
+  getSnapVal,
+} from "../types.ts";
 import { ReactiveStream } from "../reactive-stream.ts";
 
 export class AgentiveStreamHandler {
@@ -27,12 +33,11 @@ export class AgentiveStreamHandler {
   }
 
   private handleAgentiveUpdate(snap: SnapLike): void {
-    const agentId =
-      snap.key || (typeof snap.name === "function" ? snap.name() : null);
+    const agentId = getSnapKey(snap);
     const hasValidAgentId = Boolean(agentId);
     if (!hasValidAgentId) return;
 
-    const data = (snap.val() as Record<string, unknown>) || {};
+    const data = (getSnapVal(snap) as Record<string, unknown>) || {};
     const hasStatus = typeof data.status === "string";
     if (!hasStatus) return;
 

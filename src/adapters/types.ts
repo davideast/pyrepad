@@ -35,6 +35,25 @@ export interface SnapLike {
   name?(): string | null;
 }
 
+export function getSnapKey(snap: SnapLike | null | undefined): string | null {
+  const hasSnap = snap !== null && snap !== undefined;
+  if (!hasSnap) return null;
+  const keyProp = snap!.key;
+  if (keyProp !== undefined && keyProp !== null) return keyProp;
+  const hasNameMethod = typeof snap!.name === "function";
+  if (hasNameMethod) return snap!.name!();
+  return null;
+}
+
+export function getSnapVal(snap: unknown): unknown {
+  const isSnapObj = typeof snap === "object" && snap !== null;
+  if (isSnapObj) {
+    const hasValMethod = typeof (snap as SnapLike).val === "function";
+    if (hasValMethod) return (snap as SnapLike).val();
+  }
+  return snap ?? null;
+}
+
 export interface RefLike {
   child(path: string): RefLike;
   root?: RefLike;
