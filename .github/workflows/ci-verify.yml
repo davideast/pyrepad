@@ -33,4 +33,6 @@ jobs:
         run: bun run build
 
       - name: Verify 102 unit & seam test suites
+        env:
+          PYRIC_SANDBOX: 1
         run: bun test test/specs/*.spec.js

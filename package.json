@@ -16,7 +16,7 @@
     "jsdom": false
   },
   "bugs": {
-    "url": "https://github.com/firebase/firepad/issues"
+    "url": "https://github.com/davideast/pyrepad/issues"
   },
   "licenses": [
     {
@@ -34,6 +34,8 @@
   ],
   "main": "dist/firepad.min.js",
   "files": [
+    "src/**",
+    "types/**",
     "dist/**",
     "LICENSE",
     "README.md",
