@@ -36,3 +36,10 @@ jobs:
         env:
           PYRIC_SANDBOX: 1
         run: bun test test/specs/*.spec.js
+
+      - name: Install Playwright browsers (Chromium) 🎭
+        run: bun x playwright install --with-deps chromium
+
+      - name: Verify Tier C Multi-Client Collaborative Browser Acceptance Harness 🌐
+        run: bun run test:e2e:playwright
+
