@@ -8,6 +8,8 @@ import {
   TextOperationEvent,
   getSnapKey,
   getSnapVal,
+  isValidRef,
+  toSafeJSON,
 } from "../types.ts";
 import { ReactiveStream } from "../reactive-stream.ts";
 
@@ -46,9 +48,8 @@ export class HistoryStreamHandler {
   }
 
   startMonitoring(): void {
-    const hasValidRef =
-      this.ref !== null && typeof this.ref.child === "function";
-    if (!hasValidRef) return;
+    const refValid = isValidRef(this.ref);
+    if (!refValid) return;
 
     const historyRef = this.ref!.child("history");
     historyRef.on("child_added", (snap: SnapLike) => {
@@ -77,7 +78,10 @@ export class HistoryStreamHandler {
     let hasRevisions = false;
 
     let revId = revisionToId(this.revision);
-    while (combined[revId] !== undefined && combined[revId] !== null) {
+    let hasNextRevision =
+      combined[revId] !== undefined && combined[revId] !== null;
+
+    while (hasNextRevision) {
       const data = combined[revId] as {
         o?: Record<string, unknown>;
         a?: string;
@@ -89,12 +93,6 @@ export class HistoryStreamHandler {
       if (hasOpData) {
         try {
           const op = TextOperation.fromJSON(data.o!);
-          this.stream.push({
-            revision: this.revision + 1,
-            operation: op,
-            author: data.a || "unknown",
-            timestamp: data.t || Date.now(),
-          });
           doc = doc.compose(op);
           hasRevisions = true;
         } catch (err) {
@@ -103,10 +101,18 @@ export class HistoryStreamHandler {
       }
       this.revision++;
       revId = revisionToId(this.revision);
+      hasNextRevision =
+        combined[revId] !== undefined && combined[revId] !== null;
     }
 
     if (hasRevisions) {
       try {
+        this.stream.push({
+          revision: this.revision,
+          operation: doc,
+          author: "atomic-startup",
+          timestamp: Date.now(),
+        });
         this.ctx.onOperation(doc);
       } catch (err) {
         console.warn("Failed to apply initial composed document:", err);
@@ -118,8 +124,10 @@ export class HistoryStreamHandler {
     let triggerRetry = false;
     let revId = revisionToId(this.revision);
     const pending = this.pendingRevisions;
+    let hasNextPending =
+      pending[revId] !== undefined && pending[revId] !== null;
 
-    while (pending[revId] !== undefined && pending[revId] !== null) {
+    while (hasNextPending) {
       this.revision++;
       const data = pending[revId] as {
         o?: Record<string, unknown>;
@@ -129,37 +137,13 @@ export class HistoryStreamHandler {
       delete pending[revId];
 
       const hasOpData = Boolean(data && data.o);
-      if (!hasOpData) {
-        revId = revisionToId(this.revision);
-        continue;
-      }
-
-      const op = TextOperation.fromJSON(data.o!);
-      this.stream.push({
-        revision: this.revision,
-        operation: op,
-        author: data.a || "unknown",
-        timestamp: data.t || Date.now(),
-      });
-
-      const hasMatchingSent = Boolean(this.sent && revId === this.sent.id);
-      if (hasMatchingSent) {
-        const isSelfAuthor = data.a === this.ctx.getUserId();
-        const hasEqualsMethod = typeof this.sent!.op.equals === "function";
-        const isOpEqual = hasEqualsMethod ? this.sent!.op.equals(op) : true;
-        const isAuthoritativeMatch = isSelfAuthor && isOpEqual;
-
-        if (isAuthoritativeMatch) {
-          this.sent = null;
-          this.ctx.onAck();
-        } else {
-          triggerRetry = true;
-          this.ctx.onOperation(op);
-        }
-      } else {
-        this.ctx.onOperation(op);
+      if (hasOpData) {
+        this.processPendingOperation(data.o!, data.a, data.t, (retry) => {
+          if (retry) triggerRetry = true;
+        });
       }
       revId = revisionToId(this.revision);
+      hasNextPending = pending[revId] !== undefined && pending[revId] !== null;
     }
 
     if (triggerRetry) {
@@ -168,13 +152,51 @@ export class HistoryStreamHandler {
     }
   }
 
+  private processPendingOperation(
+    rawOp: Record<string, unknown>,
+    author?: string,
+    timestamp?: number,
+    onNeedRetry?: (retry: boolean) => void,
+  ): void {
+    const op = TextOperation.fromJSON(rawOp);
+    const revStr = revisionToId(this.revision);
+    const actualAuthor = author || "unknown";
+    this.stream.push({
+      revision: this.revision,
+      operation: op,
+      author: actualAuthor,
+      timestamp: timestamp || Date.now(),
+    });
+
+    const hasMatchingSent = Boolean(
+      this.sent && revisionToId(this.revision) === this.sent.id,
+    );
+    if (!hasMatchingSent) {
+      this.ctx.onOperation(op);
+      return;
+    }
+
+    const isSelfAuthor = actualAuthor === this.ctx.getUserId();
+    const hasEqualsMethod = typeof this.sent!.op.equals === "function";
+    const isOpEqual = hasEqualsMethod ? this.sent!.op.equals(op) : true;
+    const isAuthoritativeMatch = isSelfAuthor && isOpEqual;
+
+    if (isAuthoritativeMatch) {
+      this.sent = null;
+      this.ctx.onAck();
+    } else {
+      if (onNeedRetry) onNeedRetry(true);
+      this.ctx.onOperation(op);
+    }
+  }
+
   sendOperation(
     operation: TextOperation,
     author: string,
     callback?: (err: Error | null, committed?: boolean) => void,
   ): void {
-    const isInvalidRef = !this.ref || typeof this.ref.child !== "function";
-    if (isInvalidRef) {
+    const refValid = isValidRef(this.ref);
+    if (!refValid) {
       callback?.(
         new Error("Database reference is uninitialized or destroyed"),
         false,
@@ -202,16 +224,9 @@ export class HistoryStreamHandler {
         const isAlreadyClaimed = current !== null && current !== undefined;
         if (isAlreadyClaimed) return undefined;
 
-        const hasToJSON =
-          operation &&
-          typeof (operation as Record<string, unknown>).toJSON === "function";
-        const opData = hasToJSON
-          ? (operation as { toJSON(): unknown }).toJSON()
-          : operation;
-
         return {
           a: author,
-          o: opData,
+          o: toSafeJSON(operation),
           t: Date.now(),
         };
       },
@@ -222,9 +237,8 @@ export class HistoryStreamHandler {
   }
 
   dispose(): void {
-    const hasValidRef =
-      this.ref !== null && typeof this.ref.child === "function";
-    if (hasValidRef) {
+    const refValid = isValidRef(this.ref);
+    if (refValid) {
       try {
         this.ref!.child("history").off();
       } catch (err) {

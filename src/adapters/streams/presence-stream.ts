@@ -8,6 +8,8 @@ import {
   PresenceEvent,
   getSnapKey,
   getSnapVal,
+  isValidRef,
+  toSafeJSON,
 } from "../types.ts";
 import { ReactiveStream } from "../reactive-stream.ts";
 
@@ -35,9 +37,8 @@ export class PresenceStreamHandler {
   }
 
   startMonitoring(): void {
-    const hasValidRef =
-      this.ref !== null && typeof this.ref.child === "function";
-    if (!hasValidRef) return;
+    const refValid = isValidRef(this.ref);
+    if (!refValid) return;
 
     const usersRef = this.ref!.child("users");
     usersRef.on("child_added", (snap: SnapLike) =>
@@ -70,8 +71,8 @@ export class PresenceStreamHandler {
         : cursorObj;
     const color = typeof data.color === "string" ? data.color : "#ff0000";
 
-    this.stream.push({ userId, cursor, color, state });
-    this.onCursorChange(userId, cursor, color);
+    this.stream.push({ userId: userId!, cursor, color, state });
+    this.onCursorChange(userId!, cursor, color);
   }
 
   private handleUserRemoved(snap: SnapLike): void {
@@ -89,22 +90,16 @@ export class PresenceStreamHandler {
   }
 
   broadcastPresence(cursor: unknown): Promise<void> {
-    const isMissingRef =
-      this.ref === null || typeof this.ref.child !== "function";
-    if (isMissingRef) return Promise.resolve();
+    const refInvalid = !isValidRef(this.ref);
+    if (refInvalid) return Promise.resolve();
 
     const userRef = this.ref!.child("users/" + this.getUserId());
     const isRemovingCursor = cursor === null || cursor === undefined;
     if (isRemovingCursor) {
       userRef.remove();
     } else {
-      const cursorData =
-        cursor &&
-        typeof (cursor as Record<string, unknown>).toJSON === "function"
-          ? (cursor as { toJSON(): unknown }).toJSON()
-          : cursor;
       userRef.set({
-        cursor: cursorData,
+        cursor: toSafeJSON(cursor),
         color: this.getColor(),
       });
     }
@@ -112,9 +107,8 @@ export class PresenceStreamHandler {
   }
 
   dispose(): void {
-    const hasValidRef =
-      this.ref !== null && typeof this.ref.child === "function";
-    if (hasValidRef) {
+    const refValid = isValidRef(this.ref);
+    if (refValid) {
       try {
         this.ref!.child("users").off();
         const currentUserId = this.getUserId();
