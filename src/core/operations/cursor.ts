@@ -41,7 +41,8 @@ export class Cursor {
           newIndex -= Math.min(index, op.chars);
           index -= op.chars;
         }
-        if (index < 0) {
+        const isBeforeCursor = index < 0;
+        if (isBeforeCursor) {
           break;
         }
       }
@@ -49,7 +50,8 @@ export class Cursor {
     };
 
     const newPosition = transformIndex(this.position);
-    if (this.position === this.selectionEnd) {
+    const isCollapsedSelection = this.position === this.selectionEnd;
+    if (isCollapsedSelection) {
       return new Cursor(newPosition, newPosition);
     }
     return new Cursor(newPosition, transformIndex(this.selectionEnd));
