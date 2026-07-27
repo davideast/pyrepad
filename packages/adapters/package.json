@@ -1,5 +1,5 @@
 {
-  "name": "@pyrepad/adapters",
+  "name": "@pyric/pad-adapters",
   "version": "2.0.0",
   "type": "module",
   "main": "src/index.ts",
@@ -7,6 +7,6 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@pyrepad/core": "workspace:*"
+    "@pyric/pad-core": "workspace:*"
   }
 }
