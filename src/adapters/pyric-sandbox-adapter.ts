@@ -8,6 +8,7 @@ import {
   SnapLike,
   CommitAck,
   AdapterCallbacks,
+  isValidRef,
 } from "./types.ts";
 import { HistoryStreamHandler } from "./streams/history-stream.ts";
 import { PresenceStreamHandler } from "./streams/presence-stream.ts";
@@ -69,21 +70,20 @@ export class PyricSandboxAdapter implements SyncSeam {
   }
 
   private initializeConnection(): void {
-    const hasChildMethod =
-      this.ref !== null && typeof this.ref.child === "function";
-    if (hasChildMethod) {
-      setTimeout(() => {
+    const refValid = isValidRef(this.ref);
+    if (refValid) {
+      queueMicrotask(() => {
         const isStillActive = !this.disposed;
         if (isStillActive) this.startDatabaseConnection();
-      }, 0);
+      });
     } else {
-      setTimeout(() => {
+      queueMicrotask(() => {
         const isStillActive = !this.disposed;
         if (isStillActive) {
           this.ready = true;
           this.trigger("ready");
         }
-      }, 0);
+      });
     }
   }
 
@@ -94,30 +94,37 @@ export class PyricSandboxAdapter implements SyncSeam {
     const connRef = this.ref!.root
       ? this.ref!.root.child(".info/connected")
       : this.ref!.child(".info/connected");
-    connRef.on("value", (snap: SnapLike) => {
-      const isStillPending = !this.disposed && !this.ready;
-      const isConnected = snap.val() === true;
-      if (isStillPending && isConnected) {
-        this.presenceHandler.startMonitoring();
-        this.agentiveHandler.startMonitoring();
-        this.ref!.child("history").once("value", (historySnap: SnapLike) => {
-          const canCompose = !this.disposed && !this.ready;
-          if (canCompose) {
-            this.historyHandler.composeInitialRevisions(historySnap);
-            this.markReadyAndDrain();
-          }
-        });
-        this.historyHandler.startMonitoring();
-      }
-    });
+    connRef.on("value", (snap: SnapLike) => this.handleConnectionChange(snap));
+  }
+
+  private handleConnectionChange(snap: SnapLike): void {
+    const isStillPending = !this.disposed && !this.ready;
+    const isConnected = snap.val() === true;
+    const shouldInitialize = isStillPending && isConnected;
+    if (!shouldInitialize) return;
+
+    this.presenceHandler.startMonitoring();
+    this.agentiveHandler.startMonitoring();
+    this.ref!.child("history").once("value", (snapHistory: SnapLike) =>
+      this.completeInitialHistorySync(snapHistory),
+    );
+    this.historyHandler.startMonitoring();
+  }
+
+  private completeInitialHistorySync(snapHistory: SnapLike): void {
+    const canCompose = !this.disposed && !this.ready;
+    if (canCompose) {
+      this.historyHandler.composeInitialRevisions(snapHistory);
+      this.markReadyAndDrain();
+    }
   }
 
   private markReadyAndDrain(): void {
     this.ready = true;
-    setTimeout(() => {
+    queueMicrotask(() => {
       this.trigger("ready");
       this.historyHandler.drainPendingRevisions();
-    }, 0);
+    });
   }
 
   on(event: string, callback: EventCallback): void {
@@ -184,27 +191,44 @@ export class PyricSandboxAdapter implements SyncSeam {
   }
 
   commitOperation(operation: unknown, author?: string): Promise<CommitAck> {
-    return new Promise((resolve, reject) => {
-      const tryCommit = (op: unknown) => {
-        this.sendOperation(
-          op as TextOperation,
-          (err: Error | null, committed?: boolean) => {
-            if (committed) {
-              resolve({
-                revision: this.historyHandler.getRevision(),
-                committed: true,
-              });
-            } else if (err) {
-              reject(err);
-            } else {
-              this.once("retry", () => tryCommit(op));
-            }
-          },
-          author,
-        );
-      };
-      tryCommit(operation);
+    return new Promise<CommitAck>((resolve, reject) => {
+      this.executeCommitAttempt(
+        operation as TextOperation,
+        resolve,
+        reject,
+        author,
+      );
     });
+  }
+
+  private executeCommitAttempt(
+    op: TextOperation,
+    resolve: (ack: CommitAck) => void,
+    reject: (err: Error) => void,
+    author?: string,
+  ): void {
+    this.sendOperation(
+      op,
+      (err: Error | null, committed?: boolean) => {
+        const isSuccessful = Boolean(committed);
+        if (isSuccessful) {
+          resolve({
+            revision: this.historyHandler.getRevision(),
+            committed: true,
+          });
+          return;
+        }
+        const hasError = Boolean(err);
+        if (hasError) {
+          reject(err!);
+          return;
+        }
+        this.once("retry", () =>
+          this.executeCommitAttempt(op, resolve, reject, author),
+        );
+      },
+      author,
+    );
   }
 
   sendCursor(cursor: unknown): void {
@@ -248,11 +272,12 @@ export class PyricSandboxAdapter implements SyncSeam {
     this.callbacks = {};
     this.listeners = {};
 
-    if (this.ref && typeof this.ref.child === "function") {
+    const refValid = isValidRef(this.ref);
+    if (refValid) {
       try {
-        const connRef = this.ref.root
-          ? this.ref.root.child(".info/connected")
-          : this.ref.child(".info/connected");
+        const connRef = this.ref!.root
+          ? this.ref!.root.child(".info/connected")
+          : this.ref!.child(".info/connected");
         connRef.off();
       } catch (err) {
         console.warn(

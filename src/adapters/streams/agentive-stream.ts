@@ -7,6 +7,8 @@ import {
   AgentivePresenceEvent,
   getSnapKey,
   getSnapVal,
+  isValidRef,
+  toSafeJSON,
 } from "../types.ts";
 import { ReactiveStream } from "../reactive-stream.ts";
 
@@ -19,9 +21,8 @@ export class AgentiveStreamHandler {
   }
 
   startMonitoring(): void {
-    const hasValidRef =
-      this.ref !== null && typeof this.ref.child === "function";
-    if (!hasValidRef) return;
+    const refValid = isValidRef(this.ref);
+    if (!refValid) return;
 
     const agentiveRef = this.ref!.child("agentive");
     agentiveRef.on("child_added", (snap: SnapLike) =>
@@ -58,16 +59,10 @@ export class AgentiveStreamHandler {
     ghostDiff?: unknown,
     explanation?: string,
   ): Promise<void> {
-    const isMissingRef =
-      this.ref === null || typeof this.ref.child !== "function";
-    if (isMissingRef) return Promise.resolve();
+    const refInvalid = !isValidRef(this.ref);
+    if (refInvalid) return Promise.resolve();
 
-    const diffData =
-      ghostDiff &&
-      typeof (ghostDiff as Record<string, unknown>).toJSON === "function"
-        ? (ghostDiff as { toJSON(): unknown }).toJSON()
-        : ghostDiff || null;
-
+    const diffData = ghostDiff ? toSafeJSON(ghostDiff) : null;
     const agentiveRef = this.ref!.child("agentive/" + agentId);
     return Promise.resolve(
       agentiveRef.set({
@@ -80,9 +75,8 @@ export class AgentiveStreamHandler {
   }
 
   dispose(): void {
-    const hasValidRef =
-      this.ref !== null && typeof this.ref.child === "function";
-    if (hasValidRef) {
+    const refValid = isValidRef(this.ref);
+    if (refValid) {
       try {
         this.ref!.child("agentive").off();
       } catch (err) {

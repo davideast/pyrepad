@@ -39,7 +39,8 @@ export function getSnapKey(snap: SnapLike | null | undefined): string | null {
   const hasSnap = snap !== null && snap !== undefined;
   if (!hasSnap) return null;
   const keyProp = snap!.key;
-  if (keyProp !== undefined && keyProp !== null) return keyProp;
+  const hasKeyProp = keyProp !== undefined && keyProp !== null;
+  if (hasKeyProp) return keyProp!;
   const hasNameMethod = typeof snap!.name === "function";
   if (hasNameMethod) return snap!.name!();
   return null;
@@ -52,6 +53,25 @@ export function getSnapVal(snap: unknown): unknown {
     if (hasValMethod) return (snap as SnapLike).val();
   }
   return snap ?? null;
+}
+
+export function isValidRef(ref: unknown): boolean {
+  const isObjectRef = typeof ref === "object" && ref !== null;
+  if (!isObjectRef) return false;
+  const hasChildMethod =
+    typeof (ref as { child?: unknown }).child === "function";
+  return hasChildMethod;
+}
+
+export function toSafeJSON(payload: unknown): unknown {
+  const isObjectPayload = typeof payload === "object" && payload !== null;
+  if (!isObjectPayload) return payload;
+  const hasToJSON =
+    typeof (payload as { toJSON?: unknown }).toJSON === "function";
+  if (hasToJSON) {
+    return (payload as { toJSON(): unknown }).toJSON();
+  }
+  return payload;
 }
 
 export interface RefLike {
