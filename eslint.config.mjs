@@ -21,7 +21,13 @@ export default [
         Boolean: "readonly",
         Error: "readonly",
         Map: "readonly",
-        Set: "readonly"
+        Set: "readonly",
+        Math: "readonly",
+        JSON: "readonly",
+        RegExp: "readonly",
+        isNaN: "readonly",
+        parseInt: "readonly",
+        ArrayBuffer: "readonly"
       }
     },
     plugins: {
@@ -55,7 +61,11 @@ export default [
         "navigator",
         "localStorage",
         "sessionStorage",
-        "location"
+        "location",
+        "DOMParser",
+        "requestAnimationFrame",
+        "cancelAnimationFrame",
+        "alert"
       ]
     }
   },

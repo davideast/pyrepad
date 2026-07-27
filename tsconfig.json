@@ -3,6 +3,7 @@
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "jsx": "react-jsx",
     "lib": ["DOM", "DOM.Iterable", "ESNext"],
     "allowJs": true,
     "checkJs": false,
@@ -15,6 +16,6 @@
   "include": [
     "lib/**/*.d.ts",
     "lib/**/*.ts",
-    "src/**/*.ts"
+    "src/**/*.{ts,tsx}"
   ]
 }
