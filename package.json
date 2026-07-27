@@ -73,24 +73,17 @@
     "test:headless:speed": "bun test test/specs/headless-speed.spec.js",
     "test:ot:ghost": "bun test test/specs/ot-ghost.spec.js",
     "verify:agentive:harness": "bun test test/specs/agentive-harness.spec.js",
-    "lint": "eslint packages/",
+    "lint": "eslint src/",
     "prepare": "husky || true"
   },
-  "workspaces": [
-    "packages/*"
-  ],
   "exports": {
     ".": "./dist/firepad.min.js",
-    "./core": "./packages/core/src/index.ts",
-    "./adapters": "./packages/adapters/src/index.ts",
-    "./editors": "./packages/editors/src/index.ts",
-    "./react": "./packages/react/src/index.ts"
+    "./core": "./src/core/index.ts",
+    "./adapters": "./src/adapters/index.ts",
+    "./editors": "./src/editors/index.ts",
+    "./react": "./src/react/index.ts"
   },
   "lint-staged": {
-    "packages/**/*.{ts,js}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
     "src/**/*.{ts,js}": [
       "eslint --fix",
       "prettier --write"
