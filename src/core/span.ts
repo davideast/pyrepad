@@ -1,10 +1,14 @@
 /**
  * Represents a span of characters in a text document.
  */
-export class Span {
+export interface Annotation {
+  equals(other: unknown): boolean;
+}
+
+export class Span<T = any> {
   pos: number;
   length: number;
-  annotation: any;
+  annotation?: T;
 
   constructor(pos: number, length: number) {
     this.pos = pos;

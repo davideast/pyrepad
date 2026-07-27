@@ -1,6 +1,8 @@
 /**
  * Application mathematics for applying Operational Transformations to strings and rich attributes.
  */
+import { TextOp } from "./text-op.ts";
+
 export interface ApplyCtx {
   str: string;
   oldIndex: number;
@@ -8,7 +10,7 @@ export interface ApplyCtx {
   newAttributes: Record<string, any>[];
 }
 
-export function applyRetain(op: any, chars: number, ctx: ApplyCtx): string {
+export function applyRetain(op: TextOp, chars: number, ctx: ApplyCtx): string {
   if (ctx.oldIndex + chars > ctx.str.length) {
     throw new Error(
       "Operation can't retain more characters than are left in the string.",
@@ -18,10 +20,7 @@ export function applyRetain(op: any, chars: number, ctx: ApplyCtx): string {
   const attrs = op.attributes || {};
   for (let k = 0; k < chars; k++) {
     const currAttributes = ctx.oldAttributes[ctx.oldIndex + k] || {};
-    const updatedAttributes: Record<string, any> = {};
-    for (const attr in currAttributes) {
-      updatedAttributes[attr] = currAttributes[attr];
-    }
+    const updatedAttributes: Record<string, any> = { ...currAttributes };
     for (const attr in attrs) {
       if (attrs[attr] === false) {
         delete updatedAttributes[attr];
@@ -35,17 +34,13 @@ export function applyRetain(op: any, chars: number, ctx: ApplyCtx): string {
 }
 
 export function applyInsert(
-  op: any,
+  op: TextOp,
   text: string,
   newAttributes: Record<string, any>[],
 ): string {
   const attrs = op.attributes || {};
   for (let k = 0; k < text.length; k++) {
-    const insertedAttributes: Record<string, any> = {};
-    for (const attr in attrs) {
-      insertedAttributes[attr] = attrs[attr];
-    }
-    newAttributes.push(insertedAttributes);
+    newAttributes.push({ ...attrs });
   }
   return text;
 }

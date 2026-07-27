@@ -24,12 +24,16 @@ export function composeAttributes(
 
 interface ComposeCtx {
   operation: any;
-  ops1: any[];
-  ops2: any[];
+  ops1: TextOp[];
+  ops2: TextOp[];
   state: { i1: number; i2: number };
 }
 
-function handleRetainRetain(ctx: ComposeCtx, op1: any, op2: any): [any, any] {
+function handleRetainRetain(
+  ctx: ComposeCtx,
+  op1: TextOp,
+  op2: TextOp,
+): [TextOp | undefined, TextOp | undefined] {
   const attributes = composeAttributes(op1.attributes, op2.attributes);
   if (op1.chars > op2.chars) {
     ctx.operation.retain(op2.chars, attributes);
@@ -47,7 +51,11 @@ function handleRetainRetain(ctx: ComposeCtx, op1: any, op2: any): [any, any] {
   return [op1, op2];
 }
 
-function handleInsertDelete(ctx: ComposeCtx, op1: any, op2: any): [any, any] {
+function handleInsertDelete(
+  ctx: ComposeCtx,
+  op1: TextOp,
+  op2: TextOp,
+): [TextOp | undefined, TextOp | undefined] {
   if (op1.text.length > op2.chars) {
     op1.text = op1.text.slice(op2.chars);
     op2 = ctx.ops2[ctx.state.i2++];
@@ -61,7 +69,11 @@ function handleInsertDelete(ctx: ComposeCtx, op1: any, op2: any): [any, any] {
   return [op1, op2];
 }
 
-function handleInsertRetain(ctx: ComposeCtx, op1: any, op2: any): [any, any] {
+function handleInsertRetain(
+  ctx: ComposeCtx,
+  op1: TextOp,
+  op2: TextOp,
+): [TextOp | undefined, TextOp | undefined] {
   const attributes = composeAttributes(op1.attributes, op2.attributes, true);
   if (op1.text.length > op2.chars) {
     ctx.operation.insert(op1.text.slice(0, op2.chars), attributes);
@@ -79,7 +91,11 @@ function handleInsertRetain(ctx: ComposeCtx, op1: any, op2: any): [any, any] {
   return [op1, op2];
 }
 
-function handleRetainDelete(ctx: ComposeCtx, op1: any, op2: any): [any, any] {
+function handleRetainDelete(
+  ctx: ComposeCtx,
+  op1: TextOp,
+  op2: TextOp,
+): [TextOp | undefined, TextOp | undefined] {
   if (op1.chars > op2.chars) {
     ctx.operation.delete(op2.chars);
     op1.chars -= op2.chars;

@@ -2,11 +2,24 @@
  * Linked list mutation algorithms for AnnotationList.
  */
 import {
+  assert,
   Node,
   NullAnnotation,
   OldAnnotatedSpan,
   NewAnnotatedSpan,
+  Span,
 } from "./annotation-node.ts";
+
+export interface AffectedNodesResult {
+  startPos: number;
+  start: Node | null;
+  beforeStart: Node;
+  pred: Node | null;
+  predPos: number;
+  beforePred: Node | null;
+  end: Node | null;
+  succ: Node | null;
+}
 
 export function mergeNodesWithSameAnnotations(list: Node | null): void {
   if (!list) return;
@@ -23,8 +36,33 @@ export function mergeNodesWithSameAnnotations(list: Node | null): void {
   }
 }
 
-export function getAffectedNodes(head: Node, span: any): any {
-  const result: any = {};
+function findSpanEndBounds(
+  startNode: Node | null,
+  startPos: number,
+  startPrev: Node,
+  span: Span,
+): { end: Node | null; succ: Node | null } {
+  let current = startNode;
+  let currentPos = startPos;
+  let prev = startPrev;
+
+  while (current !== null && span.end() > currentPos) {
+    currentPos += current.length;
+    prev = current;
+    current = current.next;
+  }
+  if (span.end() > currentPos) {
+    throw new Error("Span end exceeds the bounds of the AnnotationList.");
+  }
+
+  const isZeroLengthAtPos = span.length === 0 && span.end() === currentPos;
+  return {
+    end: isZeroLengthAtPos ? null : prev,
+    succ: currentPos === span.end() ? current : null,
+  };
+}
+
+export function getAffectedNodes(head: Node, span: Span): AffectedNodesResult {
   let prevprev: Node | null = null;
   let prev: Node = head;
   let current: Node | null = prev.next;
@@ -36,47 +74,41 @@ export function getAffectedNodes(head: Node, span: any): any {
     prev = current;
     current = current.next;
   }
-  if (current === null && !(span.length === 0 && span.pos === currentPos)) {
+  const isZeroLengthAtPos = span.length === 0 && span.pos === currentPos;
+  if (current === null && !isZeroLengthAtPos) {
     throw new Error("Span start exceeds the bounds of the AnnotationList.");
   }
 
-  result.startPos = currentPos;
-  if (span.length === 0 && span.pos === currentPos) {
-    result.start = null;
-  } else {
-    result.start = current;
-  }
-  result.beforeStart = prev;
+  const startPos = currentPos;
+  const start = isZeroLengthAtPos ? null : current;
+  const beforeStart = prev;
+
+  let pred: Node | null = null;
+  let predPos = 0;
+  let beforePred: Node | null = null;
 
   if (currentPos === span.pos && currentPos > 0) {
-    result.pred = prev;
-    result.predPos = currentPos - prev.length;
-    result.beforePred = prevprev;
-  } else {
-    result.pred = null;
+    pred = prev;
+    predPos = currentPos - prev.length;
+    beforePred = prevprev;
   }
 
-  while (current !== null && span.end() > currentPos) {
-    currentPos += current.length;
-    prev = current;
-    current = current.next;
-  }
-  if (span.end() > currentPos) {
-    throw new Error("Span end exceeds the bounds of the AnnotationList.");
-  }
+  const { end, succ } = findSpanEndBounds(current, currentPos, prev, span);
 
-  if (span.length === 0 && span.end() === currentPos) {
-    result.end = null;
-  } else {
-    result.end = prev;
-  }
-  result.succ = currentPos === span.end() ? current : null;
-
-  return result;
+  return {
+    startPos,
+    start,
+    beforeStart,
+    pred,
+    predPos,
+    beforePred,
+    end,
+    succ,
+  };
 }
 
 function collectOldNodes(
-  res: any,
+  res: AffectedNodesResult,
   includePred: boolean,
   includeSucc: boolean,
 ): OldAnnotatedSpan[] {
@@ -99,7 +131,7 @@ function collectOldNodes(
 
 function spliceNewSegment(
   newSegment: Node,
-  res: any,
+  res: AffectedNodesResult,
   tail: Node | null,
   newNodes: NewAnnotatedSpan[],
 ): { includePred: boolean; includeSucc: boolean } {
@@ -110,10 +142,14 @@ function spliceNewSegment(
   if (res.pred && res.pred.annotation.equals(newSegment.annotation)) {
     includePred = true;
     newSegment.length += res.pred.length;
-    if (res.beforePred) res.beforePred.next = newSegment;
+    assert(
+      res.beforePred !== null,
+      "beforePred must exist when pred is defined",
+    );
+    res.beforePred!.next = newSegment;
     newPos = res.predPos;
   } else {
-    if (res.beforeStart) res.beforeStart.next = newSegment;
+    res.beforeStart.next = newSegment;
     newPos = res.startPos;
   }
   while (newSegment.next) {
@@ -133,7 +169,7 @@ function spliceNewSegment(
 }
 
 function spliceEmptySegment(
-  res: any,
+  res: AffectedNodesResult,
   tail: Node | null,
   newNodes: NewAnnotatedSpan[],
 ): { includePred: boolean; includeSucc: boolean } {
@@ -142,21 +178,25 @@ function spliceEmptySegment(
       res.pred.length + res.succ.length,
       res.pred.annotation,
     );
-    if (res.beforePred) res.beforePred.next = newSegment;
+    assert(
+      res.beforePred !== null,
+      "beforePred must exist when pred is defined",
+    );
+    res.beforePred!.next = newSegment;
     newSegment.next = res.succ.next;
     newNodes.push(
       new NewAnnotatedSpan(res.startPos - res.pred.length, newSegment),
     );
     return { includePred: true, includeSucc: true };
   } else {
-    if (res.beforeStart) res.beforeStart.next = tail;
+    res.beforeStart.next = tail;
     return { includePred: false, includeSucc: false };
   }
 }
 
 export function wrapOperation(
   head: Node,
-  span: any,
+  span: Span,
   operationFn: (pos: number, node: Node | null) => Node | null,
   changeHandler: (
     oldNodes: OldAnnotatedSpan[],
@@ -165,6 +205,9 @@ export function wrapOperation(
 ): void {
   if (span.pos < 0) {
     throw new Error("Span start cannot be negative.");
+  }
+  if (span.length < 0) {
+    throw new Error("Span length cannot be negative.");
   }
   const newNodes: NewAnnotatedSpan[] = [];
   const res = getAffectedNodes(head, span);
@@ -177,19 +220,23 @@ export function wrapOperation(
     tail = res.succ;
   }
 
-  const newSegment = operationFn(res.startPos, res.start);
-  let includePred = false;
-  let includeSucc = false;
-
-  if (newSegment) {
-    const spliced = spliceNewSegment(newSegment, res, tail, newNodes);
-    includePred = spliced.includePred;
-    includeSucc = spliced.includeSucc;
-  } else {
-    const spliced = spliceEmptySegment(res, tail, newNodes);
-    includePred = spliced.includePred;
-    includeSucc = spliced.includeSucc;
+  let newSegment: Node | null;
+  try {
+    newSegment = operationFn(res.startPos, res.start);
+  } catch (err) {
+    if (res.end && res.start !== null) {
+      res.end.next = tail;
+    }
+    throw err;
   }
+
+  let splicedResult: { includePred: boolean; includeSucc: boolean };
+  if (newSegment !== null) {
+    splicedResult = spliceNewSegment(newSegment, res, tail, newNodes);
+  } else {
+    splicedResult = spliceEmptySegment(res, tail, newNodes);
+  }
+  const { includePred, includeSucc } = splicedResult;
 
   const oldNodes = collectOldNodes(res, includePred, includeSucc);
   changeHandler(oldNodes, newNodes);

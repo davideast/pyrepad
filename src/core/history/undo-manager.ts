@@ -1,81 +1,121 @@
 /**
  * Manages undo and redo stacks for collaborative operations.
  */
-const NORMAL_STATE = "normal";
-const UNDOING_STATE = "undoing";
-const REDOING_STATE = "redoing";
+export type UndoManagerState = "normal" | "undoing" | "redoing";
+
+export interface UndoableOp {
+  compose(other: any): any;
+  isNoop?(): boolean;
+  constructor: {
+    transform(op1: any, op2: any): [any, any];
+  };
+}
+
+function transformStack(stack: any[], operation: any): any[] {
+  const newStack: any[] = [];
+  let currentOp = operation;
+
+  for (let i = stack.length - 1; i >= 0; i--) {
+    const OperationClass = currentOp.constructor;
+    const pair = OperationClass.transform(stack[i], currentOp);
+    const transformedOp = pair[0];
+
+    const hasNoopDetector = typeof transformedOp.isNoop === "function";
+    const isSignificantOp = !hasNoopDetector || !transformedOp.isNoop();
+    if (isSignificantOp) {
+      newStack.push(transformedOp);
+    }
+    currentOp = pair[1];
+  }
+  return newStack.reverse();
+}
 
 export class UndoManager {
   maxItems: number;
-  state: string;
+  state: UndoManagerState;
   dontCompose: boolean;
   undoStack: any[];
   redoStack: any[];
 
   constructor(maxItems = 50) {
+    const isValidCapacity = typeof maxItems === "number" && maxItems > 0;
+    if (!isValidCapacity) {
+      throw new Error("maxItems must be a positive integer.");
+    }
     this.maxItems = maxItems;
-    this.state = NORMAL_STATE;
+    this.state = "normal";
     this.dontCompose = false;
     this.undoStack = [];
     this.redoStack = [];
   }
 
   add(operation: any, compose?: boolean): void {
-    if (this.state === UNDOING_STATE) {
-      this.redoStack.push(operation);
-      this.dontCompose = true;
-    } else if (this.state === REDOING_STATE) {
-      this.undoStack.push(operation);
-      this.dontCompose = true;
-    } else {
-      const undoStack = this.undoStack;
-      if (!this.dontCompose && compose && undoStack.length > 0) {
-        undoStack.push(operation.compose(undoStack.pop()));
-      } else {
-        undoStack.push(operation);
-        if (undoStack.length > this.maxItems) {
-          undoStack.shift();
-        }
+    switch (this.state) {
+      case "undoing": {
+        this.redoStack.push(operation);
+        this.dontCompose = true;
+        break;
       }
-      this.dontCompose = false;
-      this.redoStack = [];
+      case "redoing": {
+        this.undoStack.push(operation);
+        this.dontCompose = true;
+        break;
+      }
+      case "normal": {
+        this.addNormalOperation(operation, Boolean(compose));
+        break;
+      }
     }
   }
 
-  transform(operation: any): void {
-    const transformStack = (stack: any[], op: any): any[] => {
-      const newStack = [];
-      const Operation = op.constructor;
-      for (let i = stack.length - 1; i >= 0; i--) {
-        const pair = Operation.transform(stack[i], op);
-        if (typeof pair[0].isNoop !== "function" || !pair[0].isNoop()) {
-          newStack.push(pair[0]);
-        }
-        op = pair[1];
-      }
-      return newStack.reverse();
-    };
+  private addNormalOperation(operation: any, compose: boolean): void {
+    const canComposeWithPrevious =
+      !this.dontCompose && compose && this.undoStack.length > 0;
 
+    if (canComposeWithPrevious) {
+      const previousOp = this.undoStack.pop();
+      const composedOp = operation.compose(previousOp);
+      this.undoStack.push(composedOp);
+    } else {
+      this.undoStack.push(operation);
+      const isExceedingCapacity = this.undoStack.length > this.maxItems;
+      if (isExceedingCapacity) {
+        this.undoStack.shift();
+      }
+    }
+    this.dontCompose = false;
+    this.redoStack = [];
+  }
+
+  transform(operation: any): void {
     this.undoStack = transformStack(this.undoStack, operation);
     this.redoStack = transformStack(this.redoStack, operation);
   }
 
   performUndo(fn: (op: any) => void): void {
-    this.state = UNDOING_STATE;
-    if (this.undoStack.length === 0) {
+    const isStackEmpty = this.undoStack.length === 0;
+    if (isStackEmpty) {
       throw new Error("undo not possible");
     }
-    fn(this.undoStack.pop());
-    this.state = NORMAL_STATE;
+    this.state = "undoing";
+    try {
+      fn(this.undoStack.pop());
+    } finally {
+      this.state = "normal";
+    }
   }
 
   performRedo(fn: (op: any) => void): void {
-    this.state = REDOING_STATE;
-    if (this.redoStack.length === 0) {
+    const isStackEmpty = this.redoStack.length === 0;
+    if (isStackEmpty) {
       throw new Error("redo not possible");
     }
-    fn(this.redoStack.pop());
-    this.state = NORMAL_STATE;
+    this.state = "redoing";
+    try {
+      fn(this.redoStack.pop());
+    } finally {
+      this.state = "normal";
+    }
   }
 
   canUndo(): boolean {
@@ -87,10 +127,10 @@ export class UndoManager {
   }
 
   isUndoing(): boolean {
-    return this.state === UNDOING_STATE;
+    return this.state === "undoing";
   }
 
   isRedoing(): boolean {
-    return this.state === REDOING_STATE;
+    return this.state === "redoing";
   }
 }

@@ -28,10 +28,7 @@ export class TextOperation {
     if (this.baseLength !== other.baseLength) return false;
     if (this.targetLength !== other.targetLength) return false;
     if (this.ops.length !== other.ops.length) return false;
-    for (let i = 0; i < this.ops.length; i++) {
-      if (!this.ops[i].equals(other.ops[i])) return false;
-    }
-    return true;
+    return this.ops.every((op, index) => op.equals(other.ops[index]));
   }
 
   retain(n: number, attributes?: Record<string, any>): this {
