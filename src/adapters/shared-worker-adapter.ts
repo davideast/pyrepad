@@ -24,11 +24,7 @@ export class SharedWorkerAdapter extends AbstractSyncAdapter {
   ) {
     super();
     const normalized = isValidRef(ref) ? (ref as RefLike) : null;
-    this.setupStreams(normalized, "worker", userColor || "#10b981");
-    const hasCustomId = Boolean(userId && userId.trim().length > 0);
-    if (hasCustomId) {
-      this.userId = userId!;
-    }
+    this.setupStreams(normalized, "worker", userColor || "#10b981", userId);
     this.workerPort = (workerPort as MessagePortLike) || null;
 
     this.bindWorkerEvents();
@@ -56,9 +52,12 @@ export class SharedWorkerAdapter extends AbstractSyncAdapter {
   private handleWorkerMessage(data: { type: string; payload?: any }): void {
     const isCommit = data.type === "PYRIC_WORKER_COMMIT";
     if (isCommit) {
-      const hasPayload = Boolean(data.payload);
-      if (hasPayload) {
-        this.trigger("worker_commit", data.payload);
+      const payload = data.payload;
+      const hasRemoteAuthor = Boolean(
+        payload && payload.author && payload.author !== this.userId,
+      );
+      if (hasRemoteAuthor) {
+        this.trigger("worker_sync", payload);
       }
     }
   }
@@ -66,7 +65,15 @@ export class SharedWorkerAdapter extends AbstractSyncAdapter {
   protected override onCommitSuccess(author: string): void {
     this.broadcastWorkerMessage({
       type: "PYRIC_WORKER_COMMIT",
-      payload: { author: author },
+      payload: { author: author, revision: this.historyHandler.getRevision() },
+    });
+  }
+
+  override sendCursor(cursor: unknown): void {
+    super.sendCursor(cursor);
+    this.broadcastWorkerMessage({
+      type: "PYRIC_WORKER_PRESENCE",
+      payload: { userId: this.userId, cursor: cursor, color: this.userColor },
     });
   }
 

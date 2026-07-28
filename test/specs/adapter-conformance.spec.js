@@ -186,3 +186,37 @@ verifySyncAdapterContract("SharedWorkerAdapter", function (ref, userId, color) {
   };
   return new SharedWorkerAdapter(ref, userId, color, mockPort);
 });
+
+describe("Modular Tree-Shakable Firebase v9+ Bindings (Issue #12)", function () {
+  it("Wraps pure v9 modular functions without requiring .child method attached directly on reference object", async function () {
+    var rawRef = { path: "/my-collaborative-doc" };
+    var childCalls = 0;
+    var onValueCalls = 0;
+
+    var modularConfig = {
+      ref: rawRef,
+      child: function (parent, childPath) {
+        childCalls++;
+        return { path: (parent ? parent.path : "") + "/" + childPath };
+      },
+      onValue: function (targetRef, cb) {
+        onValueCalls++;
+        if (targetRef && targetRef.path && targetRef.path.indexOf("connected") !== -1) {
+          cb({ val: function () { return true; } });
+        }
+      },
+      once: function (targetRef, cb) {
+        if (targetRef && targetRef.path && targetRef.path.indexOf("history") !== -1) {
+          cb({ val: function () { return null; } });
+        }
+      },
+      off: function () {},
+    };
+
+    var adapter = new Firebase9Adapter(modularConfig, "v9-client", "#eab308");
+    await new Promise((resolve) => queueMicrotask(resolve));
+    expect(childCalls).toBeGreaterThan(0);
+    expect(onValueCalls).toBeGreaterThan(0);
+    await adapter.dispose();
+  });
+});
