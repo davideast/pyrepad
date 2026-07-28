@@ -147,4 +147,23 @@ describe("Integrate CodeMirror 6 (CM6) State Field Driver & Decorations (Issue #
     expect(driverAlice.isDisposed()).toBe(true);
     expect(driverBob.isDisposed()).toBe(true);
   });
+
+  it("Reads authentic caret selection coordinates from view.state.selection in getCursor", function () {
+    var mockViewWithSelection = {
+      state: {
+        doc: { length: 40, toString: function () { return "0123456789012345678901234567890123456789"; } },
+        selection: {
+          main: { head: 15, anchor: 25 },
+        },
+      },
+      dispatch: function () {},
+    };
+
+    var adapter = new CodeMirror6Adapter(mockViewWithSelection);
+    var cursor = adapter.getCursor();
+    expect(cursor).not.toBeNull();
+    expect(cursor.position).toBe(15);
+    expect(cursor.selectionEnd).toBe(25);
+    adapter.dispose();
+  });
 });
