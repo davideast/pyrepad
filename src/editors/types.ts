@@ -81,3 +81,50 @@ export interface EditorDriverSeam {
   detach(): void;
   dispose(): void;
 }
+
+export interface CM6ChangeSetLike {
+  iterChanges(fn: (fromA: number, toA: number, ...rest: any[]) => void): void;
+  length?: number;
+}
+
+export interface CM6TransactionLike {
+  changes: CM6ChangeSetLike;
+  startState: { doc: { length: number; toString(): string } };
+  state: { doc: { length: number; toString(): string } };
+  annotation(key: unknown): unknown;
+  docChanged: boolean;
+  selection?: { main: { head: number; anchor: number } };
+}
+
+export interface CM6ViewLike {
+  state: { doc: { length: number; toString(): string } };
+  dispatch(specs: {
+    changes?: Array<{ from: number; to?: number; insert?: string }>;
+    annotations?: unknown | unknown[];
+    effects?: unknown;
+  }): void;
+  requestMeasure?(request: unknown): void;
+}
+
+export interface CM6WidgetLike {
+  toDOM(view?: CM6ViewLike): any;
+  eq(other: CM6WidgetLike): boolean;
+  destroy(dom?: any): void;
+  dispose(): void;
+  isDisposed(): boolean;
+}
+
+export interface CM6PluginSeam {
+  setOtherCursor(data: RemoteCursorData, view: CM6ViewLike): void;
+  clearCursor(clientId: string, view?: CM6ViewLike): void;
+  getDecorations(): Array<{
+    from: number;
+    to: number;
+    widget?: CM6WidgetLike;
+    className?: string;
+    clientId: string;
+  }>;
+  dispose(): void;
+  isDisposed(): boolean;
+  getActiveWidgetCount(): number;
+}
