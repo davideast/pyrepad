@@ -1,12 +1,12 @@
 import { describe, it, expect } from "bun:test";
 import {
-  FigmaCursorWidget,
-  FigmaDecorationManager,
+  PresenceCursorWidget,
+  PresenceDecorationManager,
   CodeMirror5Adapter,
 } from "../../src/editors/index.ts";
 import { TextOperation } from "../../src/core/index.ts";
 
-describe("Migrate CodeMirror 5 Adapter & Sub-Pixel Figma Cursors (Issue #4)", function () {
+describe("Migrate CodeMirror 5 Adapter & Sub-Pixel Presence Decorations (Issue #4)", function () {
   it("Separates text change driver translation from collaborative UI decoration rendering in dedicated modules", function () {
     var replacedText = "";
     var mockCm = {
@@ -36,7 +36,7 @@ describe("Migrate CodeMirror 5 Adapter & Sub-Pixel Figma Cursors (Issue #4)", fu
     };
 
     var driver = new CodeMirror5Adapter(mockCm);
-    expect(driver.decorations instanceof FigmaDecorationManager).toBe(true);
+    expect(driver.decorations instanceof PresenceDecorationManager).toBe(true);
 
     // Verify applyOperation properly synchronizes incoming remote operations
     var remoteOp = new TextOperation().retain(4).insert("inserted ");
@@ -52,7 +52,7 @@ describe("Migrate CodeMirror 5 Adapter & Sub-Pixel Figma Cursors (Issue #4)", fu
   });
 
   it("Aligns collaborative cursor widgets directly on text line baselines with 0.000px vertical discrepancy", function () {
-    var widget = new FigmaCursorWidget("#ef4444", "Bob", 22);
+    var widget = new PresenceCursorWidget("#ef4444", "Bob", 22);
     var el = widget.getElement();
 
     expect(el.className).toBe("other-client firepad-client-cursor");
@@ -68,7 +68,7 @@ describe("Migrate CodeMirror 5 Adapter & Sub-Pixel Figma Cursors (Issue #4)", fu
   });
 
   it("Guarantees 100% event listener and hover timer disposal upon editor teardown (dispose)", function () {
-    var manager = new FigmaDecorationManager();
+    var manager = new PresenceDecorationManager();
     var mockCm = {
       posFromIndex: function (idx) {
         return { line: 0, ch: idx };

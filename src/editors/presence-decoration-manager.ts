@@ -8,10 +8,10 @@ import {
   BookmarkLike,
   TextMarkerLike,
 } from "./types.ts";
-import { FigmaCursorWidget } from "./figma-cursor-widget.ts";
+import { PresenceCursorWidget } from "./presence-cursor-widget.ts";
 
-export class FigmaDecorationManager implements DecorationManagerSeam {
-  private activeWidgets: Record<string, FigmaCursorWidget> = {};
+export class PresenceDecorationManager implements DecorationManagerSeam {
+  private activeWidgets: Record<string, PresenceCursorWidget> = {};
   private activeBookmarks: Record<string, BookmarkLike | TextMarkerLike> = {};
   private disposed = false;
 
@@ -72,7 +72,7 @@ export class FigmaDecorationManager implements DecorationManagerSeam {
       if (isPositiveHeight) height = exactHeight;
     }
 
-    const widget = new FigmaCursorWidget(color, clientId, height);
+    const widget = new PresenceCursorWidget(color, clientId, height);
     this.activeWidgets[clientId] = widget;
 
     const bookmark = cm.setBookmark(pos, {
@@ -134,7 +134,7 @@ export class FigmaDecorationManager implements DecorationManagerSeam {
     return Object.keys(this.activeBookmarks).length;
   }
 
-  getWidget(clientId: string): FigmaCursorWidget | undefined {
+  getWidget(clientId: string): PresenceCursorWidget | undefined {
     return this.activeWidgets[clientId];
   }
 

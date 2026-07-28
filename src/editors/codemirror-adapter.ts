@@ -10,7 +10,7 @@ import {
   TextMarkerLike,
   RemoteCursorData,
 } from "./types.ts";
-import { FigmaDecorationManager } from "./figma-decoration-manager.ts";
+import { PresenceDecorationManager } from "./presence-decoration-manager.ts";
 import { TextOperation } from "../core/index.ts";
 
 type Callback = (...args: any[]) => void;
@@ -18,7 +18,7 @@ type Callback = (...args: any[]) => void;
 export class CodeMirror5Adapter implements EditorDriverSeam {
   private cm: any;
   private rtcm: any;
-  readonly decorations: FigmaDecorationManager;
+  readonly decorations: PresenceDecorationManager;
   private callbacks: Record<string, Callback[]> = {};
   private disposed = false;
   private changeHandler: any;
@@ -36,7 +36,7 @@ export class CodeMirror5Adapter implements EditorDriverSeam {
       this.rtcm = null;
     }
 
-    this.decorations = new FigmaDecorationManager();
+    this.decorations = new PresenceDecorationManager();
     this.bindCodeMirrorEvents();
   }
 
