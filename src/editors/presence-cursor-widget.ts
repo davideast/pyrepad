@@ -1,5 +1,5 @@
 /**
- * Sub-pixel aligned Figma-style collaborative cursor widget and username badge rendering module.
+ * Sub-pixel aligned collaborative presence cursor widget and username badge rendering module.
  */
 import { CursorWidgetSeam } from "./types.ts";
 
@@ -19,7 +19,7 @@ interface MockElement {
   removeEventListener?(event: string, handler: unknown): void;
 }
 
-export class FigmaCursorWidget implements CursorWidgetSeam {
+export class PresenceCursorWidget implements CursorWidgetSeam {
   private element: any;
   private caretEl: any;
   private tooltipEl: any;
@@ -83,7 +83,7 @@ export class FigmaCursorWidget implements CursorWidgetSeam {
       this.element.setAttribute("data-clientid", this.clientId);
     }
 
-    // Sub-pixel aligned Figma-style collaborative cursor on line baseline with exact 0.000px vertical discrepancy
+    // Sub-pixel aligned collaborative presence cursor on line baseline with exact 0.000px vertical discrepancy
     this.element.style.height = `${height}px`;
     this.element.style.verticalAlign = "baseline";
     this.element.style.transform = "translateY(0.000px)";
