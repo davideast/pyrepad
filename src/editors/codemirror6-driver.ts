@@ -119,12 +119,18 @@ export class CodeMirror6Adapter implements EditorDriverSeam {
         op.delete(deleteLen);
       }
 
-      const insertStr =
-        typeof inserted === "string"
-          ? inserted
-          : inserted && typeof inserted.toString === "function"
-            ? inserted.toString()
-            : "";
+      let insertStr = "";
+      const isStringInserted = typeof inserted === "string";
+      if (isStringInserted) {
+        insertStr = inserted;
+      } else {
+        const hasToString = Boolean(
+          inserted && typeof inserted.toString === "function",
+        );
+        if (hasToString) {
+          insertStr = inserted.toString();
+        }
+      }
       const hasInsertedText = insertStr.length > 0;
       if (hasInsertedText) {
         op.insert(insertStr);
@@ -220,6 +226,17 @@ export class CodeMirror6Adapter implements EditorDriverSeam {
   getCursor(): CursorLike | null {
     const isDisposed = this.disposed || !this.view;
     if (isDisposed) return null;
+
+    const selection = this.view?.state?.selection?.main;
+    const hasSelection = Boolean(
+      selection &&
+      typeof selection.head === "number" &&
+      typeof selection.anchor === "number",
+    );
+    if (hasSelection) {
+      return { position: selection!.head, selectionEnd: selection!.anchor };
+    }
+
     const docLen = this.view?.state?.doc?.length ?? 0;
     return { position: docLen, selectionEnd: docLen };
   }
