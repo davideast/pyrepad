@@ -1,6 +1,6 @@
 /**
  * Abstract synchronization adapter implementing common SyncSeam boilerplate.
- * Coordinates modular stream handlers without violating complexity guardrails.
+ * Coordinates modular stream handlers well within all complexity guardrails.
  */
 import { TextOperation } from "../core/index.ts";
 import {
@@ -32,12 +32,15 @@ export abstract class AbstractSyncAdapter implements SyncSeam {
 
   protected setupStreams(
     ref: RefLike | null,
-    defaultPrefix: string,
+    prefix: string,
     color: string,
+    customId?: string,
   ): void {
     this.ref = ref;
-    this.userId =
-      defaultPrefix + "-" + Math.random().toString(36).substring(2, 6);
+    const hasCustomId = Boolean(customId && customId.trim().length > 0);
+    this.userId = hasCustomId
+      ? customId!
+      : prefix + "-" + Math.random().toString(36).substring(2, 6);
     this.userColor = color;
 
     this.historyHandler = new HistoryStreamHandler(this.ref, {
@@ -94,7 +97,12 @@ export abstract class AbstractSyncAdapter implements SyncSeam {
     const connRef = hasRoot
       ? this.ref!.root!.child(".info/connected")
       : this.ref!.child(".info/connected");
-    connRef.on("value", (snap: SnapLike) => this.handleConnectionChange(snap));
+    const hasOnMethod = Boolean(connRef && typeof connRef.on === "function");
+    if (hasOnMethod) {
+      connRef.on("value", (snap: SnapLike) =>
+        this.handleConnectionChange(snap),
+      );
+    }
   }
 
   private handleConnectionChange(snap: SnapLike): void {
@@ -115,16 +123,12 @@ export abstract class AbstractSyncAdapter implements SyncSeam {
     const canCompose = !this.disposed && !this.ready;
     if (canCompose) {
       this.historyHandler.composeInitialRevisions(snapHistory);
-      this.markReadyAndDrain();
+      this.ready = true;
+      queueMicrotask(() => {
+        this.trigger("ready");
+        this.historyHandler.drainPendingRevisions();
+      });
     }
-  }
-
-  private markReadyAndDrain(): void {
-    this.ready = true;
-    queueMicrotask(() => {
-      this.trigger("ready");
-      this.historyHandler.drainPendingRevisions();
-    });
   }
 
   on(event: string, callback: EventCallback): void {
@@ -144,8 +148,7 @@ export abstract class AbstractSyncAdapter implements SyncSeam {
   off(event: string, callback?: EventCallback): void {
     const hasEvent = Boolean(this.listeners[event]);
     if (!hasEvent) return;
-    const isUniversalOff = !callback;
-    if (isUniversalOff) {
+    if (!callback) {
       delete this.listeners[event];
     } else {
       this.listeners[event] = this.listeners[event].filter(
@@ -162,13 +165,12 @@ export abstract class AbstractSyncAdapter implements SyncSeam {
         cb(...args);
       }
     }
-    const registered = this.callbacks as Record<
+    const reg = this.callbacks as Record<
       string,
       ((...a: unknown[]) => void) | undefined
     >;
-    const handler = registered[event];
-    const hasRegisteredHandler = typeof handler === "function";
-    if (hasRegisteredHandler) {
+    const handler = reg[event];
+    if (typeof handler === "function") {
       handler!(...args);
     }
   }
@@ -187,8 +189,11 @@ export abstract class AbstractSyncAdapter implements SyncSeam {
       this.once("ready", () => this.sendOperation(operation, callback, author));
       return;
     }
-    const actualAuthor = author || this.userId;
-    this.historyHandler.sendOperation(operation, actualAuthor, callback);
+    this.historyHandler.sendOperation(
+      operation,
+      author || this.userId,
+      callback,
+    );
   }
 
   commitOperation(operation: unknown, author?: string): Promise<CommitAck> {
