@@ -8,6 +8,7 @@ import {
   CursorLike,
   BookmarkLike,
   TextMarkerLike,
+  RemoteCursorData,
 } from "./types.ts";
 import { FigmaDecorationManager } from "./figma-decoration-manager.ts";
 import { TextOperation } from "../core/index.ts";
@@ -163,20 +164,19 @@ export class CodeMirror5Adapter implements EditorDriverSeam {
 
     let index = 0;
     for (const step of op.ops) {
-      const isRetain =
-        typeof step.isRetain === "function"
-          ? step.isRetain()
-          : typeof step === "number" && step > 0;
+      const hasRetainFn = typeof step.isRetain === "function";
+      const isRetainNumber = typeof step === "number" && step > 0;
+      const isRetain = hasRetainFn ? step.isRetain() : isRetainNumber;
       if (isRetain) {
         const chars =
           typeof step.chars === "number" ? step.chars : Number(step);
         index += chars;
         continue;
       }
-      const isInsert =
-        typeof step.isInsert === "function"
-          ? step.isInsert()
-          : typeof step === "string";
+
+      const hasInsertFn = typeof step.isInsert === "function";
+      const isInsertString = typeof step === "string";
+      const isInsert = hasInsertFn ? step.isInsert() : isInsertString;
       if (isInsert) {
         const text = typeof step.text === "string" ? step.text : String(step);
         const fromPos = this.cm.posFromIndex(index);
@@ -184,10 +184,10 @@ export class CodeMirror5Adapter implements EditorDriverSeam {
         index += text.length;
         continue;
       }
-      const isDelete =
-        typeof step.isDelete === "function"
-          ? step.isDelete()
-          : typeof step === "number" && step < 0;
+
+      const hasDeleteFn = typeof step.isDelete === "function";
+      const isDeleteNumber = typeof step === "number" && step < 0;
+      const isDelete = hasDeleteFn ? step.isDelete() : isDeleteNumber;
       if (isDelete) {
         const chars =
           typeof step.chars === "number" ? step.chars : Math.abs(Number(step));
@@ -236,19 +236,13 @@ export class CodeMirror5Adapter implements EditorDriverSeam {
   }
 
   setOtherCursor(
-    cursor: CursorLike,
-    color: string,
-    clientId: string,
+    data: RemoteCursorData,
   ): BookmarkLike | TextMarkerLike | undefined {
     const isAlreadyDisposed = this.disposed;
     if (isAlreadyDisposed) return undefined;
 
     const docLength = this.getValue().length;
-    return this.decorations.setOtherCursor(
-      { cursor, color, clientId },
-      this.cm,
-      docLength,
-    );
+    return this.decorations.setOtherCursor(data, this.cm, docLength);
   }
 
   clearCursor(clientId: string): void {
@@ -274,19 +268,40 @@ export class CodeMirror5Adapter implements EditorDriverSeam {
     const hasOffMethod = Boolean(this.cm && typeof this.cm.off === "function");
     if (!hasOffMethod) return;
 
-    try {
-      const hasRtcm = Boolean(this.rtcm && typeof this.rtcm.off === "function");
-      if (hasRtcm) {
+    const hasRtcm = Boolean(this.rtcm && typeof this.rtcm.off === "function");
+    if (hasRtcm) {
+      try {
         this.rtcm.off("change", this.changeHandler);
-        this.rtcm.off("attributesChange", this.changeHandler);
-      } else {
-        this.cm.off("change", this.changeHandler);
+      } catch (err) {
+        console.warn("Error unbinding rtcm change:", err);
       }
+      try {
+        this.rtcm.off("attributesChange", this.changeHandler);
+      } catch (err) {
+        console.warn("Error unbinding rtcm attributesChange:", err);
+      }
+    } else {
+      try {
+        this.cm.off("change", this.changeHandler);
+      } catch (err) {
+        console.warn("Error unbinding cm change:", err);
+      }
+    }
+
+    try {
       this.cm.off("cursorActivity", this.cursorActivityHandler);
+    } catch (err) {
+      console.warn("Error unbinding cm cursorActivity:", err);
+    }
+    try {
       this.cm.off("focus", this.focusHandler);
+    } catch (err) {
+      console.warn("Error unbinding cm focus:", err);
+    }
+    try {
       this.cm.off("blur", this.blurHandler);
     } catch (err) {
-      console.warn("Unexpected error unbinding CodeMirror 5 events:", err);
+      console.warn("Error unbinding cm blur:", err);
     }
   }
 }

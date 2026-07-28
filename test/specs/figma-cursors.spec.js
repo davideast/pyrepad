@@ -45,7 +45,7 @@ describe("Migrate CodeMirror 5 Adapter & Sub-Pixel Figma Cursors (Issue #4)", fu
 
     // Verify setOtherCursor mounts collaborative UI decorations independently
     var cursorData = { position: 4, selectionEnd: 4 };
-    var bookmark = driver.setOtherCursor(cursorData, "#3b82f6", "Alice");
+    var bookmark = driver.setOtherCursor({ cursor: cursorData, color: "#3b82f6", clientId: "Alice" });
     expect(bookmark).not.toBeUndefined();
     expect(driver.decorations.getActiveWidgetCount()).toBe(1);
     driver.dispose();

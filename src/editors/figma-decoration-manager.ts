@@ -28,8 +28,7 @@ export class FigmaDecorationManager implements DecorationManagerSeam {
     if (isAlreadyDisposed) return undefined;
 
     const { cursor, color, clientId } = data;
-    const isValidColor =
-      typeof color === "string" && Boolean(color.match(/^#[a-fA-F0-9]{3,6}$/));
+    const isValidColor = typeof color === "string" && color.trim().length > 0;
     if (!isValidColor) return undefined;
 
     const isValidCursor =
