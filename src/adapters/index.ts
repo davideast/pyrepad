@@ -3,7 +3,10 @@
  */
 export * from "./types.ts";
 export * from "./reactive-stream.ts";
+export * from "./base-adapter.ts";
 export * from "./pyric-sandbox-adapter.ts";
+export * from "./firebase9-adapter.ts";
+export * from "./shared-worker-adapter.ts";
 export * from "./streams/history-stream.ts";
 export * from "./streams/presence-stream.ts";
 export * from "./streams/agentive-stream.ts";

@@ -1,5 +1,10 @@
 import { describe, it, expect } from "bun:test";
-import { PyricSandboxAdapter } from "../../src/adapters/index.ts";
+import {
+  PyricSandboxAdapter,
+  Firebase9Adapter,
+  FirestoreAdapter,
+  SharedWorkerAdapter,
+} from "../../src/adapters/index.ts";
 import { TextOperation, Cursor } from "../../src/core/index.ts";
 
 function verifySyncAdapterContract(adapterName, createAdapter) {
@@ -160,4 +165,24 @@ function verifySyncAdapterContract(adapterName, createAdapter) {
 // Execute Tier B Pluggable Conformance Suite against our PyricSandboxAdapter implementation
 verifySyncAdapterContract("PyricSandboxAdapter", function (ref, userId, color) {
   return new PyricSandboxAdapter(ref, userId, color);
+});
+
+// Execute Tier B Pluggable Conformance Suite against modular Firebase v9+ / Firestore implementations (Issue #12)
+verifySyncAdapterContract("Firebase9Adapter", function (ref, userId, color) {
+  return new Firebase9Adapter(ref, userId, color);
+});
+
+verifySyncAdapterContract("FirestoreAdapter (Alias)", function (ref, userId, color) {
+  return new FirestoreAdapter(ref, userId, color);
+});
+
+// Execute Tier B Pluggable Conformance Suite against SharedWorker multi-tab environment driver (Issue #12)
+verifySyncAdapterContract("SharedWorkerAdapter", function (ref, userId, color) {
+  var mockPort = {
+    postMessage: function () {},
+    addEventListener: function () {},
+    removeEventListener: function () {},
+    close: function () {},
+  };
+  return new SharedWorkerAdapter(ref, userId, color, mockPort);
 });
