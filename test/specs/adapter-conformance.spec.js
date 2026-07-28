@@ -1,7 +1,8 @@
 import { describe, it, expect } from "bun:test";
 import {
   PyricSandboxAdapter,
-  Firebase9Adapter,
+  FirebaseAdapter,
+  FirebaseModularAdapter,
   FirestoreAdapter,
   SharedWorkerAdapter,
 } from "../../src/adapters/index.ts";
@@ -167,9 +168,13 @@ verifySyncAdapterContract("PyricSandboxAdapter", function (ref, userId, color) {
   return new PyricSandboxAdapter(ref, userId, color);
 });
 
-// Execute Tier B Pluggable Conformance Suite against modular Firebase v9+ / Firestore implementations (Issue #12)
-verifySyncAdapterContract("Firebase9Adapter", function (ref, userId, color) {
-  return new Firebase9Adapter(ref, userId, color);
+// Execute Tier B Pluggable Conformance Suite against evergreen modular Firebase / Firestore implementations (Issue #12)
+verifySyncAdapterContract("FirebaseAdapter", function (ref, userId, color) {
+  return new FirebaseAdapter(ref, userId, color);
+});
+
+verifySyncAdapterContract("FirebaseModularAdapter (Alias)", function (ref, userId, color) {
+  return new FirebaseModularAdapter(ref, userId, color);
 });
 
 verifySyncAdapterContract("FirestoreAdapter (Alias)", function (ref, userId, color) {
@@ -187,8 +192,8 @@ verifySyncAdapterContract("SharedWorkerAdapter", function (ref, userId, color) {
   return new SharedWorkerAdapter(ref, userId, color, mockPort);
 });
 
-describe("Modular Tree-Shakable Firebase v9+ Bindings (Issue #12)", function () {
-  it("Wraps pure v9 modular functions without requiring .child method attached directly on reference object", async function () {
+describe("Modular Tree-Shakable Firebase Bindings (Issue #12)", function () {
+  it("Wraps pure modular functions without requiring .child method attached directly on reference object", async function () {
     var rawRef = { path: "/my-collaborative-doc" };
     var childCalls = 0;
     var onValueCalls = 0;
@@ -213,7 +218,7 @@ describe("Modular Tree-Shakable Firebase v9+ Bindings (Issue #12)", function () 
       off: function () {},
     };
 
-    var adapter = new Firebase9Adapter(modularConfig, "v9-client", "#eab308");
+    var adapter = new FirebaseAdapter(modularConfig, "firebase-client", "#eab308");
     await new Promise((resolve) => queueMicrotask(resolve));
     expect(childCalls).toBeGreaterThan(0);
     expect(onValueCalls).toBeGreaterThan(0);
