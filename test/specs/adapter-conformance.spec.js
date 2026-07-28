@@ -5,6 +5,9 @@ import {
   FirebaseModularAdapter,
   FirestoreAdapter,
   SharedWorkerAdapter,
+  OfflineDurableAdapter,
+  IndexedDBAdapter,
+  InMemoryStorageEngine,
 } from "../../src/adapters/index.ts";
 import { TextOperation, Cursor } from "../../src/core/index.ts";
 
@@ -190,6 +193,17 @@ verifySyncAdapterContract("SharedWorkerAdapter", function (ref, userId, color) {
     close: function () {},
   };
   return new SharedWorkerAdapter(ref, userId, color, mockPort);
+});
+
+// Execute Tier B Pluggable Conformance Suite against Offline Durable IndexedDB implementations (Issue #7)
+verifySyncAdapterContract("OfflineDurableAdapter", function (ref, userId, color) {
+  var base = new PyricSandboxAdapter(ref, userId, color);
+  return new OfflineDurableAdapter(base, new InMemoryStorageEngine(), "doc-conformance");
+});
+
+verifySyncAdapterContract("IndexedDBAdapter (Alias)", function (ref, userId, color) {
+  var base = new PyricSandboxAdapter(ref, userId, color);
+  return new IndexedDBAdapter(base, new InMemoryStorageEngine(), "doc-conformance");
 });
 
 describe("Modular Tree-Shakable Firebase Bindings (Issue #12)", function () {
