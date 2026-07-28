@@ -1,11 +1,11 @@
 /**
- * Firebase v9+ Modular network adapter implementing SyncSeam.
- * Supports tree-shakable ES Module database bindings and reference structures.
+ * Modern tree-shakable Firebase modular network adapter implementing SyncSeam.
+ * Supports evolving ES Module database bindings and modular reference structures.
  */
 import { RefLike, SnapLike, isValidRef } from "./types.ts";
 import { AbstractSyncAdapter } from "./base-adapter.ts";
 
-export interface Firebase9ModularConfig {
+export interface FirebaseModularConfig {
   ref?: unknown;
   onValue?(ref: unknown, callback: (snap: SnapLike) => void): void;
   once?(ref: unknown, callback: (snap: SnapLike) => void): void;
@@ -17,10 +17,10 @@ export interface Firebase9ModularConfig {
 
 class ModularRefProxy implements RefLike {
   private target: unknown;
-  private config: Firebase9ModularConfig;
+  private config: FirebaseModularConfig;
   readonly root: RefLike | undefined;
 
-  constructor(target: unknown, config: Firebase9ModularConfig, root?: RefLike) {
+  constructor(target: unknown, config: FirebaseModularConfig, root?: RefLike) {
     this.target = target;
     this.config = config;
     this.root = root;
@@ -92,11 +92,11 @@ class ModularRefProxy implements RefLike {
   }
 }
 
-export class Firebase9Adapter extends AbstractSyncAdapter {
+export class FirebaseAdapter extends AbstractSyncAdapter {
   constructor(refOrConfig: unknown, userId?: string, userColor?: string) {
     super();
     const normalized = this.normalizeReference(refOrConfig);
-    this.setupStreams(normalized, "fb9", userColor || "#3b82f6", userId);
+    this.setupStreams(normalized, "firebase", userColor || "#3b82f6", userId);
     this.initializeConnection();
   }
 
@@ -104,7 +104,7 @@ export class Firebase9Adapter extends AbstractSyncAdapter {
     const isNullOrUndef = target === null || target === undefined;
     if (isNullOrUndef) return null;
 
-    const config = target as Firebase9ModularConfig;
+    const config = target as FirebaseModularConfig;
     const isModularConfig = Boolean(
       config && (config.ref || typeof config.onValue === "function"),
     );
@@ -118,5 +118,8 @@ export class Firebase9Adapter extends AbstractSyncAdapter {
   }
 }
 
-export type FirestoreAdapter = Firebase9Adapter;
-export const FirestoreAdapter = Firebase9Adapter;
+export type FirebaseModularAdapter = FirebaseAdapter;
+export const FirebaseModularAdapter = FirebaseAdapter;
+
+export type FirestoreAdapter = FirebaseAdapter;
+export const FirestoreAdapter = FirebaseAdapter;
