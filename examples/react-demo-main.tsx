@@ -104,6 +104,29 @@ function App(): React.ReactElement {
   const [parentRenderCount, setParentRenderCount] = useState(1);
   const [_, startTransition] = useTransition();
 
+  useEffect(() => {
+    const isBothMounted = Boolean(cmA && cmB);
+    if (!isBothMounted) return;
+
+    const currentTextA = cmA.getValue();
+    const isPeerUnsynchronized = cmB.getValue() !== currentTextA;
+    if (isPeerUnsynchronized) {
+      cmB.setValue(currentTextA);
+    }
+
+    const canTriggerA = typeof (adapterA as any).trigger === "function";
+    if (canTriggerA) {
+      (adapterA as any).trigger("cursor", "React-Dev-A", { line: 0, ch: 0 }, "#3b82f6");
+      (adapterA as any).trigger("cursor", "Teammate-B", { line: 0, ch: 0 }, "#10b981");
+    }
+
+    const canTriggerB = typeof (adapterB as any).trigger === "function";
+    if (canTriggerB) {
+      (adapterB as any).trigger("cursor", "React-Dev-A", { line: 0, ch: 0 }, "#3b82f6");
+      (adapterB as any).trigger("cursor", "Teammate-B", { line: 0, ch: 0 }, "#10b981");
+    }
+  }, [cmA, cmB]);
+
   const handleBurstTyping = () => {
     const canBurst = Boolean(cmA && typeof cmA.getCursor === "function");
     if (!canBurst) return;
@@ -135,7 +158,7 @@ function App(): React.ReactElement {
         <StudioHeader renderCount={parentRenderCount} onBurst={handleBurstTyping} onSpawnAgent={handleSpawnAgent} onForceRender={() => startTransition(() => setParentRenderCount((p) => p + 1))} />
         <main style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2rem", padding: "2.5rem" }}>
           <EditorPane title="Editor A" adapter={adapterA} userId="React-Dev-A" userColor="#3b82f6" initialDoc={sampleText} peerCM={cmB} onCMCreated={(cm) => setCmA(cm)} />
-          <EditorPane title="Editor B" adapter={adapterB} userId="Teammate-B" userColor="#10b981" peerCM={cmA} onCMCreated={(cm) => setCmB(cm)} />
+          <EditorPane title="Editor B" adapter={adapterB} userId="Teammate-B" userColor="#10b981" initialDoc={sampleText} peerCM={cmA} onCMCreated={(cm) => setCmB(cm)} />
         </main>
         <StudioFooter />
       </div>
