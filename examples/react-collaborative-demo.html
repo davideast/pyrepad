@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pyrepad Declarative React Library (@pyric/pad/react) - Live 60fps E2E Demo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css"
+    />
+    <link rel="stylesheet" href="/dist/firepad.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+    <script src="/dist/firepad.js"></script>
+    <style>
+      :root {
+        --bg-radial: radial-gradient(circle at 10% 20%, #08112e 0%, #030712 90%);
+        --panel-bg: rgba(15, 23, 42, 0.6);
+        --gutter-bg: rgba(11, 17, 32, 0.95);
+        --border-color: rgba(59, 130, 246, 0.25);
+        --accent-blue: #3b82f6;
+      }
+      * {
+        box-sizing: border-box;
+        scrollbar-width: thin;
+        scrollbar-color: var(--accent-blue) rgba(15, 23, 42, 0.8);
+      }
+      ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+      }
+      ::-webkit-scrollbar-track {
+        background: rgba(15, 23, 42, 0.85);
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: rgba(59, 130, 246, 0.6);
+        border-radius: 9999px;
+        border: 2px solid rgba(15, 23, 42, 0.85);
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: rgba(59, 130, 246, 0.9);
+      }
+      ::-webkit-scrollbar-corner {
+        background: rgba(15, 23, 42, 0.85);
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        background: var(--bg-radial);
+        color: #f8fafc;
+        font-family: 'Inter', -apple-system, sans-serif;
+        overflow-x: hidden;
+      }
+      .CodeMirror {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 100% !important;
+        background: var(--panel-bg) !important;
+        font-family: 'JetBrains Mono', monospace !important;
+        font-size: 0.95rem;
+        line-height: 1.6;
+        border-radius: 0 0 16px 16px;
+      }
+      .CodeMirror-gutters {
+        background: var(--gutter-bg) !important;
+        border-right: 1px solid var(--border-color) !important;
+      }
+      .CodeMirror-linenumber {
+        color: #64748b !important;
+        padding: 0 14px !important;
+      }
+      .CodeMirror-cursor {
+        border-left: 2px solid #60a5fa !important;
+        box-shadow: 0 0 8px rgba(96, 165, 250, 0.6);
+      }
+      .CodeMirror-selected {
+        background: rgba(59, 130, 246, 0.25) !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./react-demo-main.tsx"></script>
+  </body>
+</html>
