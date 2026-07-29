@@ -47,7 +47,13 @@ export function useCollaborators(
     };
 
     const hasOn = typeof (adapter as any).on === "function";
-    if (hasOn) (adapter as any).on("cursor", handleCursor);
+    if (hasOn) {
+      try {
+        (adapter as any).on("cursor", handleCursor);
+      } catch (err) {
+        console.warn("Adapter did not accept cursor event listener:", err);
+      }
+    }
 
     return () => {
       const hasOff = typeof (adapter as any).off === "function";
