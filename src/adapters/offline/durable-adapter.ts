@@ -1,6 +1,7 @@
 /**
  * Offline durable collaborative adapter decorator implementing SyncSeam.
- * Protects un-transmitted edits with IndexedDB buffering and automatic OT rebase resolution.
+ * Protects un-transmitted edits with IndexedDB buffering, automatic recovery triggers,
+ * and multi-revision Operational Transform rebase and rollback resolution.
  */
 import { TextOperation } from "../../core/index.ts";
 import {
@@ -24,6 +25,7 @@ export class OfflineDurableAdapter implements SyncSeam {
   readonly queue: OfflineRevisionQueue;
   private disposed = false;
   private currentRevision = 0;
+  private onlineHandler: (() => void) | null = null;
   public callbacks: AdapterCallbacks = {};
 
   constructor(
@@ -35,14 +37,49 @@ export class OfflineDurableAdapter implements SyncSeam {
     const engine = storage || new IndexedDBStorageEngine();
     this.queue = new OfflineRevisionQueue(docId, engine);
     this.bindNetworkEvents();
+    this.bindGlobalOnlineTrigger();
   }
 
   private bindNetworkEvents(): void {
     const hasOnMethod = typeof (this.network as any).on === "function";
     if (!hasOnMethod) return;
-    (this.network as any).on("operation", (op: any) => {
+
+    (this.network as any).on("operation", (_op: any) => {
       this.currentRevision++;
     });
+
+    const triggerReconcile = () => {
+      const isActive = !this.disposed;
+      if (isActive) {
+        this.reconcile().catch((err) =>
+          console.warn(
+            "Unexpected error during automatic network reconcile:",
+            err,
+          ),
+        );
+      }
+    };
+
+    (this.network as any).on("ready", triggerReconcile);
+    (this.network as any).on("reconnected", triggerReconcile);
+    (this.network as any).on("worker_sync", triggerReconcile);
+  }
+
+  private bindGlobalOnlineTrigger(): void {
+    const hasAddListener =
+      typeof globalThis !== "undefined" &&
+      typeof (globalThis as any).addEventListener === "function";
+    if (!hasAddListener) return;
+
+    this.onlineHandler = () => {
+      const isActive = !this.disposed;
+      if (isActive) {
+        this.reconcile().catch((err) =>
+          console.warn("Unexpected error during global online reconcile:", err),
+        );
+      }
+    };
+    (globalThis as any).addEventListener("online", this.onlineHandler);
   }
 
   get operations(): AsyncIterable<TextOperationEvent> {
@@ -79,7 +116,7 @@ export class OfflineDurableAdapter implements SyncSeam {
       }
       return { revision: this.currentRevision, committed: false };
     } catch (_networkError) {
-      // Network disconnected or offline transit; edit remains durable in IndexedDB
+      // Network offline disconnect or transit drop; operation remains safely buffered in IndexedDB
       return { revision: this.currentRevision, committed: false };
     }
   }
@@ -93,7 +130,15 @@ export class OfflineDurableAdapter implements SyncSeam {
     if (hasNoPending) return 0;
 
     let reconciledCount = 0;
-    const remotes = canonicalRemoteOps || [];
+    const remotes: TextOperation[] = [];
+
+    if (canonicalRemoteOps && canonicalRemoteOps.length > 0) {
+      for (const raw of canonicalRemoteOps) {
+        const parsed = this.parseTextOp(raw);
+        const isValidRemote = Boolean(parsed);
+        if (isValidRemote) remotes.push(parsed!);
+      }
+    }
 
     for (const item of pending) {
       const success = await this.reconcileRecord(item, remotes);
@@ -107,24 +152,25 @@ export class OfflineDurableAdapter implements SyncSeam {
 
   private async reconcileRecord(
     item: PendingRevisionRecord,
-    remotes: unknown[],
+    remotes: TextOperation[],
   ): Promise<boolean> {
     let localOp = this.parseTextOp(item.operationJSON);
     const hasRemotes = remotes.length > 0;
-    if (hasRemotes && localOp) {
-      for (const remoteRaw of remotes) {
-        const remoteOp = this.parseTextOp(remoteRaw);
-        const canTransform = Boolean(remoteOp);
-        if (canTransform) {
-          try {
-            const transformed = TextOperation.transform(localOp!, remoteOp!);
-            localOp = transformed[0];
-          } catch (err) {
-            console.warn(
-              "Unexpected Operational Transform rebase discrepancy during reconcile:",
-              err,
-            );
-          }
+    const canTransform = hasRemotes && Boolean(localOp);
+
+    if (canTransform) {
+      for (let i = 0; i < remotes.length; i++) {
+        try {
+          const transformed = TextOperation.transform(localOp!, remotes[i]);
+          localOp = transformed[0];
+          remotes[i] = transformed[1];
+        } catch (err) {
+          console.warn(
+            "Unresolvable OT conflict during reconcile; performing state rollback:",
+            err,
+          );
+          await this.queue.dequeue(item.id);
+          return false;
         }
       }
     }
@@ -161,6 +207,15 @@ export class OfflineDurableAdapter implements SyncSeam {
     return null;
   }
 
+  private delegateToNetwork(method: string, ...args: unknown[]): unknown {
+    const fn = (this.network as any)[method];
+    const isCallable = typeof fn === "function";
+    if (isCallable) {
+      return fn.apply(this.network, args);
+    }
+    return undefined;
+  }
+
   broadcastPresence(cursor: unknown): Promise<void> {
     return this.network.broadcastPresence(cursor);
   }
@@ -169,81 +224,61 @@ export class OfflineDurableAdapter implements SyncSeam {
     agentId: string,
     status: string,
     ghostDiff?: unknown,
-    explanation?: string,
+    exp?: string,
   ): Promise<void> {
-    return this.network.broadcastAgentive(
-      agentId,
-      status,
-      ghostDiff,
-      explanation,
-    );
+    return this.network.broadcastAgentive(agentId, status, ghostDiff, exp);
   }
 
   on(event: string, callback: EventCallback): void {
-    const hasOnMethod = typeof (this.network as any).on === "function";
-    if (hasOnMethod) (this.network as any).on(event, callback);
+    this.delegateToNetwork("on", event, callback);
   }
-
   once(event: string, callback: EventCallback): void {
-    const hasOnceMethod = typeof (this.network as any).once === "function";
-    if (hasOnceMethod) (this.network as any).once(event, callback);
+    this.delegateToNetwork("once", event, callback);
   }
-
   off(event: string, callback?: EventCallback): void {
-    const hasOffMethod = typeof (this.network as any).off === "function";
-    if (hasOffMethod) (this.network as any).off(event, callback);
+    this.delegateToNetwork("off", event, callback);
   }
-
   trigger(event: string, ...args: unknown[]): void {
-    const hasTriggerMethod =
-      typeof (this.network as any).trigger === "function";
-    if (hasTriggerMethod) (this.network as any).trigger(event, ...args);
+    this.delegateToNetwork("trigger", event, ...args);
   }
 
   registerCallbacks(callbacks: AdapterCallbacks): void {
     this.callbacks = callbacks || {};
-    const hasReg =
-      typeof (this.network as any).registerCallbacks === "function";
-    if (hasReg) (this.network as any).registerCallbacks(callbacks);
+    this.delegateToNetwork("registerCallbacks", callbacks);
   }
 
   sendOperation(
-    operation: TextOperation,
-    callback?: (err: Error | null, committed?: boolean) => void,
+    op: TextOperation,
+    cb?: (err: Error | null, committed?: boolean) => void,
     author?: string,
   ): void {
-    this.commitOperation(operation, author)
+    this.commitOperation(op, author)
       .then((ack) => {
-        const hasCb = typeof callback === "function";
-        if (hasCb) callback!(null, ack.committed);
+        const hasCb = typeof cb === "function";
+        if (hasCb) cb!(null, ack.committed);
       })
       .catch((err) => {
-        const hasCb = typeof callback === "function";
-        if (hasCb) callback!(err, false);
+        const hasCb = typeof cb === "function";
+        if (hasCb) cb!(err, false);
       });
   }
 
   sendCursor(cursor: unknown): void {
-    const hasSendCursor =
-      typeof (this.network as any).sendCursor === "function";
-    if (hasSendCursor) (this.network as any).sendCursor(cursor);
+    this.delegateToNetwork("sendCursor", cursor);
   }
 
   isHistoryEmpty(): boolean {
-    const hasEmptyCheck =
-      typeof (this.network as any).isHistoryEmpty === "function";
-    if (hasEmptyCheck) return (this.network as any).isHistoryEmpty();
+    const res = this.delegateToNetwork("isHistoryEmpty");
+    const isDefined = res !== undefined && res !== null;
+    if (isDefined) return Boolean(res);
     return this.currentRevision === 0;
   }
 
   setColor(color: string): void {
-    const hasSetColor = typeof (this.network as any).setColor === "function";
-    if (hasSetColor) (this.network as any).setColor(color);
+    this.delegateToNetwork("setColor", color);
   }
-
   setUserId(id: string): void {
-    const hasSetId = typeof (this.network as any).setUserId === "function";
-    if (hasSetId) (this.network as any).setUserId(id);
+    this.delegateToNetwork("setUserId", id);
   }
 
   isDisposed(): boolean {
@@ -254,6 +289,21 @@ export class OfflineDurableAdapter implements SyncSeam {
     const isAlreadyDisposed = this.disposed;
     if (isAlreadyDisposed) return;
     this.disposed = true;
+
+    const hasRemoveListener =
+      typeof globalThis !== "undefined" &&
+      typeof (globalThis as any).removeEventListener === "function" &&
+      this.onlineHandler;
+    if (hasRemoveListener) {
+      try {
+        (globalThis as any).removeEventListener("online", this.onlineHandler!);
+      } catch (err) {
+        console.warn(
+          "Unexpected error removing global online event listener:",
+          err,
+        );
+      }
+    }
 
     try {
       this.queue.dispose();
