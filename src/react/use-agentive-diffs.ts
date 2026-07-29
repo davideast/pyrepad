@@ -71,5 +71,6 @@ export function useAgentiveDiffs(
     };
   }, [adapter]);
 
-  return Object.keys(agents).map((key) => agents[key]);
+  const keys = Object.keys(agents);
+  return keys.map((key) => agents[key]);
 }
