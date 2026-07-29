@@ -1,6 +1,6 @@
 /**
  * Asynchronous key-value storage engine interface and IndexedDB / in-memory implementations
- * for offline revision durability.
+ * for offline revision durability with dry transactional execution.
  */
 
 export interface StorageEngineSeam {
@@ -75,8 +75,11 @@ export class IndexedDBStorageEngine implements StorageEngineSeam {
         const req = (globalThis as any).indexedDB.open(this.dbName, 1);
         req.onupgradeneeded = (evt: any) => {
           const db = evt.target.result;
-          const hasStore = db.objectStoreNames.contains(this.storeName);
-          if (!hasStore) {
+          const hasStore =
+            db.objectStoreNames &&
+            db.objectStoreNames.contains &&
+            db.objectStoreNames.contains(this.storeName);
+          if (!hasStore && typeof db.createObjectStore === "function") {
             db.createObjectStore(this.storeName);
           }
         };
@@ -90,87 +93,118 @@ export class IndexedDBStorageEngine implements StorageEngineSeam {
     return this.dbPromise;
   }
 
-  async get(key: string): Promise<unknown> {
+  private async executeStoreTask<T>(
+    mode: "readonly" | "readwrite",
+    fallbackFn: (fb: InMemoryStorageEngine) => Promise<T>,
+    storeFn: (
+      store: any,
+      resolve: (val: T) => void,
+      reject: (err: any) => void,
+    ) => void,
+  ): Promise<T> {
     const db = await this.getDB();
-    const isFallback = Boolean(this.fallback || !db);
+    const isFallback = Boolean(
+      this.fallback || !db || typeof db.transaction !== "function",
+    );
     if (isFallback) {
-      return this.fallback!.get(key);
+      if (!this.fallback) this.fallback = new InMemoryStorageEngine();
+      return fallbackFn(this.fallback);
     }
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction([this.storeName], "readonly");
-      const store = tx.objectStore(this.storeName);
-      const req = store.get(key);
-      req.onsuccess = () => resolve(req.result ?? null);
-      req.onerror = () => reject(req.error);
+    return new Promise<T>((resolve, reject) => {
+      try {
+        const tx = db.transaction([this.storeName], mode);
+        const store = tx.objectStore(this.storeName);
+        storeFn(store, resolve, reject);
+      } catch (err) {
+        if (!this.fallback) this.fallback = new InMemoryStorageEngine();
+        fallbackFn(this.fallback).then(resolve, reject);
+      }
     });
+  }
+
+  async get(key: string): Promise<unknown> {
+    return this.executeStoreTask(
+      "readonly",
+      (fb) => fb.get(key),
+      (store, resolve, reject) => {
+        const req = store.get(key);
+        req.onsuccess = () => resolve(req.result ?? null);
+        req.onerror = () => reject(req.error);
+      },
+    );
   }
 
   async put(key: string, value: unknown): Promise<void> {
-    const db = await this.getDB();
-    const isFallback = Boolean(this.fallback || !db);
-    if (isFallback) {
-      return this.fallback!.put(key, value);
-    }
-    return new Promise<void>((resolve, reject) => {
-      const tx = db.transaction([this.storeName], "readwrite");
-      const store = tx.objectStore(this.storeName);
-      const req = store.put(value, key);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
-    });
+    return this.executeStoreTask(
+      "readwrite",
+      (fb) => fb.put(key, value),
+      (store, resolve, reject) => {
+        const req = store.put(value, key);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      },
+    );
   }
 
   async delete(key: string): Promise<void> {
-    const db = await this.getDB();
-    const isFallback = Boolean(this.fallback || !db);
-    if (isFallback) {
-      return this.fallback!.delete(key);
-    }
-    return new Promise<void>((resolve, reject) => {
-      const tx = db.transaction([this.storeName], "readwrite");
-      const store = tx.objectStore(this.storeName);
-      const req = store.delete(key);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
-    });
+    return this.executeStoreTask(
+      "readwrite",
+      (fb) => fb.delete(key),
+      (store, resolve, reject) => {
+        const req = store.delete(key);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      },
+    );
   }
 
   async clear(): Promise<void> {
-    const db = await this.getDB();
-    const isFallback = Boolean(this.fallback || !db);
-    if (isFallback) {
-      return this.fallback!.clear();
-    }
-    return new Promise<void>((resolve, reject) => {
-      const tx = db.transaction([this.storeName], "readwrite");
-      const store = tx.objectStore(this.storeName);
-      const req = store.clear();
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
-    });
+    return this.executeStoreTask(
+      "readwrite",
+      (fb) => fb.clear(),
+      (store, resolve, reject) => {
+        const req = store.clear();
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      },
+    );
   }
 
   async getAll(): Promise<Record<string, unknown>> {
     const db = await this.getDB();
-    const isFallback = Boolean(this.fallback || !db);
+    const isFallback = Boolean(
+      this.fallback || !db || typeof db.transaction !== "function",
+    );
     if (isFallback) {
-      return this.fallback!.getAll();
+      if (!this.fallback) this.fallback = new InMemoryStorageEngine();
+      return this.fallback.getAll();
     }
     return new Promise<Record<string, unknown>>((resolve, reject) => {
-      const tx = db.transaction([this.storeName], "readonly");
-      const store = tx.objectStore(this.storeName);
-      const reqKeys = store.getAllKeys();
-      const reqVals = store.getAll();
-      tx.oncomplete = () => {
-        const keys = reqKeys.result || [];
-        const vals = reqVals.result || [];
-        const result: Record<string, unknown> = {};
-        for (let i = 0; i < keys.length; i++) {
-          result[String(keys[i])] = vals[i];
-        }
-        resolve(result);
-      };
-      tx.onerror = () => reject(tx.error);
+      try {
+        const tx = db.transaction([this.storeName], "readonly");
+        const store = tx.objectStore(this.storeName);
+        const reqKeys = store.getAllKeys();
+        const reqVals = store.getAll();
+        let isDone = false;
+        const completeResolve = () => {
+          const alreadyResolved = isDone;
+          if (alreadyResolved) return;
+          isDone = true;
+          const keys = reqKeys.result || [];
+          const vals = reqVals.result || [];
+          const result: Record<string, unknown> = {};
+          for (let i = 0; i < keys.length; i++) {
+            result[String(keys[i])] = vals[i];
+          }
+          resolve(result);
+        };
+        reqVals.onsuccess = completeResolve;
+        tx.oncomplete = completeResolve;
+        tx.onerror = () => reject(tx.error);
+      } catch (err) {
+        if (!this.fallback) this.fallback = new InMemoryStorageEngine();
+        this.fallback.getAll().then(resolve, reject);
+      }
     });
   }
 }
