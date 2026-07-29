@@ -14,7 +14,9 @@
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css"
     />
+    <link rel="stylesheet" href="/dist/firepad.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+    <script src="/dist/firepad.js"></script>
     <style>
       body {
         margin: 0;
@@ -22,6 +24,23 @@
         background: radial-gradient(circle at 10% 20%, #08112e 0%, #030712 90%);
         color: #f8fafc;
         font-family: 'Inter', -apple-system, sans-serif;
+      }
+      .CodeMirror {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 100% !important;
+        background: transparent !important;
+        color: #e2e8f0 !important;
+        font-family: 'JetBrains Mono', monospace !important;
+        font-size: 0.95rem;
+        padding: 1rem;
+        line-height: 1.6;
+      }
+      .CodeMirror-cursor {
+        border-left: 2px solid #60a5fa !important;
       }
     </style>
   </head>

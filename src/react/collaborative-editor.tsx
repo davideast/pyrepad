@@ -11,6 +11,8 @@ import { useAgentiveDiffs, AgentiveDiffState } from "./use-agentive-diffs.ts";
 export interface CollaborativeEditorProps {
   adapter?: SyncSeam | null;
   editor?: unknown | null;
+  dbRef?: unknown | null;
+  defaultText?: string;
   type?: "cm5" | "cm6";
   userId?: string;
   userColor?: string;
@@ -108,6 +110,8 @@ export function CollaborativeEditor(props: CollaborativeEditorProps): React.Reac
   const {
     adapter,
     editor,
+    dbRef,
+    defaultText,
     type = "cm6",
     userId = "react-client",
     userColor = "#3b82f6",
@@ -120,6 +124,8 @@ export function CollaborativeEditor(props: CollaborativeEditorProps): React.Reac
   const editorState = usePyrepadEditor({
     adapter: adapter || null,
     editor: editor || null,
+    dbRef: dbRef,
+    defaultText: defaultText,
     type: type,
     userId: userId,
     userColor: userColor,
