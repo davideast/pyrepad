@@ -25,8 +25,14 @@ const sampleText = `// Welcome to the @pyric/pad/react declarative developer stu
 // without EVER invoking React setState or incrementing the parent render count!
 
 function calculateLeverage(depth: number): string {
-  return depth > 5 ? "Deep Seam" : "Shallow Module";
+  const isDeepSeam = depth > 5;
+  if (isDeepSeam) {
+    return "Deep Seam (High Leverage & Locality)";
+  }
+  return "Shallow Module";
 }
+
+// Try collaborating with Teammate-B or triggering AI Co-Pilot diffs!
 `;
 
 function EditorPane({
@@ -52,8 +58,9 @@ function EditorPane({
     if (hasContainer) {
       const cm = (window as any).CodeMirror(containerRef.current!, {
         lineNumbers: true,
-        value: "", // Must initialize empty so Firepad can attach and populate defaultText cleanly
-        theme: "default",
+        mode: "javascript",
+        theme: "dracula",
+        value: "",
       });
 
       setCmInstance(cm);
@@ -73,7 +80,7 @@ function EditorPane({
         userId={userId}
         userColor={userColor}
         showCollaboratorBar={true}
-        style={{ minHeight: "440px", flex: 1 }}
+        style={{ minHeight: "460px", flex: 1 }}
       >
         <div ref={containerRef} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} />
       </CollaborativeEditor>
@@ -99,17 +106,17 @@ function App() {
       count++;
       const cursor = cmA.getCursor();
       cmA.replaceRange("⚡", cursor, cursor, "user-burst");
-    }, 16); // ~60fps interval
+    }, 16);
   };
 
   const handleSpawnAgent = () => {
     const hasTriggerA = Boolean(adapterA && typeof (adapterA as any).trigger === "function");
     if (hasTriggerA) {
-      (adapterA as any).trigger("agentive", "Jules-AI", "Analyzing deep seams and refactoring AST", { diff: "+ const leverage = true;" }, "Enhancing type safety");
+      (adapterA as any).trigger("agentive", "Jules-AI", "Refactoring AST for deep seam boundaries", { diff: "+ const leverage = true;" }, "Enhancing modular depth");
     }
     const hasTriggerB = Boolean(adapterB && typeof (adapterB as any).trigger === "function");
     if (hasTriggerB) {
-      (adapterB as any).trigger("agentive", "Jules-AI", "Analyzing deep seams and refactoring AST", { diff: "+ const leverage = true;" }, "Enhancing type safety");
+      (adapterB as any).trigger("agentive", "Jules-AI", "Refactoring AST for deep seam boundaries", { diff: "+ const leverage = true;" }, "Enhancing modular depth");
     }
   };
 
