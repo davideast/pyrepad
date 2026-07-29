@@ -50,6 +50,7 @@ export function usePyrepadEditor(
   const { adapter: customAdapter, editor, type, userId, userColor } = options;
   const adapter = useResolvedAdapter(customAdapter);
   const ctx = useContext(PyrepadContext);
+  const setEditorAdapter = ctx ? ctx.setEditorAdapter : null;
 
   const renderCountRef = useRef<number>(0);
   const editorAdapterRef = useRef<unknown | null>(null);
@@ -71,11 +72,9 @@ export function usePyrepadEditor(
     const created = createEditorAdapter(editor, adapter, options);
     editorAdapterRef.current = created;
 
-    const hasContext = Boolean(
-      ctx && typeof ctx.setEditorAdapter === "function",
-    );
-    if (hasContext) {
-      ctx.setEditorAdapter(created);
+    const hasSetAdapter = typeof setEditorAdapter === "function";
+    if (hasSetAdapter) {
+      setEditorAdapter!(created);
     }
 
     startTransition(() => setIsReady(true));
@@ -100,12 +99,12 @@ export function usePyrepadEditor(
         editorAdapterRef.current = null;
       }
 
-      if (hasContext) {
-        ctx.setEditorAdapter(null);
+      if (hasSetAdapter) {
+        setEditorAdapter!(null);
       }
       setIsReady(false);
     };
-  }, [adapter, editor, type, userId, userColor, ctx]);
+  }, [adapter, editor, type, userId, userColor, setEditorAdapter]);
 
   return {
     editorAdapter: editorAdapterRef.current,
