@@ -51,7 +51,13 @@ export function useAgentiveDiffs(
     };
 
     const hasOn = typeof (adapter as any).on === "function";
-    if (hasOn) (adapter as any).on("agentive", handleAgentive);
+    if (hasOn) {
+      try {
+        (adapter as any).on("agentive", handleAgentive);
+      } catch (err) {
+        console.warn("Adapter did not accept agentive event listener:", err);
+      }
+    }
 
     return () => {
       const hasOff = typeof (adapter as any).off === "function";
