@@ -1,6 +1,6 @@
 /**
  * @pyric/pad/react - Declarative React Context & Provider Binder.
- * Manages collaborative SyncSeam connections across component hierarchies without render lag.
+ * Manages collaborative SyncSeam connections across component hierarchies without render lag or update depth loops.
  */
 import React, { createContext, useContext, useState, useMemo } from "react";
 import { SyncSeam } from "../adapters/types.ts";
@@ -29,12 +29,11 @@ export function PyrepadProvider(props: PyrepadProviderProps): React.ReactElement
   const [editorAdapter, setEditorAdapterState] = useState<unknown | null>(null);
 
   const contextValue = useMemo(() => {
+    const resolvedAdapter = adapter || null;
     return {
-      adapter: adapter || null,
+      adapter: resolvedAdapter,
       editorAdapter: editorAdapter,
-      setEditorAdapter: (ea: unknown | null) => {
-        setEditorAdapterState(ea);
-      },
+      setEditorAdapter: setEditorAdapterState,
     };
   }, [adapter, editorAdapter]);
 
