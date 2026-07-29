@@ -1,16 +1,17 @@
 /**
  * Single-file custom reactive hook: usePyrepadEditor.
- * Synchronizes CodeMirror editor instances with SyncSeam network drivers and Firepad engines
+ * Synchronizes CodeMirror editor instances with SyncSeam network drivers and ES Module engines
  * without triggering Virtual DOM re-renders during rapid 60fps typing bursts.
  */
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition, useContext } from "react";
 import { SyncSeam } from "../adapters/types.ts";
 import { CodeMirror5Adapter } from "../editors/codemirror-adapter.ts";
 import { CodeMirror6Adapter } from "../editors/codemirror6-driver.ts";
+import { PyrepadContext, useResolvedAdapter } from "./context.tsx";
 
 export interface UsePyrepadEditorOptions {
-  adapter: SyncSeam | null;
-  editor: unknown | null;
+  adapter?: SyncSeam | null;
+  editor?: unknown | null;
   dbRef?: unknown | null;
   defaultText?: string;
   type?: "cm5" | "cm6";
@@ -24,34 +25,19 @@ export interface UsePyrepadEditorResult {
   isReady: boolean;
 }
 
-function createEditorAdapter(options: UsePyrepadEditorOptions): unknown {
-  const { adapter, editor, dbRef, defaultText, type, userId, userColor } =
-    options;
+function createEditorAdapter(
+  editor: unknown,
+  adapter: SyncSeam | null,
+  options: UsePyrepadEditorOptions,
+): unknown {
+  const { type, userId, userColor } = options;
   const isCM6 = type === "cm6";
   if (isCM6) {
+    const defaultColor = userColor || "#3b82f6";
+    const defaultId = userId || "react-user";
     return new CodeMirror6Adapter(editor as any, adapter, {
-      userId: userId || "react-user",
-      userColor: userColor || "#3b82f6",
-    });
-  }
-
-  const globalWin = typeof window !== "undefined" ? (window as any) : {};
-  const firepadObj =
-    globalWin.Firepad || globalWin.firepad?.Firepad || globalWin.firepad;
-  const hasFromCM = Boolean(
-    firepadObj && typeof firepadObj.fromCodeMirror === "function",
-  );
-
-  if (hasFromCM && adapter) {
-    const targetRef =
-      dbRef !== undefined && dbRef !== null
-        ? dbRef
-        : (adapter as any).ref || null;
-    return firepadObj.fromCodeMirror(targetRef, editor as any, {
-      syncAdapter: adapter,
-      userId: userId || "react-user",
-      userColor: userColor || "#3b82f6",
-      defaultText: defaultText || undefined,
+      userId: defaultId,
+      userColor: defaultColor,
     });
   }
 
@@ -61,8 +47,10 @@ function createEditorAdapter(options: UsePyrepadEditorOptions): unknown {
 export function usePyrepadEditor(
   options: UsePyrepadEditorOptions,
 ): UsePyrepadEditorResult {
-  const { adapter, editor, dbRef, defaultText, type, userId, userColor } =
-    options;
+  const { adapter: customAdapter, editor, type, userId, userColor } = options;
+  const adapter = useResolvedAdapter(customAdapter);
+  const ctx = useContext(PyrepadContext);
+
   const renderCountRef = useRef<number>(0);
   const editorAdapterRef = useRef<unknown | null>(null);
   const [isReady, setIsReady] = useState<boolean>(false);
@@ -71,33 +59,38 @@ export function usePyrepadEditor(
   renderCountRef.current += 1;
 
   useEffect(() => {
-    const isMissingDeps = !adapter || !editor;
-    if (isMissingDeps) {
+    const hasAdapter = Boolean(adapter);
+    const hasEditor = Boolean(editor);
+    const isReadyToBind = hasAdapter && hasEditor;
+
+    if (!isReadyToBind) {
       editorAdapterRef.current = null;
       return;
     }
 
-    const created = createEditorAdapter({
-      adapter,
-      editor,
-      dbRef,
-      defaultText,
-      type,
-      userId,
-      userColor,
-    });
+    const created = createEditorAdapter(editor, adapter, options);
     editorAdapterRef.current = created;
+
+    const hasContext = Boolean(
+      ctx && typeof ctx.setEditorAdapter === "function",
+    );
+    if (hasContext) {
+      ctx.setEditorAdapter(created);
+    }
+
     startTransition(() => setIsReady(true));
 
     return () => {
-      const hasAdapter = Boolean(editorAdapterRef.current);
-      if (hasAdapter) {
+      const hasCreatedAdapter = Boolean(editorAdapterRef.current);
+      if (hasCreatedAdapter) {
         try {
           const disposable = editorAdapterRef.current as {
             dispose?: () => unknown;
           };
           const canDispose = typeof disposable.dispose === "function";
-          if (canDispose) disposable.dispose!();
+          if (canDispose) {
+            disposable.dispose!();
+          }
         } catch (err) {
           console.warn(
             "Unexpected error during usePyrepadEditor unmount disposal:",
@@ -106,9 +99,13 @@ export function usePyrepadEditor(
         }
         editorAdapterRef.current = null;
       }
+
+      if (hasContext) {
+        ctx.setEditorAdapter(null);
+      }
       setIsReady(false);
     };
-  }, [adapter, editor, dbRef, defaultText, type, userId, userColor]);
+  }, [adapter, editor, type, userId, userColor, ctx]);
 
   return {
     editorAdapter: editorAdapterRef.current,

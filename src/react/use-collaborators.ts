@@ -35,10 +35,11 @@ export function useCollaborators(
     const handleCursor = (userId: string, cursor: unknown, color?: string) => {
       const isValid = Boolean(userId && userId.trim().length > 0);
       if (!isValid) return;
+      const defaultColor = color || "#3b82f6";
       const updated: CollaboratorPresence = {
         userId: userId,
         cursor: cursor,
-        color: color || "#3b82f6",
+        color: defaultColor,
         lastSeen: Date.now(),
       };
       const copy = Object.assign({}, mapRef.current, { [userId]: updated });
@@ -70,5 +71,6 @@ export function useCollaborators(
     };
   }, [adapter]);
 
-  return Object.keys(collaborators).map((key) => collaborators[key]);
+  const keys = Object.keys(collaborators);
+  return keys.map((key) => collaborators[key]);
 }

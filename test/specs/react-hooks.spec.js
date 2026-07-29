@@ -65,7 +65,11 @@ describe("Build Declarative React Component Library & Hooks (Issue #5)", functio
 
   afterEach(function () {
     cleanups.forEach(function (fn) {
-      try { fn(); } catch (_e) {}
+      try {
+        fn();
+      } catch (err) {
+        console.warn("Teardown diagnostic warning in react-hooks.spec.js:", err);
+      }
     });
     var internals = React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE || {};
     internals.H = null;

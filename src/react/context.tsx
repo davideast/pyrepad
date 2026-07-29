@@ -60,5 +60,9 @@ export function useResolvedAdapter(custom?: SyncSeam | null): SyncSeam | null {
   if (isCustomDefined) {
     return custom!;
   }
-  return ctx ? ctx.adapter : null;
+  const hasContextAdapter = Boolean(ctx && ctx.adapter);
+  if (hasContextAdapter) {
+    return ctx!.adapter;
+  }
+  return null;
 }
