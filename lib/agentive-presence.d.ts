@@ -1,4 +1,4 @@
-import { SyncSeam } from './sync-seam';
+import { SyncSeam } from '../src/adapters/types.ts';
 
 export interface GhostDiffJSON {
   agentId: string;

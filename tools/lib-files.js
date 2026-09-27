@@ -1,9 +1,25 @@
 // Load order of the legacy lib/ bundle. Shared by tools/bundle.js and test/setup-globals.js.
-module.exports = [
+const path = require('path');
+
+const root = path.resolve(__dirname, '..');
+
+// A1: the sync seam is src/adapters, bundled by esbuild into an IIFE that loads before
+// every lib/ file. The footer publishes it as the legacy `firepad.SyncSeam` global.
+const SEAM_BUILD_OPTIONS = {
+  entryPoints: [path.join(root, 'src/adapters/index.ts')],
+  bundle: true,
+  format: 'iife',
+  globalName: '__pyrepadSeam',
+  target: 'es2020',
+  platform: 'browser',
+  logLevel: 'silent',
+  footer: { js: 'var firepad = firepad || {};\nfirepad.SyncSeam = __pyrepadSeam;' }
+};
+
+const LIB_FILES = [
   'lib/utils.js',
   'lib/span.js',
   'lib/pyric-sandbox.js',
-  'lib/sync-seam.js',
   'lib/text-op.js',
   'lib/text-operation.js',
   'lib/pure-formatting.js',
@@ -35,3 +51,5 @@ module.exports = [
   'lib/monaco-adapter.js',
   'lib/firepad.js'
 ];
+
+module.exports = { SEAM_BUILD_OPTIONS, LIB_FILES };

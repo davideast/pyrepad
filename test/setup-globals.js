@@ -101,9 +101,13 @@ global.monaco = global.monaco || { constructor: function(){}, Range: function(){
 
 global.firepad = global.firepad || {};
 
-const libFiles = require('../tools/lib-files.js');
+const { SEAM_BUILD_OPTIONS, LIB_FILES } = require('../tools/lib-files.js');
 
-libFiles.forEach(file => {
+// The seam IIFE loads first, exactly as tools/bundle.js prepends dist/seam.iife.js.
+const seamBuild = require('esbuild').buildSync({ ...SEAM_BUILD_OPTIONS, write: false, outfile: 'seam.iife.js' });
+vm.runInThisContext(seamBuild.outputFiles[0].text, { filename: path.join(root, 'dist/seam.iife.js') });
+
+LIB_FILES.forEach(file => {
   const filePath = path.join(root, file);
   if (fs.existsSync(filePath)) {
     const code = fs.readFileSync(filePath, 'utf8');
