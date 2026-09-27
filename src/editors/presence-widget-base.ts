@@ -32,15 +32,15 @@ const INITIAL_TOOLTIP_MS = 3500;
 const HOVER_HIDE_DELAY_MS = 1200;
 
 export class PresenceWidgetBase {
-  protected element: any;
-  protected caretEl: any;
-  protected tooltipEl: any;
+  protected element!: HTMLElement;
+  protected caretEl!: HTMLElement;
+  protected tooltipEl!: HTMLElement;
   protected disposed = false;
   protected clientId: string;
   protected color: string;
   private readonly classNames: PresenceWidgetClassNames;
-  private activeTimers = new Set<any>();
-  private boundListeners = new Set<{ event: string; handler: any }>();
+  private activeTimers = new Set<ReturnType<typeof setTimeout>>();
+  private boundListeners = new Set<{ event: string; handler: () => void }>();
 
   constructor(
     color: string,
@@ -74,7 +74,7 @@ export class PresenceWidgetBase {
     this.configureElementStyles(resolvedHeight);
   }
 
-  private createFallbackElement(): FallbackElement {
+  private createFallbackElement(): HTMLElement {
     const fallback: FallbackElement = {
       className: "",
       style: {},
@@ -90,7 +90,8 @@ export class PresenceWidgetBase {
       addEventListener(): void {},
       removeEventListener(): void {},
     };
-    return fallback;
+    // Headless stand-in: implements only the HTMLElement members this class touches.
+    return fallback as unknown as HTMLElement;
   }
 
   private configureElementStyles(height: number): void {
@@ -152,7 +153,7 @@ export class PresenceWidgetBase {
     this.tooltipEl.className = `${this.classNames.tooltip} ${stateClass}`;
   }
 
-  getElement(): any {
+  getElement(): HTMLElement {
     return this.element;
   }
 
@@ -194,7 +195,7 @@ export class PresenceWidgetBase {
       this.setTooltipVisible(false);
       return;
     }
-    const timerId: any = setTimeout(() => {
+    const timerId = setTimeout(() => {
       this.activeTimers.delete(timerId);
       if (!this.disposed) this.setTooltipVisible(false);
     }, delayMs!);
@@ -244,7 +245,7 @@ export class PresenceWidgetBase {
     const hasParent = Boolean(this.element && this.element.parentElement);
     if (hasParent) {
       try {
-        this.element.parentElement.removeChild(this.element);
+        this.element.parentElement!.removeChild(this.element);
       } catch (err) {
         console.warn(
           "Unexpected error removing presence widget from DOM:",

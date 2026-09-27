@@ -103,7 +103,7 @@ class ModularRefProxy implements RefLike {
       return this.wrap(legacyChild, root, childPath);
     }
     const virtualTarget = {
-      path: `${(this.target as any)?.path || ""}/${path}`,
+      path: `${(this.target as { path?: unknown } | null)?.path || ""}/${path}`,
     };
     return this.wrap(virtualTarget, root, childPath);
   }

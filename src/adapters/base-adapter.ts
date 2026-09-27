@@ -274,9 +274,10 @@ export abstract class AbstractSyncAdapter
     if (typeof eventOrAgentId === "object") {
       return this.agentiveHandler.broadcastAgentive(eventOrAgentId);
     }
+    // `status!`: the string overload requires it; TS cannot correlate that here.
     return this.agentiveHandler.broadcastAgentive(
       eventOrAgentId,
-      status,
+      status!,
       ghostDiff,
       explanation,
     );

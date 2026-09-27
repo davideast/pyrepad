@@ -28,6 +28,7 @@ export type { OfflineConflictEvent } from "../types.js";
 export type DurableNetwork = SyncSeam &
   Partial<Omit<AbstractSyncAdapter, keyof SyncSeam>>;
 
+// Dispatch boundary: each event name has its own listener signature (see AdapterEvents).
 type AnyListener = (...args: any[]) => void;
 
 export class OfflineDurableAdapter implements SyncSeam {
@@ -53,8 +54,7 @@ export class OfflineDurableAdapter implements SyncSeam {
   }
 
   private bindNetworkEvents(): void {
-    const hasOnMethod = typeof this.network.on === "function";
-    if (!hasOnMethod) return;
+    if (typeof this.network.on !== "function") return;
 
     this.network.on("operation", () => {
       this.currentRevision++;
@@ -79,7 +79,7 @@ export class OfflineDurableAdapter implements SyncSeam {
   private bindGlobalOnlineTrigger(): void {
     const hasAddListener =
       typeof globalThis !== "undefined" &&
-      typeof (globalThis as any).addEventListener === "function";
+      typeof globalThis.addEventListener === "function";
     if (!hasAddListener) return;
 
     this.onlineHandler = () => {
@@ -90,7 +90,7 @@ export class OfflineDurableAdapter implements SyncSeam {
         );
       }
     };
-    (globalThis as any).addEventListener("online", this.onlineHandler);
+    globalThis.addEventListener("online", this.onlineHandler);
   }
 
   get operations(): AsyncIterable<TextOperationEvent> {
@@ -223,7 +223,7 @@ export class OfflineDurableAdapter implements SyncSeam {
 
   private parseTextOp(payload: unknown): TextOperation {
     if (payload instanceof TextOperation) return payload;
-    return TextOperation.fromJSON(payload as any[]);
+    return TextOperation.fromJSON(payload);
   }
 
   broadcastPresence(cursor: unknown): Promise<void> {
@@ -245,9 +245,10 @@ export class OfflineDurableAdapter implements SyncSeam {
     explanation?: string,
   ): Promise<void> {
     const net = this.network;
+    // `status!`: the string overload requires it; TS cannot correlate that here.
     return typeof eventOrAgentId === "object"
       ? net.broadcastAgentive(eventOrAgentId)
-      : net.broadcastAgentive(eventOrAgentId, status, ghostDiff, explanation);
+      : net.broadcastAgentive(eventOrAgentId, status!, ghostDiff, explanation);
   }
 
   whenReady(): Promise<void> {
@@ -326,11 +327,11 @@ export class OfflineDurableAdapter implements SyncSeam {
 
     const hasRemoveListener =
       typeof globalThis !== "undefined" &&
-      typeof (globalThis as any).removeEventListener === "function" &&
+      typeof globalThis.removeEventListener === "function" &&
       this.onlineHandler;
     if (hasRemoveListener) {
       try {
-        (globalThis as any).removeEventListener("online", this.onlineHandler!);
+        globalThis.removeEventListener("online", this.onlineHandler!);
       } catch (err) {
         console.warn(
           "Unexpected error removing global online event listener:",

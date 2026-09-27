@@ -1,27 +1,35 @@
 /**
  * Manages undo and redo stacks for collaborative operations.
  */
+import type { WrappedOperation } from "../operations/wrapped-operation.js";
+
 export type UndoManagerState = "normal" | "undoing" | "redoing";
 
-export interface UndoableOp {
-  compose(other: any): any;
+export interface UndoableOp<T> {
+  compose(other: T): T;
   isNoop?(): boolean;
-  constructor: {
-    transform(op1: any, op2: any): [any, any];
-  };
 }
 
-function transformStack(stack: any[], operation: any): any[] {
-  const newStack: any[] = [];
+interface TransformableClass<T> {
+  transform(op1: T, op2: T): [T, T];
+}
+
+function transformStack<T extends UndoableOp<T>>(
+  stack: T[],
+  operation: T,
+): T[] {
+  const newStack: T[] = [];
   let currentOp = operation;
 
   for (let i = stack.length - 1; i >= 0; i--) {
-    const OperationClass = currentOp.constructor;
+    // Dispatch through the runtime class so each operation type uses its own static transform.
+    const OperationClass =
+      currentOp.constructor as unknown as TransformableClass<T>;
     const pair = OperationClass.transform(stack[i], currentOp);
     const transformedOp = pair[0];
 
     const hasNoopDetector = typeof transformedOp.isNoop === "function";
-    const isSignificantOp = !hasNoopDetector || !transformedOp.isNoop();
+    const isSignificantOp = !hasNoopDetector || !transformedOp.isNoop!();
     if (isSignificantOp) {
       newStack.push(transformedOp);
     }
@@ -30,12 +38,12 @@ function transformStack(stack: any[], operation: any): any[] {
   return newStack.reverse();
 }
 
-export class UndoManager {
+export class UndoManager<T extends UndoableOp<T> = WrappedOperation> {
   maxItems: number;
   state: UndoManagerState;
   dontCompose: boolean;
-  undoStack: any[];
-  redoStack: any[];
+  undoStack: T[];
+  redoStack: T[];
 
   constructor(maxItems = 50) {
     const isValidCapacity = typeof maxItems === "number" && maxItems > 0;
@@ -49,7 +57,7 @@ export class UndoManager {
     this.redoStack = [];
   }
 
-  add(operation: any, compose?: boolean): void {
+  add(operation: T, compose?: boolean): void {
     switch (this.state) {
       case "undoing": {
         this.redoStack.push(operation);
@@ -68,12 +76,12 @@ export class UndoManager {
     }
   }
 
-  private addNormalOperation(operation: any, compose: boolean): void {
+  private addNormalOperation(operation: T, compose: boolean): void {
     const canComposeWithPrevious =
       !this.dontCompose && compose && this.undoStack.length > 0;
 
     if (canComposeWithPrevious) {
-      const previousOp = this.undoStack.pop();
+      const previousOp = this.undoStack.pop()!;
       const composedOp = operation.compose(previousOp);
       this.undoStack.push(composedOp);
     } else {
@@ -87,32 +95,32 @@ export class UndoManager {
     this.redoStack = [];
   }
 
-  transform(operation: any): void {
+  transform(operation: T): void {
     this.undoStack = transformStack(this.undoStack, operation);
     this.redoStack = transformStack(this.redoStack, operation);
   }
 
-  performUndo(fn: (op: any) => void): void {
+  performUndo(fn: (op: T) => void): void {
     const isStackEmpty = this.undoStack.length === 0;
     if (isStackEmpty) {
       throw new Error("undo not possible");
     }
     this.state = "undoing";
     try {
-      fn(this.undoStack.pop());
+      fn(this.undoStack.pop()!);
     } finally {
       this.state = "normal";
     }
   }
 
-  performRedo(fn: (op: any) => void): void {
+  performRedo(fn: (op: T) => void): void {
     const isStackEmpty = this.redoStack.length === 0;
     if (isStackEmpty) {
       throw new Error("redo not possible");
     }
     this.state = "redoing";
     try {
-      fn(this.redoStack.pop());
+      fn(this.redoStack.pop()!);
     } finally {
       this.state = "normal";
     }

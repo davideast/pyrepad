@@ -208,9 +208,7 @@ export class HistoryStreamHandler {
     }
 
     const historyRef = this.ref!.child("history").child(revStr);
-    const isTransactionUnsupported =
-      typeof historyRef.transaction !== "function";
-    if (isTransactionUnsupported) {
+    if (typeof historyRef.transaction !== "function") {
       callback?.(new Error("Transaction unsupported"), false);
       return;
     }

@@ -3,7 +3,7 @@
  */
 import type { Extension } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
-import type { TextOperation } from "../core/index.js";
+import type { TextOp, TextOperation } from "../core/index.js";
 import type { Listener } from "../core/emitter.js";
 
 export interface CursorLike {
@@ -36,6 +36,7 @@ export interface CodeMirrorLike {
   on(event: string, handler: unknown): void;
   off(event: string, handler: unknown): void;
   getValue(): string;
+  getCursor?(): unknown;
   setValue?(content: string): void;
   replaceRange?(
     text: string,
@@ -44,6 +45,16 @@ export interface CodeMirrorLike {
     origin?: string,
   ): void;
 }
+
+/** lib/rich-text-codemirror.js: wraps a CodeMirror and re-emits its changes. */
+export interface RichTextCodeMirrorLike {
+  getCodeMirror(): CodeMirrorLike;
+  on(event: string, handler: unknown): void;
+  off(event: string, handler: unknown): void;
+}
+
+/** One `operation.ops` entry: a TextOp, or a raw wire step (n>0 retain, n<0 delete, string insert). */
+export type OperationStep = TextOp | number | string;
 
 export interface CursorWidgetSeam {
   getElement(): unknown;

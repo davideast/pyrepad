@@ -9,6 +9,7 @@ import {
   NewAnnotatedSpan,
   Span,
 } from "./annotation-node.js";
+import type { Annotation } from "../span.js";
 import {
   wrapOperation,
   getAffectedNodes,
@@ -32,7 +33,7 @@ export class AnnotationList {
     this.changeHandler = changeHandler;
   }
 
-  insertAnnotatedSpan(span: Span, annotation: any): void {
+  insertAnnotatedSpan(span: Span, annotation: Annotation): void {
     this.wrapOperation(
       new Span(span.pos, 0),
       (oldPos: number, old: Node | null) => {
@@ -93,7 +94,7 @@ export class AnnotationList {
 
   updateSpan(
     span: Span,
-    updateFn: (annotation: any, length: number) => any,
+    updateFn: (annotation: Annotation, length: number) => Annotation,
   ): void {
     const isZeroLength = span.length === 0;
     if (isZeroLength) return;
@@ -165,7 +166,11 @@ export class AnnotationList {
   }
 
   forEach(
-    callback: (length: number, annotation: any, attachedObject: any) => void,
+    callback: (
+      length: number,
+      annotation: Annotation,
+      attachedObject: unknown,
+    ) => void,
   ): void {
     let current = this.head.next;
     while (current !== null) {

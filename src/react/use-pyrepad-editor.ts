@@ -74,7 +74,9 @@ function resolveEditorSeam(
       ? new CodeMirror6Adapter(
           editor as ConstructorParameters<typeof CodeMirror6Adapter>[0],
         )
-      : new CodeMirror5Adapter(editor);
+      : new CodeMirror5Adapter(
+          editor as ConstructorParameters<typeof CodeMirror5Adapter>[0],
+        );
   return { seam, owned: true };
 }
 

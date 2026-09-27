@@ -7,7 +7,10 @@
     "lib": ["DOM", "DOM.Iterable", "ESNext"],
     "allowJs": true,
     "checkJs": false,
-    "strict": false,
+    "strict": true,
+    // src/** is ES modules (always strict). Off so esbuild does not prefix the seam IIFE
+    // with "use strict", which would make the concatenated legacy lib/ bundle strict.
+    "alwaysStrict": false,
     "noEmit": true,
     "skipLibCheck": true,
     "esModuleInterop": true
