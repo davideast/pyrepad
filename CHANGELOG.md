@@ -49,3 +49,13 @@ Remediation of the whole-repo review of `main` @ 80d42ac. Finding ids refer to
 - B5 font/screenshot
 - B6 unused deps
 - B7 stale docs
+
+### Verification log
+
+- 2026-09-27 — Wave 2 close (`62e633d`): hosted-mode two-client check on
+  `examples/pyric-studio-live.html` against a Node dev server (`hosted: true`, port 5199,
+  `--strictPort`). `/__pyric/health` reported `sandboxConnected: true`; `pyric serve diagnostics`
+  reported `mode: hosted`, `persistence: healthy`. An edit typed in browser context A appeared in
+  isolated context B; both consoles were error-free; the host drained and stopped on SIGINT.
+  Gate: typecheck clean, `eslint .` 0 errors / 21 warnings (frozen `lib/`), 264 unit specs across
+  31 files, Playwright e2e 2/2.
