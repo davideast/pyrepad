@@ -20,15 +20,15 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 // Lets the async-iterator pumps inside the hooks drain their queues.
 async function flush() {
   await act(async () => {
-    for (var i = 0; i < 5; i++) await Promise.resolve();
+    for (let i = 0; i < 5; i++) await Promise.resolve();
   });
 }
 
 // A SyncSeam built only from the interface: three streams + methods. No `.on`.
 function createFakeSeam(opts) {
-  var options = opts || {};
-  var readyListeners = [];
-  var seam = {
+  const options = opts || {};
+  let readyListeners = [];
+  const seam = {
     operations: new ReactiveStream(),
     presence: new ReactiveStream(),
     agentive: new ReactiveStream(),
@@ -62,7 +62,7 @@ function createFakeSeam(opts) {
     seam.becomeReady = function (historyEmpty) {
       seam.isReady = true;
       seam.historyEmpty = historyEmpty;
-      var listeners = readyListeners;
+      const listeners = readyListeners;
       readyListeners = [];
       listeners.forEach(function (cb) {
         cb();
@@ -75,8 +75,8 @@ function createFakeSeam(opts) {
 // A minimal EditorSeam: records what the hook drives into it and lets the
 // spec fire local "change"/"cursor" events the way the real adapters do.
 function createFakeEditor(text) {
-  var handlers = {};
-  var editor = {
+  let handlers = {};
+  const editor = {
     text: text || "",
     applied: [],
     otherCursors: [],
@@ -86,7 +86,7 @@ function createFakeEditor(text) {
       (handlers[event] = handlers[event] || []).push(fn);
     },
     fire: function (event) {
-      var args = Array.prototype.slice.call(arguments, 1);
+      const args = Array.prototype.slice.call(arguments, 1);
       (handlers[event] || []).forEach(function (fn) {
         fn.apply(null, args);
       });
@@ -139,14 +139,14 @@ describe("React hooks drive the SyncSeam (C3, A2)", function () {
   });
 
   it("usePyrepadEditor applies remote `operations` events to the editor", async function () {
-    var seam = createFakeSeam();
-    var editor = createFakeEditor("abc");
+    const seam = createFakeSeam();
+    const editor = createFakeEditor("abc");
     renderHook(function () {
       return usePyrepadEditor({ adapter: seam, editor: editor, userId: "me" });
     });
     await flush();
 
-    var remote = new TextOperation().retain(3).insert("d");
+    const remote = new TextOperation().retain(3).insert("d");
     seam.operations.push(opEvent(remote, "peer"));
     await flush();
 
@@ -155,8 +155,8 @@ describe("React hooks drive the SyncSeam (C3, A2)", function () {
   });
 
   it("usePyrepadEditor does not re-apply the echo of its own committed operation", async function () {
-    var seam = createFakeSeam();
-    var editor = createFakeEditor("abc");
+    const seam = createFakeSeam();
+    const editor = createFakeEditor("abc");
     renderHook(function () {
       return usePyrepadEditor({ adapter: seam, editor: editor, userId: "me" });
     });
@@ -169,14 +169,14 @@ describe("React hooks drive the SyncSeam (C3, A2)", function () {
   });
 
   it("usePyrepadEditor commits local editor changes via adapter.commitOperation", async function () {
-    var seam = createFakeSeam();
-    var editor = createFakeEditor("abc");
+    const seam = createFakeSeam();
+    const editor = createFakeEditor("abc");
     renderHook(function () {
       return usePyrepadEditor({ adapter: seam, editor: editor, userId: "me" });
     });
     await flush();
 
-    var local = new TextOperation().retain(3).insert("!");
+    const local = new TextOperation().retain(3).insert("!");
     editor.fire("change", local, local);
 
     expect(seam.commits.length).toBe(1);
@@ -185,8 +185,8 @@ describe("React hooks drive the SyncSeam (C3, A2)", function () {
   });
 
   it("usePyrepadEditor broadcasts local cursor activity via adapter.broadcastPresence", async function () {
-    var seam = createFakeSeam();
-    var editor = createFakeEditor("abc");
+    const seam = createFakeSeam();
+    const editor = createFakeEditor("abc");
     renderHook(function () {
       return usePyrepadEditor({ adapter: seam, editor: editor, userId: "me" });
     });
@@ -198,8 +198,8 @@ describe("React hooks drive the SyncSeam (C3, A2)", function () {
   });
 
   it("usePyrepadEditor routes `presence` events to setOtherCursor / clearCursor", async function () {
-    var seam = createFakeSeam();
-    var editor = createFakeEditor("abc");
+    const seam = createFakeSeam();
+    const editor = createFakeEditor("abc");
     renderHook(function () {
       return usePyrepadEditor({ adapter: seam, editor: editor, userId: "me" });
     });
@@ -218,9 +218,9 @@ describe("React hooks drive the SyncSeam (C3, A2)", function () {
   });
 
   it("usePyrepadEditor applies defaultText once when the adapter becomes ready with an empty document", async function () {
-    var seam = createFakeSeam({ readiness: true });
-    var editor = createFakeEditor("");
-    var hook = renderHook(function () {
+    const seam = createFakeSeam({ readiness: true });
+    const editor = createFakeEditor("");
+    const hook = renderHook(function () {
       return usePyrepadEditor({
         adapter: seam,
         editor: editor,
@@ -244,8 +244,8 @@ describe("React hooks drive the SyncSeam (C3, A2)", function () {
   });
 
   it("usePyrepadEditor ignores defaultText when the shared document already has history", async function () {
-    var seam = createFakeSeam({ readiness: true });
-    var editor = createFakeEditor("");
+    const seam = createFakeSeam({ readiness: true });
+    const editor = createFakeEditor("");
     renderHook(function () {
       return usePyrepadEditor({
         adapter: seam,
@@ -265,9 +265,9 @@ describe("React hooks drive the SyncSeam (C3, A2)", function () {
   });
 
   it("usePyrepadEditor stops syncing after unmount and leaves a caller-owned EditorSeam undisposed", async function () {
-    var seam = createFakeSeam();
-    var editor = createFakeEditor("abc");
-    var hook = renderHook(function () {
+    const seam = createFakeSeam();
+    const editor = createFakeEditor("abc");
+    const hook = renderHook(function () {
       return usePyrepadEditor({ adapter: seam, editor: editor, userId: "me" });
     });
     await flush();
@@ -281,15 +281,15 @@ describe("React hooks drive the SyncSeam (C3, A2)", function () {
   });
 
   it("usePyrepadEditor does not re-render on a burst of remote operations", async function () {
-    var seam = createFakeSeam();
-    var editor = createFakeEditor("");
-    var hook = renderHook(function () {
+    const seam = createFakeSeam();
+    const editor = createFakeEditor("");
+    const hook = renderHook(function () {
       return usePyrepadEditor({ adapter: seam, editor: editor, userId: "me" });
     });
     await flush();
-    var before = hook.result.current.renderCount;
+    const before = hook.result.current.renderCount;
 
-    for (var i = 0; i < 100; i++) {
+    for (let i = 0; i < 100; i++) {
       seam.operations.push(opEvent(new TextOperation().retain(i).insert("a"), "peer"));
     }
     await flush();
@@ -299,8 +299,8 @@ describe("React hooks drive the SyncSeam (C3, A2)", function () {
   });
 
   it("useCollaborators tracks peers from the `presence` stream (no adapter.on)", async function () {
-    var seam = createFakeSeam();
-    var hook = renderHook(function () {
+    const seam = createFakeSeam();
+    const hook = renderHook(function () {
       return useCollaborators(seam);
     });
     await flush();
@@ -323,8 +323,8 @@ describe("React hooks drive the SyncSeam (C3, A2)", function () {
   });
 
   it("useAgentiveDiffs tracks agents from the `agentive` stream (no adapter.on)", async function () {
-    var seam = createFakeSeam();
-    var hook = renderHook(function () {
+    const seam = createFakeSeam();
+    const hook = renderHook(function () {
       return useAgentiveDiffs(seam);
     });
     await flush();
@@ -342,8 +342,8 @@ describe("React hooks drive the SyncSeam (C3, A2)", function () {
   });
 
   it("<CollaborativeEditor /> inside <PyrepadProvider /> renders peers from the context adapter", async function () {
-    var seam = createFakeSeam();
-    var view = render(
+    const seam = createFakeSeam();
+    const view = render(
       React.createElement(
         PyrepadProvider,
         { adapter: seam },
@@ -361,14 +361,14 @@ describe("React hooks drive the SyncSeam (C3, A2)", function () {
   });
 
   it("syncs two real CodeMirror 5 editors through the Pyric sandbox", async function () {
-    var db = firepad.PyricSandbox.createDatabase();
-    var ref = db.ref("/react-hooks-integration");
-    var host = document.createElement("div");
+    const db = firepad.PyricSandbox.createDatabase();
+    const ref = db.ref("/react-hooks-integration");
+    const host = document.createElement("div");
     document.body.appendChild(host);
-    var cmA = CodeMirror(host);
-    var cmB = CodeMirror(host);
-    var adapterA = new PyricSandboxAdapter(ref, "alice", "#f00");
-    var adapterB = new PyricSandboxAdapter(ref, "bob", "#00f");
+    const cmA = CodeMirror(host);
+    const cmB = CodeMirror(host);
+    const adapterA = new PyricSandboxAdapter(ref, "alice", "#f00");
+    const adapterB = new PyricSandboxAdapter(ref, "bob", "#00f");
 
     renderHook(function () {
       return usePyrepadEditor({ adapter: adapterA, editor: cmA, type: "cm5", userId: "alice" });
