@@ -4,6 +4,10 @@
  * - remote `operations` events -> `editor.applyOperation` (echoes of this
  *   hook's own commits, matched by author, are skipped)
  * - editor "change" -> `adapter.commitOperation(op, userId)`
+ * - an `AbstractSyncAdapter` is driven through a `ClientSyncAdapter` (the OT
+ *   client), so remote ops arrive transformed against local ops in flight and
+ *   concurrent editors converge. Its revisions are authored by the adapter's
+ *   own user id.
  * - editor "cursor" -> `adapter.broadcastPresence(cursor)`
  * - `presence` events -> `editor.setOtherCursor` / `editor.clearCursor`
  * - `defaultText` seeds the shared document once, when the adapter is ready
@@ -13,6 +17,8 @@
  */
 import { useEffect, useRef, useState, useContext } from "react";
 import { SyncSeam, PresenceEvent } from "../adapters/types.js";
+import { AbstractSyncAdapter } from "../adapters/base-adapter.js";
+import { ClientSyncAdapter } from "../adapters/client-sync-adapter.js";
 import { EditorSeam, CursorLike } from "../editors/types.js";
 import { CodeMirror5Adapter } from "../editors/codemirror-adapter.js";
 import { CodeMirror6Adapter } from "../editors/codemirror6-adapter.js";
@@ -50,6 +56,8 @@ export interface UsePyrepadEditorResult {
 
 interface Binding {
   adapter: SyncSeam;
+  /** Set when `adapter` is the OT client wrapping an AbstractSyncAdapter. */
+  client?: ClientSyncAdapter;
   seam: EditorSeam;
   authorId: string;
   editor: unknown;
@@ -136,11 +144,23 @@ function seedDefaultText(binding: Binding, historyEmpty: boolean): void {
     historyEmpty && Boolean(text) && isEditorEmpty(binding.editor);
   if (!shouldSeed) return;
   const op = new TextOperation().insert(text!);
+  if (binding.client) {
+    // Compare-and-set on revision 0: a peer's concurrent seed wins, ours is dropped.
+    binding.client
+      .seedIfEmpty(op, (seed) => binding.seam.applyOperation(seed))
+      .catch((err) => console.warn("usePyrepadEditor seed failed:", err));
+    return;
+  }
   binding.seam.applyOperation(op);
   commit(binding.adapter, op, binding.authorId);
 }
 
-function bindEditorToSeam(binding: Binding): () => void {
+function bindEditorToSeam(bound: Binding): () => void {
+  const client =
+    bound.adapter instanceof AbstractSyncAdapter
+      ? new ClientSyncAdapter(bound.adapter)
+      : null;
+  const binding = client ? { ...bound, adapter: client, client } : bound;
   const { adapter, seam, authorId } = binding;
 
   const onChange = (op: unknown) => commit(adapter, op, authorId);
@@ -169,6 +189,7 @@ function bindEditorToSeam(binding: Binding): () => void {
     stopOperations();
     stopPresence();
     cancelSeed();
+    client?.detach();
   };
 }
 
