@@ -1,5 +1,6 @@
 {
   "name": "@pyric/pad",
+  "type": "commonjs",
   "description": "The modern ES Module, TypeScript-ready real-time collaborative code and text editing engine for the Pyric ecosystem",
   "version": "2.0.0",
   "author": "David East & Pyric Ecosystem Contributors",
@@ -10,7 +11,7 @@
   "homepage": "https://github.com/davideast/pyrepad",
   "repository": {
     "type": "git",
-    "url": "https://github.com/davideast/pyrepad.git"
+    "url": "git+https://github.com/davideast/pyrepad.git"
   },
   "bugs": {
     "url": "https://github.com/davideast/pyrepad/issues"
