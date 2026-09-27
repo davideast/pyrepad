@@ -1,2 +1,2 @@
 #!/bin/sh
-bunx lint-staged && bun test test/specs/*.spec.js
+bunx lint-staged && PYRIC_SANDBOX=1 bun test test/specs/*.spec.js
