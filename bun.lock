@@ -36,6 +36,8 @@
         "vite": "^5.3.0",
       },
       "peerDependencies": {
+        "@codemirror/state": "^6.7.6",
+        "@codemirror/view": "^6.43.13",
         "firebase": "^7.13.2",
         "react": "^19.2.8",
         "react-dom": "^19.2.8",

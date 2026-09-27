@@ -17,3 +17,4 @@ _site/
 test-results/
 playwright-report/
 .pyric-local
+.claude/worktrees/
