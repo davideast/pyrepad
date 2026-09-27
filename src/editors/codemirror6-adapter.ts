@@ -18,11 +18,13 @@ import {
   EditorEvents,
   PresenceState,
   CursorLike,
+  OperationStep,
 } from "./types.js";
 import { CM6PresencePlugin } from "./cm6-decoration-plugin.js";
 import { TextOperation } from "../core/index.js";
 import { Emitter } from "../core/emitter.js";
 
+// Dispatch boundary: each callback's signature depends on its event name (EditorEvents).
 type Callback = (...args: any[]) => void;
 
 export class CodeMirror6Adapter
@@ -117,39 +119,45 @@ export class CodeMirror6Adapter
     const view = this.view;
     const isAlreadyDisposed = this.disposed || !view;
     if (isAlreadyDisposed) return;
-    const isTextOp = typeof (operation as any).ops !== "undefined";
+    // Editor seam boundary: a TextOperation, or any object carrying wire `ops`.
+    const isTextOp =
+      typeof (operation as { ops?: unknown }).ops !== "undefined";
     if (!isTextOp) return;
 
-    const op = operation as { ops: Array<any> };
+    const op = operation as { ops: OperationStep[] };
     const changes: Array<{ from: number; to?: number; insert?: string }> = [];
     let index = 0;
 
     for (const step of op.ops) {
-      const hasRetainFn = typeof step.isRetain === "function";
+      const isOp = typeof step === "object";
+      const hasRetainFn = isOp && typeof step.isRetain === "function";
       const isRetainNumber = typeof step === "number" && step > 0;
       const isRetain = hasRetainFn ? step.isRetain() : isRetainNumber;
       if (isRetain) {
         const chars =
-          typeof step.chars === "number" ? step.chars : Number(step);
+          isOp && typeof step.chars === "number" ? step.chars : Number(step);
         index += chars;
         continue;
       }
 
-      const hasInsertFn = typeof step.isInsert === "function";
+      const hasInsertFn = isOp && typeof step.isInsert === "function";
       const isInsertString = typeof step === "string";
       const isInsert = hasInsertFn ? step.isInsert() : isInsertString;
       if (isInsert) {
-        const text = typeof step.text === "string" ? step.text : String(step);
+        const text =
+          isOp && typeof step.text === "string" ? step.text : String(step);
         changes.push({ from: index, to: index, insert: text });
         continue;
       }
 
-      const hasDeleteFn = typeof step.isDelete === "function";
+      const hasDeleteFn = isOp && typeof step.isDelete === "function";
       const isDeleteNumber = typeof step === "number" && step < 0;
       const isDelete = hasDeleteFn ? step.isDelete() : isDeleteNumber;
       if (isDelete) {
         const chars =
-          typeof step.chars === "number" ? step.chars : Math.abs(Number(step));
+          isOp && typeof step.chars === "number"
+            ? step.chars
+            : Math.abs(Number(step));
         changes.push({ from: index, to: index + chars });
         index += chars;
       }

@@ -12,9 +12,19 @@ export interface MessagePortLike {
   close?(): void;
 }
 
+/** Messages exchanged between tabs over the worker port (see broadcastWorkerMessage). */
+interface WorkerMessage {
+  type: string;
+  payload?: { author?: string; revision?: number };
+}
+
+type WorkerMessageHandler = (
+  evt: { data?: WorkerMessage } | null | undefined,
+) => void;
+
 export class SharedWorkerAdapter extends AbstractSyncAdapter {
   private workerPort: MessagePortLike | null;
-  private messageHandler: any = null;
+  private messageHandler: WorkerMessageHandler | null = null;
 
   constructor(
     ref: unknown,
@@ -37,19 +47,18 @@ export class SharedWorkerAdapter extends AbstractSyncAdapter {
     );
     if (!hasPortListener) return;
 
-    this.messageHandler = (evt: any) => {
+    this.messageHandler = (evt) => {
       const isAlreadyDisposed = this.disposed;
       if (isAlreadyDisposed) return;
       const data = evt && evt.data;
-      const hasData = Boolean(data && data.type);
-      if (!hasData) return;
+      if (!data || !data.type) return;
       this.handleWorkerMessage(data);
     };
 
     this.workerPort!.addEventListener!("message", this.messageHandler);
   }
 
-  private handleWorkerMessage(data: { type: string; payload?: any }): void {
+  private handleWorkerMessage(data: WorkerMessage): void {
     const isCommit = data.type === "PYRIC_WORKER_COMMIT";
     if (isCommit) {
       const payload = data.payload;
