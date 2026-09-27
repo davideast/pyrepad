@@ -1,6 +1,8 @@
 /**
  * @pyric/pad/editors types and interfaces.
  */
+import type { Extension } from "@codemirror/state";
+import type { EditorView } from "@codemirror/view";
 
 export interface CursorLike {
   position: number;
@@ -82,44 +84,18 @@ export interface EditorSeam {
   dispose(): void;
 }
 
-export interface CM6ChangeSetLike {
-  iterChanges(fn: (fromA: number, toA: number, ...rest: any[]) => void): void;
-  length?: number;
-}
-
-export interface CM6TransactionLike {
-  changes: CM6ChangeSetLike;
-  startState: { doc: { length: number; toString(): string } };
-  state: { doc: { length: number; toString(): string } };
-  annotation(key: unknown): unknown;
-  docChanged: boolean;
-  selection?: { main: { head: number; anchor: number } };
-}
-
-export interface CM6ViewLike {
-  state: {
-    doc: { length: number; toString(): string };
-    selection?: { main: { head: number; anchor: number } };
-  };
-  dispatch(specs: {
-    changes?: Array<{ from: number; to?: number; insert?: string }>;
-    annotations?: unknown | unknown[];
-    effects?: unknown;
-  }): void;
-  requestMeasure?(request: unknown): void;
-}
-
 export interface CM6WidgetLike {
-  toDOM(view?: CM6ViewLike): any;
-  eq(other: CM6WidgetLike): boolean;
-  destroy(dom?: any): void;
+  toDOM(view?: EditorView): HTMLElement;
+  eq(other: object): boolean;
+  destroy(dom?: HTMLElement): void;
   dispose(): void;
   isDisposed(): boolean;
 }
 
 export interface CM6PluginSeam {
-  setOtherCursor(data: PresenceState, view: CM6ViewLike): void;
-  clearCursor(clientId: string, view?: CM6ViewLike): void;
+  readonly extension: Extension;
+  setOtherCursor(data: PresenceState, view: EditorView): void;
+  clearCursor(clientId: string, view?: EditorView): void;
   getDecorations(): Array<{
     from: number;
     to: number;

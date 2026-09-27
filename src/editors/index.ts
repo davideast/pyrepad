@@ -1,9 +1,10 @@
 /**
  * @pyric/pad/editors
- * Collaborative Editor Drivers & Sub-Pixel Presence Decorations
+ * Editor adapters and remote presence decorations
  */
 export { VERSION } from "../version.ts";
 export * from "./types.ts";
+export * from "./presence-widget-base.ts";
 export * from "./presence-cursor-widget.ts";
 export * from "./presence-decoration-manager.ts";
 export * from "./codemirror-adapter.ts";
