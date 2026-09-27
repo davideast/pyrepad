@@ -3,17 +3,17 @@
  */
 import { CursorWidgetSeam } from "./types.ts";
 
-interface MockStyle {
+interface FallbackStyle {
   [key: string]: string | undefined;
 }
 
-interface MockElement {
+interface FallbackElement {
   className: string;
-  style: MockStyle;
+  style: FallbackStyle;
   innerText?: string;
-  parentElement?: MockElement | null;
-  appendChild?(child: MockElement): void;
-  removeChild?(child: MockElement): void;
+  parentElement?: FallbackElement | null;
+  appendChild?(child: FallbackElement): void;
+  removeChild?(child: FallbackElement): void;
   setAttribute?(key: string, value: string): void;
   addEventListener?(event: string, handler: unknown): void;
   removeEventListener?(event: string, handler: unknown): void;
@@ -49,23 +49,23 @@ export class PresenceCursorWidget implements CursorWidgetSeam {
       this.caretEl = document.createElement("span");
       this.tooltipEl = document.createElement("div");
     } else {
-      this.element = this.createMockElement();
-      this.caretEl = this.createMockElement();
-      this.tooltipEl = this.createMockElement();
+      this.element = this.createFallbackElement();
+      this.caretEl = this.createFallbackElement();
+      this.tooltipEl = this.createFallbackElement();
     }
 
     this.configureElementStyles(resolvedHeight);
   }
 
-  private createMockElement(): MockElement {
-    const mock: MockElement = {
+  private createFallbackElement(): FallbackElement {
+    const mock: FallbackElement = {
       className: "",
       style: {},
       parentElement: null,
-      appendChild(child: MockElement): void {
+      appendChild(child: FallbackElement): void {
         child.parentElement = this;
       },
-      removeChild(child: MockElement): void {
+      removeChild(child: FallbackElement): void {
         const isChildMounted = child.parentElement === this;
         if (isChildMounted) child.parentElement = null;
       },

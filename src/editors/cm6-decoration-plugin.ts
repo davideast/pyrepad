@@ -5,7 +5,7 @@
 import {
   CM6PluginSeam,
   CM6ViewLike,
-  RemoteCursorData,
+  PresenceState,
   CM6WidgetLike,
 } from "./types.ts";
 import { CM6PresenceWidget } from "./cm6-presence-widget.ts";
@@ -29,7 +29,7 @@ export class CM6PresencePlugin implements CM6PluginSeam {
     this.remoteRanges = {};
   }
 
-  setOtherCursor(data: RemoteCursorData, view: CM6ViewLike): void {
+  setOtherCursor(data: PresenceState, view: CM6ViewLike): void {
     const isAlreadyDisposed = this.disposed;
     if (isAlreadyDisposed) return;
 
@@ -75,7 +75,7 @@ export class CM6PresencePlugin implements CM6PluginSeam {
     return Infinity;
   }
 
-  private mountCaretDecoration(data: RemoteCursorData): void {
+  private mountCaretDecoration(data: PresenceState): void {
     const { cursor, color, clientId } = data;
     const pos = cursor.position;
     const widget = new CM6PresenceWidget(color, clientId, 21);
@@ -91,7 +91,7 @@ export class CM6PresencePlugin implements CM6PluginSeam {
     this.remoteRanges[clientId] = spec;
   }
 
-  private mountSelectionDecoration(data: RemoteCursorData): void {
+  private mountSelectionDecoration(data: PresenceState): void {
     const { cursor, clientId } = data;
     const posA = cursor.position;
     const posB = cursor.selectionEnd;

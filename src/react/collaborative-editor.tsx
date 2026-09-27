@@ -45,6 +45,28 @@ const headerStyle: React.CSSProperties = {
   borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
 };
 
+const renderCountStyle: React.CSSProperties = {
+  marginLeft: "0.5rem",
+  fontSize: "0.75rem",
+  color: "#94a3b8",
+};
+
+const badgeRowStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "0.5rem",
+  flexWrap: "wrap",
+};
+
+const agentBadgeStyle: React.CSSProperties = {
+  padding: "0.3rem 0.6rem",
+  borderRadius: "8px",
+  background: "linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)",
+  color: "#ffffff",
+  fontSize: "0.8rem",
+  fontWeight: 700,
+};
+
 interface BarProps {
   type: string;
   renderCount: number;
@@ -52,19 +74,25 @@ interface BarProps {
   aiAgents: AgentiveDiffState[];
 }
 
-function CollaboratorStatusBar({ type, renderCount, collaborators, aiAgents }: BarProps): React.ReactElement {
+function CollaboratorStatusBar({
+  type,
+  renderCount,
+  collaborators,
+  aiAgents,
+}: BarProps): React.ReactElement {
   const hasCollaborators = collaborators.length > 0;
   const hasAgents = aiAgents.length > 0;
 
   return (
     <div className="pyrepad-collaborator-header" style={headerStyle}>
       <div style={{ fontWeight: 600, fontSize: "0.95rem", color: "#60a5fa" }}>
-        <span>⚡ Pyrepad Live Editor ({type === "cm6" ? "CodeMirror 6" : "CodeMirror 5"})</span>
-        <span style={{ marginLeft: "0.5rem", fontSize: "0.75rem", color: "#94a3b8" }}>
-          [Renders: {renderCount}]
+        <span>
+          ⚡ Pyrepad Live Editor (
+          {type === "cm6" ? "CodeMirror 6" : "CodeMirror 5"})
         </span>
+        <span style={renderCountStyle}>[Renders: {renderCount}]</span>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+      <div style={badgeRowStyle}>
         {hasCollaborators ? (
           collaborators.map((c) => (
             <span
@@ -83,21 +111,13 @@ function CollaboratorStatusBar({ type, renderCount, collaborators, aiAgents }: B
             </span>
           ))
         ) : (
-          <span style={{ fontSize: "0.8rem", color: "#64748b" }}>● Ready to sync</span>
+          <span style={{ fontSize: "0.8rem", color: "#64748b" }}>
+            ● Ready to sync
+          </span>
         )}
         {hasAgents &&
           aiAgents.map((a) => (
-            <span
-              key={a.agentId}
-              style={{
-                padding: "0.3rem 0.6rem",
-                borderRadius: "8px",
-                background: "linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)",
-                color: "#ffffff",
-                fontSize: "0.8rem",
-                fontWeight: 700,
-              }}
-            >
+            <span key={a.agentId} style={agentBadgeStyle}>
               🤖 {a.agentId}: {a.status}
             </span>
           ))}
@@ -106,7 +126,9 @@ function CollaboratorStatusBar({ type, renderCount, collaborators, aiAgents }: B
   );
 }
 
-export function CollaborativeEditor(props: CollaborativeEditorProps): React.ReactElement {
+export function CollaborativeEditor(
+  props: CollaborativeEditorProps,
+): React.ReactElement {
   const {
     adapter,
     editor,
@@ -137,7 +159,14 @@ export function CollaborativeEditor(props: CollaborativeEditorProps): React.Reac
   const mergedStyle = Object.assign({}, containerStyle, style || {});
 
   return (
-    <div className={className ? `pyrepad-editor-wrapper ${className}` : "pyrepad-editor-wrapper"} style={mergedStyle}>
+    <div
+      className={
+        className
+          ? `pyrepad-editor-wrapper ${className}`
+          : "pyrepad-editor-wrapper"
+      }
+      style={mergedStyle}
+    >
       {shouldRenderBar ? (
         <CollaboratorStatusBar
           type={type}
@@ -146,7 +175,10 @@ export function CollaborativeEditor(props: CollaborativeEditorProps): React.Reac
           aiAgents={aiAgents}
         />
       ) : null}
-      <div className="pyrepad-editor-mount" style={{ flex: 1, position: "relative" }}>
+      <div
+        className="pyrepad-editor-mount"
+        style={{ flex: 1, position: "relative" }}
+      >
         {children}
       </div>
     </div>

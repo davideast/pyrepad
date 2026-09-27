@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState, useTransition, useContext } from "react";
 import { SyncSeam } from "../adapters/types.ts";
 import { CodeMirror5Adapter } from "../editors/codemirror-adapter.ts";
-import { CodeMirror6Adapter } from "../editors/codemirror6-driver.ts";
+import { CodeMirror6Adapter } from "../editors/codemirror6-adapter.ts";
 import { PyrepadContext, useResolvedAdapter } from "./context.tsx";
 
 export interface UsePyrepadEditorOptions {
@@ -30,15 +30,10 @@ function createEditorAdapter(
   adapter: SyncSeam | null,
   options: UsePyrepadEditorOptions,
 ): unknown {
-  const { type, userId, userColor } = options;
+  const { type } = options;
   const isCM6 = type === "cm6";
   if (isCM6) {
-    const defaultColor = userColor || "#3b82f6";
-    const defaultId = userId || "react-user";
-    return new CodeMirror6Adapter(editor as any, adapter, {
-      userId: defaultId,
-      userColor: defaultColor,
-    });
+    return new CodeMirror6Adapter(editor as any);
   }
 
   return new CodeMirror5Adapter(editor as any);

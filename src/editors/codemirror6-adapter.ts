@@ -3,10 +3,10 @@
  * Maps immutable CM6 StateField modifications (Transaction.changes) directly to Pyrepad TextOperations.
  */
 import {
-  EditorDriverSeam,
+  EditorSeam,
   CM6ViewLike,
   CM6TransactionLike,
-  RemoteCursorData,
+  PresenceState,
   CursorLike,
 } from "./types.ts";
 import { CM6PresencePlugin } from "./cm6-decoration-plugin.ts";
@@ -14,7 +14,7 @@ import { TextOperation } from "../core/index.ts";
 
 type Callback = (...args: any[]) => void;
 
-export class CodeMirror6Adapter implements EditorDriverSeam {
+export class CodeMirror6Adapter implements EditorSeam {
   private view: CM6ViewLike | null;
   readonly presencePlugin: CM6PresencePlugin;
   readonly remoteOrigin: symbol = Symbol("pyrepad.remote.cm6");
@@ -241,7 +241,7 @@ export class CodeMirror6Adapter implements EditorDriverSeam {
     return { position: docLen, selectionEnd: docLen };
   }
 
-  setOtherCursor(data: RemoteCursorData): void {
+  setOtherCursor(data: PresenceState): void {
     const isDisposed = this.disposed || !this.view;
     if (isDisposed) return;
     this.presencePlugin.setOtherCursor(data, this.view!);
