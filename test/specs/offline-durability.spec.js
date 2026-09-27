@@ -6,6 +6,7 @@ import {
   InMemoryStorageEngine,
   IndexedDBStorageEngine,
   SharedWorkerAdapter,
+  PyricSandboxAdapter,
 } from "../../src/adapters/index.ts";
 import { TextOperation } from "../../src/core/index.ts";
 
@@ -220,15 +221,283 @@ describe("Implement Offline IndexedDB Revision Queue Durability (Issue #7)", fun
     expect(committedOp.ops[0].text).toBe("local "); // Preserves local insertion
     expect(committedOp.ops[1].chars || committedOp.ops[1]).toBe(20); // Rebased retain tail expanded from 13 to 20 to cover the 7 canonical chars inserted by remote
 
-    // Proof of automatic rollback upon unresolvable conflict
+    // Unresolvable conflict: the dropped op is surfaced through a "conflict" event, never silently discarded
+    var conflicts = [];
+    durableAdapter.on("conflict", function (evt) { conflicts.push(evt); });
+    committedOps = [];
     var corruptedOp = { invalid_op: true };
     var conflictId = await durableAdapter.queue.enqueue(202, corruptedOp, "Alice");
     expect(await durableAdapter.queue.count()).toBe(1);
 
-    // Reconciling an unresolvable operation triggers automatic rollback removal from queue
     await durableAdapter.reconcile([canonicalRemoteOp]);
-    expect(await durableAdapter.queue.count()).toBe(0); // Rollback cleanup complete
+    expect(await durableAdapter.queue.count()).toBe(0);
+    expect(committedOps.length).toBe(0);
+    expect(conflicts.length).toBe(1);
+    expect(conflicts[0].recordId).toBe(conflictId);
+    expect(conflicts[0].operation).toEqual(corruptedOp);
+    expect(conflicts[0].author).toBe("Alice");
+    expect(conflicts[0].error instanceof Error).toBe(true);
 
     await durableAdapter.dispose();
+  });
+});
+
+function makeFakeRef(opts) {
+  opts = opts || {};
+  var ref = {
+    root: null,
+    child: function () { return ref; },
+    on: function () {},
+    once: function () {},
+    off: function () {},
+    set: async function () {},
+    remove: async function () {},
+    onDisconnect: function () { return { remove: async function () {} }; },
+    transaction: function (update, onComplete) {
+      if (opts.onTransaction) opts.onTransaction(update, onComplete);
+    },
+  };
+  return ref;
+}
+
+function settledState(promise) {
+  var state = "pending";
+  promise.then(
+    function () { state = "resolved"; },
+    function () { state = "rejected"; },
+  );
+  return function () { return state; };
+}
+
+async function flush() {
+  for (var i = 0; i < 20; i++) await Promise.resolve();
+}
+
+function makeMockNetwork(opts) {
+  opts = opts || {};
+  var listeners = {};
+  var net = {
+    online: Boolean(opts.online),
+    commits: [],
+    operations: { [Symbol.asyncIterator]: async function* () {} },
+    presence: { [Symbol.asyncIterator]: async function* () {} },
+    agentive: { [Symbol.asyncIterator]: async function* () {} },
+    on: function (evt, cb) {
+      (listeners[evt] = listeners[evt] || []).push(cb);
+    },
+    once: function (evt, cb) {
+      var wrap = function () {
+        listeners[evt] = listeners[evt].filter(function (c) { return c !== wrap; });
+        cb.apply(null, arguments);
+      };
+      net.on(evt, wrap);
+    },
+    off: function () {},
+    trigger: function (evt) {
+      var args = Array.prototype.slice.call(arguments, 1);
+      (listeners[evt] || []).slice().forEach(function (cb) { cb.apply(null, args); });
+    },
+    // Mirrors AbstractSyncAdapter: while offline the commit waits for "ready" instead of failing.
+    commitOperation: function (op, author) {
+      return new Promise(function (resolve) {
+        var doCommit = function () {
+          var go = function () {
+            net.commits.push({ op: op, author: author });
+            resolve({ revision: net.commits.length, committed: true });
+          };
+          if (opts.gate) opts.gate.then(go); else go();
+        };
+        if (net.online) doCommit(); else net.once("ready", doCommit);
+      });
+    },
+    broadcastPresence: async function () {},
+    broadcastAgentive: async function () {},
+    dispose: async function () {},
+  };
+  return net;
+}
+
+describe("AbstractSyncAdapter.commitOperation always settles (C5a, A6)", function () {
+  it("rejects a commit that is waiting for readiness when the adapter is disposed", async function () {
+    var adapter = new PyricSandboxAdapter(makeFakeRef(), "u1");
+    var p = adapter.commitOperation(new TextOperation().insert("x"), "u1");
+    var state = settledState(p);
+    await flush();
+    expect(state()).toBe("pending");
+
+    await adapter.dispose();
+    await flush();
+    expect(state()).toBe("rejected");
+    await expect(p).rejects.toThrow(/disposed/);
+  });
+
+  it("rejects a commit parked on 'retry' when the adapter is disposed and drops its listeners", async function () {
+    var completions = [];
+    var adapter = new PyricSandboxAdapter(
+      makeFakeRef({ onTransaction: function (_u, done) { completions.push(done); } }),
+      "u1",
+    );
+    adapter.ready = true;
+    var p = adapter.commitOperation(new TextOperation().insert("x"), "u1");
+    var state = settledState(p);
+    completions[0](null, false);
+    await flush();
+    expect(state()).toBe("pending");
+
+    await adapter.dispose();
+    await flush();
+    expect(state()).toBe("rejected");
+    expect(Object.keys(adapter.listeners).length).toBe(0);
+  });
+
+  it("re-attempts on 'retry' with exponential backoff and rejects after maxRetries", async function () {
+    var completions = [];
+    var adapter = new PyricSandboxAdapter(
+      makeFakeRef({ onTransaction: function (_u, done) { completions.push(done); } }),
+      "u1",
+    );
+    adapter.ready = true;
+    var scheduled = [];
+    adapter.retryPolicy = {
+      maxRetries: 3,
+      baseDelayMs: 50,
+      schedule: function (fn, ms) {
+        scheduled.push({ fn: fn, ms: ms });
+      },
+    };
+
+    var p = adapter.commitOperation(new TextOperation().insert("x"), "u1");
+    var state = settledState(p);
+
+    for (var attempt = 0; attempt < 3; attempt++) {
+      completions[attempt](null, false);
+      adapter.trigger("retry");
+      expect(scheduled.length).toBe(attempt + 1);
+      scheduled[attempt].fn();
+    }
+    expect(scheduled.map(function (s) { return s.ms; })).toEqual([50, 100, 200]);
+    expect(completions.length).toBe(4);
+
+    completions[3](null, false);
+    adapter.trigger("retry");
+    await flush();
+    expect(scheduled.length).toBe(3);
+    expect(state()).toBe("rejected");
+    await expect(p).rejects.toThrow(/retries/);
+    await adapter.dispose();
+  });
+
+  it("resolves when a backed-off retry commits", async function () {
+    var completions = [];
+    var adapter = new PyricSandboxAdapter(
+      makeFakeRef({ onTransaction: function (_u, done) { completions.push(done); } }),
+      "u1",
+    );
+    adapter.ready = true;
+    var scheduled = [];
+    adapter.retryPolicy = {
+      maxRetries: 3,
+      baseDelayMs: 10,
+      schedule: function (fn, ms) { scheduled.push({ fn: fn, ms: ms }); },
+    };
+    var p = adapter.commitOperation(new TextOperation().insert("x"), "u1");
+    completions[0](null, false);
+    adapter.trigger("retry");
+    scheduled[0].fn();
+    completions[1](null, true);
+    var ack = await p;
+    expect(ack.committed).toBe(true);
+    await adapter.dispose();
+  });
+});
+
+describe("OfflineDurableAdapter commits each op exactly once (C5a, C5b)", function () {
+  it("does not double-commit an op typed offline when the network becomes ready", async function () {
+    var net = makeMockNetwork({ online: false });
+    var durable = new OfflineDurableAdapter(net, new InMemoryStorageEngine(), "dbl-doc");
+    var op = new TextOperation().insert("typed offline");
+
+    var p = durable.commitOperation(op, "Bob");
+    await flush();
+    expect(await durable.queue.count()).toBe(1);
+
+    net.online = true;
+    net.trigger("ready");
+    var ack = await p;
+    await flush();
+
+    expect(ack.committed).toBe(true);
+    expect(net.commits.length).toBe(1);
+    expect(await durable.queue.count()).toBe(0);
+    await durable.dispose();
+  });
+
+  it("serialises concurrent reconcile() calls into a single flight", async function () {
+    var release;
+    var gate = new Promise(function (r) { release = r; });
+    var net = makeMockNetwork({ online: true, gate: gate });
+    var durable = new OfflineDurableAdapter(net, new InMemoryStorageEngine(), "reentrant-doc");
+    await durable.queue.enqueue(0, new TextOperation().insert("queued"), "Alice");
+
+    var a = durable.reconcile();
+    net.trigger("ready");
+    net.trigger("worker_sync", { author: "other" });
+    var b = durable.reconcile();
+    await flush();
+    release();
+    var results = await Promise.all([a, b]);
+    await flush();
+
+    expect(net.commits.length).toBe(1);
+    expect(results).toEqual([1, 1]);
+    expect(await durable.queue.count()).toBe(0);
+    await durable.dispose();
+  });
+});
+
+describe("OfflineDurableAdapter surfaces reconcile conflicts (C5c)", function () {
+  it("emits a 'conflict' event carrying the dropped op when OT transform fails", async function () {
+    var net = makeMockNetwork({ online: true });
+    var durable = new OfflineDurableAdapter(net, new InMemoryStorageEngine(), "conflict-doc");
+    var conflicts = [];
+    durable.on("conflict", function (evt) { conflicts.push(evt); });
+
+    var localOp = new TextOperation().retain(5).insert("!");
+    var recordId = await durable.queue.enqueue(0, localOp, "Alice");
+    var remote = new TextOperation().insert("remote ").retain(13);
+
+    var count = await durable.reconcile([remote]);
+
+    expect(count).toBe(0);
+    expect(net.commits.length).toBe(0);
+    expect(await durable.queue.count()).toBe(0);
+    expect(conflicts.length).toBe(1);
+    expect(conflicts[0].recordId).toBe(recordId);
+    expect(conflicts[0].operation).toEqual(localOp.toJSON());
+    expect(conflicts[0].author).toBe("Alice");
+    expect(conflicts[0].error instanceof Error).toBe(true);
+    await durable.dispose();
+  });
+});
+
+describe("OfflineDurableAdapter rejects malformed canonical history", function () {
+  it("rejects reconcile() instead of rebasing on a silently skipped remote op", async function () {
+    var net = makeMockNetwork({ online: true });
+    var durable = new OfflineDurableAdapter(net, new InMemoryStorageEngine(), "bad-remote-doc");
+    await durable.queue.enqueue(0, new TextOperation().insert("local"), "Alice");
+
+    await expect(durable.reconcile([{ not: "an op" }])).rejects.toThrow();
+    expect(net.commits.length).toBe(0);
+    expect(await durable.queue.count()).toBe(1);
+    await durable.dispose();
+  });
+});
+
+describe("TextOperation.fromJSON input validation", function () {
+  it("throws on non-array input instead of returning an empty op", function () {
+    expect(function () { TextOperation.fromJSON({ invalid_op: true }); }).toThrow();
+    expect(function () { TextOperation.fromJSON(null); }).toThrow();
+    expect(function () { TextOperation.fromJSON("abc"); }).toThrow();
+    expect(TextOperation.fromJSON([3, "x"]).toJSON()).toEqual([3, "x"]);
   });
 });
