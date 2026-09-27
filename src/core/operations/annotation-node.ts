@@ -1,7 +1,7 @@
 /**
  * Node and span data structures for AnnotationList.
  */
-import { Span } from "../span.ts";
+import { Span, type Annotation } from "../span.js";
 
 export function assert(condition: unknown, text?: string): asserts condition {
   if (!condition) {
@@ -11,7 +11,7 @@ export function assert(condition: unknown, text?: string): asserts condition {
   }
 }
 
-export const NullAnnotation = {
+export const NullAnnotation: Annotation = {
   equals(): boolean {
     return false;
   },
@@ -19,11 +19,11 @@ export const NullAnnotation = {
 
 export class Node {
   length: number;
-  annotation: any;
-  attachedObject: any = null;
+  annotation: Annotation;
+  attachedObject: unknown = null;
   next: Node | null = null;
 
-  constructor(length: number, annotation: any) {
+  constructor(length: number, annotation: Annotation) {
     this.length = length;
     this.annotation = annotation;
   }
@@ -38,36 +38,36 @@ export class Node {
 export class OldAnnotatedSpan {
   pos: number;
   length: number;
-  annotation: any;
-  attachedObject_: any;
+  annotation: Annotation;
+  private attachedObject: unknown;
 
   constructor(pos: number, node: Node) {
     this.pos = pos;
     this.length = node.length;
     this.annotation = node.annotation;
-    this.attachedObject_ = node.attachedObject;
+    this.attachedObject = node.attachedObject;
   }
 
-  getAttachedObject(): any {
-    return this.attachedObject_;
+  getAttachedObject(): unknown {
+    return this.attachedObject;
   }
 }
 
 export class NewAnnotatedSpan {
   pos: number;
   length: number;
-  annotation: any;
-  node_: Node;
+  annotation: Annotation;
+  private node: Node;
 
   constructor(pos: number, node: Node) {
     this.pos = pos;
     this.length = node.length;
     this.annotation = node.annotation;
-    this.node_ = node;
+    this.node = node;
   }
 
-  attachObject(object: any): void {
-    this.node_.attachedObject = object;
+  attachObject(object: unknown): void {
+    this.node.attachedObject = object;
   }
 }
 

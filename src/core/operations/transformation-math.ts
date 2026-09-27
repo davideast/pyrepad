@@ -1,14 +1,15 @@
 /**
- * Transformation mathematics for concurrent Operational Transformations.
+ * Transforms two concurrent TextOperations against each other.
  */
-import { TextOp } from "./text-op.ts";
+import type { Attributes, DeleteOp, RetainOp, TextOp } from "./text-op.js";
+import type { TextOperation } from "./text-operation.js";
 
 export function transformAttributes(
-  attributes1: Record<string, any>,
-  attributes2: Record<string, any>,
-): [Record<string, any>, Record<string, any>] {
-  const attributes1prime: Record<string, any> = {};
-  const attributes2prime: Record<string, any> = {};
+  attributes1: Attributes,
+  attributes2: Attributes,
+): [Attributes, Attributes] {
+  const attributes1prime: Attributes = {};
+  const attributes2prime: Attributes = {};
   const allAttrs: Record<string, boolean> = {};
   for (const attr in attributes1) {
     allAttrs[attr] = true;
@@ -37,115 +38,118 @@ export function transformAttributes(
 }
 
 interface TransformCtx {
-  operation1prime: any;
-  operation2prime: any;
+  operation1prime: TextOperation;
+  operation2prime: TextOperation;
   ops1: TextOp[];
   ops2: TextOp[];
   state: { i1: number; i2: number };
 }
 
+type OpPair = [TextOp | undefined, TextOp | undefined];
+
 function transformRetainRetain(
   ctx: TransformCtx,
-  op1: TextOp,
-  op2: TextOp,
-): [TextOp | undefined, TextOp | undefined] {
+  op1: RetainOp,
+  op2: RetainOp,
+): OpPair {
   const attributesPrime = transformAttributes(
     op1.attributes || {},
     op2.attributes || {},
   );
   let minl: number;
+  let next: OpPair;
   if (op1.chars > op2.chars) {
     minl = op2.chars;
     op1.chars -= op2.chars;
-    op2 = ctx.ops2[ctx.state.i2++];
+    next = [op1, ctx.ops2[ctx.state.i2++]];
   } else if (op1.chars === op2.chars) {
     minl = op2.chars;
-    op1 = ctx.ops1[ctx.state.i1++];
-    op2 = ctx.ops2[ctx.state.i2++];
+    next = [ctx.ops1[ctx.state.i1++], ctx.ops2[ctx.state.i2++]];
   } else {
     minl = op1.chars;
     op2.chars -= op1.chars;
-    op1 = ctx.ops1[ctx.state.i1++];
+    next = [ctx.ops1[ctx.state.i1++], op2];
   }
   ctx.operation1prime.retain(minl, attributesPrime[0]);
   ctx.operation2prime.retain(minl, attributesPrime[1]);
-  return [op1, op2];
+  return next;
 }
 
 function transformDeleteDelete(
   ctx: TransformCtx,
-  op1: TextOp,
-  op2: TextOp,
-): [TextOp | undefined, TextOp | undefined] {
+  op1: DeleteOp,
+  op2: DeleteOp,
+): OpPair {
   if (op1.chars > op2.chars) {
     op1.chars -= op2.chars;
-    op2 = ctx.ops2[ctx.state.i2++];
+    return [op1, ctx.ops2[ctx.state.i2++]];
   } else if (op1.chars === op2.chars) {
-    op1 = ctx.ops1[ctx.state.i1++];
-    op2 = ctx.ops2[ctx.state.i2++];
+    return [ctx.ops1[ctx.state.i1++], ctx.ops2[ctx.state.i2++]];
   } else {
     op2.chars -= op1.chars;
-    op1 = ctx.ops1[ctx.state.i1++];
+    return [ctx.ops1[ctx.state.i1++], op2];
   }
-  return [op1, op2];
 }
 
 function transformDeleteRetain(
   ctx: TransformCtx,
-  op1: TextOp,
-  op2: TextOp,
-): [TextOp | undefined, TextOp | undefined] {
+  op1: DeleteOp,
+  op2: RetainOp,
+): OpPair {
   let minl: number;
+  let next: OpPair;
   if (op1.chars > op2.chars) {
     minl = op2.chars;
     op1.chars -= op2.chars;
-    op2 = ctx.ops2[ctx.state.i2++];
+    next = [op1, ctx.ops2[ctx.state.i2++]];
   } else if (op1.chars === op2.chars) {
     minl = op2.chars;
-    op1 = ctx.ops1[ctx.state.i1++];
-    op2 = ctx.ops2[ctx.state.i2++];
+    next = [ctx.ops1[ctx.state.i1++], ctx.ops2[ctx.state.i2++]];
   } else {
     minl = op1.chars;
     op2.chars -= op1.chars;
-    op1 = ctx.ops1[ctx.state.i1++];
+    next = [ctx.ops1[ctx.state.i1++], op2];
   }
   ctx.operation1prime.delete(minl);
-  return [op1, op2];
+  return next;
 }
 
 function transformRetainDelete(
   ctx: TransformCtx,
-  op1: TextOp,
-  op2: TextOp,
-): [TextOp | undefined, TextOp | undefined] {
+  op1: RetainOp,
+  op2: DeleteOp,
+): OpPair {
   let minl: number;
+  let next: OpPair;
   if (op1.chars > op2.chars) {
     minl = op2.chars;
     op1.chars -= op2.chars;
-    op2 = ctx.ops2[ctx.state.i2++];
+    next = [op1, ctx.ops2[ctx.state.i2++]];
   } else if (op1.chars === op2.chars) {
     minl = op1.chars;
-    op1 = ctx.ops1[ctx.state.i1++];
-    op2 = ctx.ops2[ctx.state.i2++];
+    next = [ctx.ops1[ctx.state.i1++], ctx.ops2[ctx.state.i2++]];
   } else {
     minl = op1.chars;
     op2.chars -= op1.chars;
-    op1 = ctx.ops1[ctx.state.i1++];
+    next = [ctx.ops1[ctx.state.i1++], op2];
   }
   ctx.operation2prime.delete(minl);
-  return [op1, op2];
+  return next;
 }
 
 export function transformOperations(
-  operation1: any,
-  operation2: any,
-): [any, any] {
+  operation1: TextOperation,
+  operation2: TextOperation,
+): [TextOperation, TextOperation] {
   if (operation1.baseLength !== operation2.baseLength) {
     throw new Error("Both operations have to have the same base length");
   }
 
-  const operation1prime = new operation1.constructor();
-  const operation2prime = new operation2.constructor();
+  // Instantiate via the runtime constructors so subclasses transform to themselves.
+  const Operation1 = operation1.constructor as new () => TextOperation;
+  const Operation2 = operation2.constructor as new () => TextOperation;
+  const operation1prime = new Operation1();
+  const operation2prime = new Operation2();
   const ops1 = operation1.clone().ops;
   const ops2 = operation2.clone().ops;
   const state = { i1: 0, i2: 0 };
@@ -156,8 +160,8 @@ export function transformOperations(
     ops2,
     state,
   };
-  let op1 = ops1[state.i1++];
-  let op2 = ops2[state.i2++];
+  let op1: TextOp | undefined = ops1[state.i1++];
+  let op2: TextOp | undefined = ops2[state.i2++];
 
   while (true) {
     if (typeof op1 === "undefined" && typeof op2 === "undefined") break;

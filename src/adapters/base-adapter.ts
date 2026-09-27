@@ -1,30 +1,49 @@
 /**
  * Abstract synchronization adapter implementing common SyncSeam boilerplate.
- * Coordinates modular stream handlers well within all complexity guardrails.
+ * Wires the history, presence, and agentive stream handlers to one document ref.
  */
-import { TextOperation } from "../core/index.ts";
+import { TextOperation } from "../core/index.js";
+import { Emitter } from "../core/emitter.js";
 import {
   SyncSeam,
   RefLike,
   SnapLike,
   CommitAck,
   AdapterCallbacks,
+  AdapterEvents,
+  AgentivePresenceEvent,
   isValidRef,
-} from "./types.ts";
-import { HistoryStreamHandler } from "./streams/history-stream.ts";
-import { PresenceStreamHandler } from "./streams/presence-stream.ts";
-import { AgentiveStreamHandler } from "./streams/agentive-stream.ts";
+} from "./types.js";
+import { HistoryStreamHandler } from "./streams/history-stream.js";
+import { PresenceStreamHandler } from "./streams/presence-stream.js";
+import { AgentiveStreamHandler } from "./streams/agentive-stream.js";
 
-type EventCallback = (...args: any[]) => void;
+/** Bounds commit re-attempts after a lost revision race; `schedule` is injectable for tests. */
+export interface RetryPolicy {
+  maxRetries: number;
+  baseDelayMs: number;
+  schedule(fn: () => void, delayMs: number): void;
+}
 
-export abstract class AbstractSyncAdapter implements SyncSeam {
+type CommitSettle = { resolve(a: CommitAck): void; reject(e: Error): void };
+
+export abstract class AbstractSyncAdapter
+  extends Emitter<AdapterEvents>
+  implements SyncSeam
+{
   protected ref: RefLike | null = null;
   protected userId: string = "";
   protected userColor: string = "#000000";
   protected ready = false;
   protected disposed = false;
-  protected listeners: Record<string, EventCallback[]> = {};
   public callbacks: AdapterCallbacks = {};
+  public retryPolicy: RetryPolicy = {
+    maxRetries: 5,
+    baseDelayMs: 100,
+    schedule: (fn, delayMs) => void setTimeout(fn, delayMs),
+  };
+  private pendingCommits = new Set<CommitSettle>();
+  private readyWaiters = new Set<(err: Error) => void>();
 
   protected historyHandler!: HistoryStreamHandler;
   protected presenceHandler!: PresenceStreamHandler;
@@ -58,7 +77,9 @@ export abstract class AbstractSyncAdapter implements SyncSeam {
       (id, cursor, c) => this.trigger("cursor", id, cursor, c),
     );
 
-    this.agentiveHandler = new AgentiveStreamHandler(this.ref);
+    this.agentiveHandler = new AgentiveStreamHandler(this.ref, (event) =>
+      this.trigger("agentive", event),
+    );
   }
 
   get operations() {
@@ -131,48 +152,29 @@ export abstract class AbstractSyncAdapter implements SyncSeam {
     }
   }
 
-  on(event: string, callback: EventCallback): void {
-    const isNewEvent = !this.listeners[event];
-    if (isNewEvent) this.listeners[event] = [];
-    this.listeners[event].push(callback);
+  /** Resolves once the initial history is composed; see `SyncSeam.whenReady`. */
+  whenReady(): Promise<void> {
+    if (this.disposed) {
+      return Promise.reject(new Error("Adapter disposed before ready"));
+    }
+    if (this.ready) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      this.readyWaiters.add(reject);
+      this.once("ready", () => {
+        this.readyWaiters.delete(reject);
+        resolve();
+      });
+    });
   }
 
-  once(event: string, callback: EventCallback): void {
-    const onceWrapper: EventCallback = (...args: unknown[]) => {
-      this.off(event, onceWrapper);
-      callback(...args);
-    };
-    this.on(event, onceWrapper);
-  }
-
-  off(event: string, callback?: EventCallback): void {
-    const hasEvent = Boolean(this.listeners[event]);
-    if (!hasEvent) return;
-    if (!callback) {
-      delete this.listeners[event];
-    } else {
-      this.listeners[event] = this.listeners[event].filter(
-        (cb) => cb !== callback,
-      );
-    }
-  }
-
-  trigger(event: string, ...args: unknown[]): void {
-    const callbacks = this.listeners[event];
-    const hasListeners = Boolean(callbacks && callbacks.length > 0);
-    if (hasListeners) {
-      for (const cb of [...callbacks]) {
-        cb(...args);
-      }
-    }
-    const reg = this.callbacks as Record<
-      string,
-      ((...a: unknown[]) => void) | undefined
-    >;
-    const handler = reg[event];
-    if (typeof handler === "function") {
-      handler!(...args);
-    }
+  /** Also forwards to the matching `registerCallbacks` entry. */
+  override trigger<K extends keyof AdapterEvents>(
+    event: K,
+    ...args: AdapterEvents[K]
+  ): void {
+    super.trigger(event, ...args);
+    const handler = (this.callbacks as Record<string, unknown>)[event];
+    if (typeof handler === "function") handler(...args);
   }
 
   registerCallbacks(callbacks: AdapterCallbacks): void {
@@ -197,42 +199,49 @@ export abstract class AbstractSyncAdapter implements SyncSeam {
   }
 
   commitOperation(operation: unknown, author?: string): Promise<CommitAck> {
-    return new Promise<CommitAck>((resolve, reject) => {
-      this.executeCommitAttempt(
-        operation as TextOperation,
-        resolve,
-        reject,
-        author,
-      );
+    if (this.disposed) return Promise.reject(new Error("Adapter is disposed"));
+    const settle = {} as CommitSettle;
+    const result = new Promise<CommitAck>((resolve, reject) => {
+      Object.assign(settle, { resolve, reject });
+      this.pendingCommits.add(settle);
+      this.executeCommitAttempt(operation as TextOperation, settle, author, 0);
     });
+    return result.finally(() => this.pendingCommits.delete(settle));
   }
 
   protected executeCommitAttempt(
     op: TextOperation,
-    resolve: (ack: CommitAck) => void,
-    reject: (err: Error) => void,
-    author?: string,
+    settle: CommitSettle,
+    author: string | undefined,
+    attempt: number,
   ): void {
     this.sendOperation(
       op,
       (err: Error | null, committed?: boolean) => {
-        const isSuccessful = Boolean(committed);
-        if (isSuccessful) {
+        if (committed) {
           this.onCommitSuccess(author || this.userId);
-          resolve({
+          settle.resolve({
             revision: this.historyHandler.getRevision(),
             committed: true,
           });
           return;
         }
-        const hasError = Boolean(err);
-        if (hasError) {
-          reject(err!);
-          return;
-        }
-        this.once("retry", () =>
-          this.executeCommitAttempt(op, resolve, reject, author),
-        );
+        if (err) return settle.reject(err);
+        this.once("retry", () => {
+          const { maxRetries, baseDelayMs, schedule } = this.retryPolicy;
+          if (attempt >= maxRetries) {
+            return settle.reject(
+              new Error(`Commit failed after ${maxRetries} retries`),
+            );
+          }
+          schedule(
+            () => {
+              if (this.disposed) return;
+              this.executeCommitAttempt(op, settle, author, attempt + 1);
+            },
+            baseDelayMs * 2 ** attempt,
+          );
+        });
       },
       author,
     );
@@ -248,15 +257,27 @@ export abstract class AbstractSyncAdapter implements SyncSeam {
     return this.presenceHandler.broadcastPresence(cursor);
   }
 
+  broadcastAgentive(event: AgentivePresenceEvent): Promise<void>;
+  /** @deprecated Pass a single `AgentivePresenceEvent` instead. */
   broadcastAgentive(
     agentId: string,
     status: string,
     ghostDiff?: unknown,
     explanation?: string,
+  ): Promise<void>;
+  broadcastAgentive(
+    eventOrAgentId: AgentivePresenceEvent | string,
+    status?: string,
+    ghostDiff?: unknown,
+    explanation?: string,
   ): Promise<void> {
+    if (typeof eventOrAgentId === "object") {
+      return this.agentiveHandler.broadcastAgentive(eventOrAgentId);
+    }
+    // `status!`: the string overload requires it; TS cannot correlate that here.
     return this.agentiveHandler.broadcastAgentive(
-      agentId,
-      status,
+      eventOrAgentId,
+      status!,
       ghostDiff,
       explanation,
     );
@@ -282,7 +303,14 @@ export abstract class AbstractSyncAdapter implements SyncSeam {
     this.disposed = true;
     this.ready = false;
     this.callbacks = {};
-    this.listeners = {};
+    this.off();
+    for (const settle of [...this.pendingCommits]) {
+      settle.reject(new Error("Adapter disposed before commit settled"));
+    }
+    for (const reject of [...this.readyWaiters]) {
+      reject(new Error("Adapter disposed before ready"));
+    }
+    this.readyWaiters.clear();
 
     const refValid = isValidRef(this.ref);
     if (refValid) {

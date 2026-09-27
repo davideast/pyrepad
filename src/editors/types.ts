@@ -1,6 +1,10 @@
 /**
  * @pyric/pad/editors types and interfaces.
  */
+import type { Extension } from "@codemirror/state";
+import type { EditorView } from "@codemirror/view";
+import type { TextOp, TextOperation } from "../core/index.js";
+import type { Listener } from "../core/emitter.js";
 
 export interface CursorLike {
   position: number;
@@ -32,6 +36,7 @@ export interface CodeMirrorLike {
   on(event: string, handler: unknown): void;
   off(event: string, handler: unknown): void;
   getValue(): string;
+  getCursor?(): unknown;
   setValue?(content: string): void;
   replaceRange?(
     text: string,
@@ -40,6 +45,16 @@ export interface CodeMirrorLike {
     origin?: string,
   ): void;
 }
+
+/** lib/rich-text-codemirror.js: wraps a CodeMirror and re-emits its changes. */
+export interface RichTextCodeMirrorLike {
+  getCodeMirror(): CodeMirrorLike;
+  on(event: string, handler: unknown): void;
+  off(event: string, handler: unknown): void;
+}
+
+/** One `operation.ops` entry: a TextOp, or a raw wire step (n>0 retain, n<0 delete, string insert). */
+export type OperationStep = TextOp | number | string;
 
 export interface CursorWidgetSeam {
   getElement(): unknown;
@@ -54,7 +69,7 @@ export interface CursorWidgetSeam {
   getActiveListenerCount(): number;
 }
 
-export interface RemoteCursorData {
+export interface PresenceState {
   cursor: CursorLike;
   color: string;
   clientId: string;
@@ -62,7 +77,7 @@ export interface RemoteCursorData {
 
 export interface DecorationManagerSeam {
   setOtherCursor(
-    data: RemoteCursorData,
+    data: PresenceState,
     cm: CodeMirrorLike,
     maxDocIndex?: number,
   ): BookmarkLike | TextMarkerLike | undefined;
@@ -72,7 +87,25 @@ export interface DecorationManagerSeam {
   getActiveWidgetCount(): number;
 }
 
-export interface EditorDriverSeam {
+/** Listener argument tuples for the events the editor adapters trigger. */
+export type EditorEvents = {
+  change: [operation: TextOperation, inverse: TextOperation];
+  cursor: [cursor: CursorLike | null];
+  focus: [];
+  blur: [];
+};
+
+export interface EditorSeam {
+  on<K extends keyof EditorEvents>(
+    event: K,
+    fn: Listener<EditorEvents[K]>,
+  ): void;
+  off<K extends keyof EditorEvents>(
+    event: K,
+    fn?: Listener<EditorEvents[K]>,
+  ): void;
+  setOtherCursor(data: PresenceState): unknown;
+  clearCursor(clientId: string): void;
   onChange(editor: unknown, changes: unknown): void;
   applyOperation(operation: unknown): void;
   onCursorActivity(): void;
@@ -82,41 +115,18 @@ export interface EditorDriverSeam {
   dispose(): void;
 }
 
-export interface CM6ChangeSetLike {
-  iterChanges(fn: (fromA: number, toA: number, ...rest: any[]) => void): void;
-  length?: number;
-}
-
-export interface CM6TransactionLike {
-  changes: CM6ChangeSetLike;
-  startState: { doc: { length: number; toString(): string } };
-  state: { doc: { length: number; toString(): string } };
-  annotation(key: unknown): unknown;
-  docChanged: boolean;
-  selection?: { main: { head: number; anchor: number } };
-}
-
-export interface CM6ViewLike {
-  state: { doc: { length: number; toString(): string } };
-  dispatch(specs: {
-    changes?: Array<{ from: number; to?: number; insert?: string }>;
-    annotations?: unknown | unknown[];
-    effects?: unknown;
-  }): void;
-  requestMeasure?(request: unknown): void;
-}
-
 export interface CM6WidgetLike {
-  toDOM(view?: CM6ViewLike): any;
-  eq(other: CM6WidgetLike): boolean;
-  destroy(dom?: any): void;
+  toDOM(view?: EditorView): HTMLElement;
+  eq(other: object): boolean;
+  destroy(dom?: HTMLElement): void;
   dispose(): void;
   isDisposed(): boolean;
 }
 
 export interface CM6PluginSeam {
-  setOtherCursor(data: RemoteCursorData, view: CM6ViewLike): void;
-  clearCursor(clientId: string, view?: CM6ViewLike): void;
+  readonly extension: Extension;
+  setOtherCursor(data: PresenceState, view: EditorView): void;
+  clearCursor(clientId: string, view?: EditorView): void;
   getDecorations(): Array<{
     from: number;
     to: number;

@@ -1,19 +1,26 @@
 ## Examples
 
-You can run the examples by simply opening any of the following files in your browser:
+Current examples, built against this repo's `dist/` bundle and `src/` modules:
 
-  * [`code.html`](./code.html) - Code-editing using CodeMirror.
-  * [`ace.html`](./ace.html) - Code-editing using ACE.
-  * [`richtext-simple.html`](./richtext-simple.html) - Simple rich-text editing.
-  * [`richtext.html`](./richtext.html) - More advanced rich-text editing.
-  * [`userlist.html`](./userlist.html) - Rich-text editing with a list of users showing who's
-  currently present.
+  * [`pyric-studio-live.html`](./pyric-studio-live.html) - ES module live studio over the Pyric
+  SharedWorker, with the Pyric Studio Realtime Database dashboard.
+  * [`agentive-pyric-demo.html`](./agentive-pyric-demo.html) - Agentive presence and ghost diffs.
+  * [`offline-indexeddb-demo.html`](./offline-indexeddb-demo.html) - Offline editing with an
+  IndexedDB-backed durable adapter.
+  * [`react-collaborative-demo.html`](./react-collaborative-demo.html) with
+  [`react-demo-main.tsx`](./react-demo-main.tsx) - React hooks demo: two `CollaborativeEditor`s,
+  each with its own `FirebaseAdapter` on one path of the hosted Pyric sandbox (`firebase/database`
+  modular imports, mapped to Pyric by `@pyric/cli/vite`). Run with `bun run dev` (needs the
+  repo-root `database.rules.json`) and open `/examples/react-collaborative-demo.html`; add
+  `?room=<name>` to start from an empty document.
+
+## Legacy examples
+
+The original Firepad 1.x examples (CodeMirror, ACE, Monaco, rich text, user list, the Ruby
+integration) live in [`legacy/`](./legacy). They target the Firepad 1.5 CDN builds, not this
+package. See [`legacy/README.md`](./legacy/README.md).
 
 ## Security Rules
 
-Example Realtime Database Security Rules to protect your Firepad data can be found in the
+Example Realtime Database Security Rules to protect your data can be found in the
 [`security/`](./security) directory.
-
-## Integrations
-
-* `firepad.rb` - A Ruby script for loading the contents of a Firepad from your server-side Ruby code.

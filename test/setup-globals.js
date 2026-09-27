@@ -4,6 +4,13 @@ const vm = require('vm');
 const jsdom = require('jsdom');
 const { JSDOM } = jsdom;
 
+// P3: PYRIC_SANDBOX=1 is the only switch; there is no real-Firebase test path.
+if (process.env.PYRIC_SANDBOX !== '1') {
+  throw new Error(
+    'test/setup-globals.js: PYRIC_SANDBOX=1 is required. Run: PYRIC_SANDBOX=1 bun test test/specs/*.spec.js'
+  );
+}
+
 const dom = new JSDOM('<!doctype html><html><head></head><body><div id="test"></div></body></html>', {
   url: 'http://localhost/'
 });
@@ -32,12 +39,11 @@ if (global.HTMLElement && !global.HTMLElement.prototype.getBoundingClientRect) {
 
 global.require = require;
 global.CodeMirror = require('codemirror');
-global.firebase = require('firebase');
 
 const root = path.resolve(__dirname, '..');
 function AceEditSession() {
   this._val = '';
-  var self = this;
+  const self = this;
   this.doc = {
     setNewLineMode: () => {},
     getAllLines: () => self._val.split('\n'),
@@ -95,44 +101,13 @@ global.monaco = global.monaco || { constructor: function(){}, Range: function(){
 
 global.firepad = global.firepad || {};
 
-const libFiles = [
-  'lib/utils.js',
-  'lib/span.js',
-  'lib/pyric-sandbox.js',
-  'lib/sync-seam.js',
-  'lib/text-op.js',
-  'lib/text-operation.js',
-  'lib/pure-formatting.js',
-  'lib/document-engine.js',
-  'lib/agentive-presence.js',
-  'lib/mcp-bridge.js',
-  'lib/annotation-list.js',
-  'lib/cursor.js',
-  'lib/firebase-adapter.js',
-  'lib/rich-text-toolbar.js',
-  'lib/wrapped-operation.js',
-  'lib/undo-manager.js',
-  'lib/client.js',
-  'lib/editor-client.js',
-  'lib/ace-adapter.js',
-  'lib/constants.js',
-  'lib/entity-manager.js',
-  'lib/entity.js',
-  'lib/rich-text-codemirror.js',
-  'lib/rich-text-codemirror-adapter.js',
-  'lib/formatting.js',
-  'lib/text.js',
-  'lib/line-formatting.js',
-  'lib/line.js',
-  'lib/parse-html.js',
-  'lib/serialize-html.js',
-  'lib/text-pieces-to-inserts.js',
-  'lib/headless.js',
-  'lib/monaco-adapter.js',
-  'lib/firepad.js'
-];
+const { SEAM_BUILD_OPTIONS, LIB_FILES } = require('../tools/lib-files.js');
 
-libFiles.forEach(file => {
+// The seam IIFE loads first, exactly as tools/bundle.js prepends dist/seam.iife.js.
+const seamBuild = require('esbuild').buildSync({ ...SEAM_BUILD_OPTIONS, write: false, outfile: 'seam.iife.js' });
+vm.runInThisContext(seamBuild.outputFiles[0].text, { filename: path.join(root, 'dist/seam.iife.js') });
+
+LIB_FILES.forEach(file => {
   const filePath = path.join(root, file);
   if (fs.existsSync(filePath)) {
     const code = fs.readFileSync(filePath, 'utf8');
@@ -140,22 +115,20 @@ libFiles.forEach(file => {
   }
 });
 
-// Replace firebase database with Pyric Sandbox in test environment
-if (process.env.PYRIC_SANDBOX === '1' || process.env.NODE_ENV === 'test' || !process.env.FIREBASE_REAL) {
-  const pyricDb = firepad.PyricSandbox.createDatabase();
-  const dbFn = () => pyricDb;
-  dbFn.ServerValue = { TIMESTAMP: { '.sv': 'timestamp' } };
-  global.firebase = {
-    initializeApp: () => {},
-    database: dbFn,
-    apps: [{}]
-  };
-  global.window.firebase = global.firebase;
-}
+// Tests always run against the Pyric Sandbox database.
+const pyricDb = firepad.PyricSandbox.createDatabase();
+const dbFn = () => pyricDb;
+dbFn.ServerValue = { TIMESTAMP: { '.sv': 'timestamp' } };
+global.firebase = {
+  initializeApp: () => {},
+  database: dbFn,
+  apps: [{}]
+};
+global.window.firebase = global.firebase;
 
 const helpersPath = path.join(root, 'test/specs/helpers.js');
 if (fs.existsSync(helpersPath)) {
-  let helpersCode = fs.readFileSync(helpersPath, 'utf8');
+  const helpersCode = fs.readFileSync(helpersPath, 'utf8');
   try {
     vm.runInThisContext(helpersCode, { filename: helpersPath });
   } catch (e) {

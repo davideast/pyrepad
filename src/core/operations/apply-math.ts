@@ -1,13 +1,13 @@
 /**
- * Application mathematics for applying Operational Transformations to strings and rich attributes.
+ * Applies a TextOperation to a string and its per-character attributes.
  */
-import { TextOp } from "./text-op.ts";
+import { TextOp, type Attributes } from "./text-op.js";
 
 export interface ApplyCtx {
   str: string;
   oldIndex: number;
-  oldAttributes: Record<string, any>[];
-  newAttributes: Record<string, any>[];
+  oldAttributes: Attributes[];
+  newAttributes: Attributes[];
 }
 
 export function applyRetain(op: TextOp, chars: number, ctx: ApplyCtx): string {
@@ -20,7 +20,7 @@ export function applyRetain(op: TextOp, chars: number, ctx: ApplyCtx): string {
   const attrs = op.attributes || {};
   for (let k = 0; k < chars; k++) {
     const currAttributes = ctx.oldAttributes[ctx.oldIndex + k] || {};
-    const updatedAttributes: Record<string, any> = { ...currAttributes };
+    const updatedAttributes: Attributes = { ...currAttributes };
     for (const attr in attrs) {
       if (attrs[attr] === false) {
         delete updatedAttributes[attr];
@@ -36,7 +36,7 @@ export function applyRetain(op: TextOp, chars: number, ctx: ApplyCtx): string {
 export function applyInsert(
   op: TextOp,
   text: string,
-  newAttributes: Record<string, any>[],
+  newAttributes: Attributes[],
 ): string {
   const attrs = op.attributes || {};
   for (let k = 0; k < text.length; k++) {

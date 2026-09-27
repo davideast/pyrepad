@@ -1,12 +1,13 @@
 /**
  * @pyric/pad/editors
- * Collaborative Editor Drivers & Sub-Pixel Presence Decorations
+ * Editor adapters and remote presence decorations
  */
-export const VERSION = "2.0.0";
-export * from "./types.ts";
-export * from "./presence-cursor-widget.ts";
-export * from "./presence-decoration-manager.ts";
-export * from "./codemirror-adapter.ts";
-export * from "./cm6-presence-widget.ts";
-export * from "./cm6-decoration-plugin.ts";
-export * from "./codemirror6-driver.ts";
+export { VERSION } from "../version.js";
+export * from "./types.js";
+export * from "./presence-widget-base.js";
+export * from "./presence-cursor-widget.js";
+export * from "./presence-decoration-manager.js";
+export * from "./codemirror-adapter.js";
+export * from "./cm6-presence-widget.js";
+export * from "./cm6-decoration-plugin.js";
+export * from "./codemirror6-adapter.js";

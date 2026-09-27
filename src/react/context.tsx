@@ -1,9 +1,9 @@
 /**
- * @pyric/pad/react - Declarative React Context & Provider Binder.
- * Manages collaborative SyncSeam connections across component hierarchies without render lag or update depth loops.
+ * @pyric/pad/react context: <PyrepadProvider /> makes a SyncSeam adapter
+ * available to the hooks below it.
  */
 import React, { createContext, useContext, useState, useMemo } from "react";
-import { SyncSeam } from "../adapters/types.ts";
+import { SyncSeam } from "../adapters/types.js";
 
 export interface PyrepadContextValue {
   adapter: SyncSeam | null;
@@ -17,14 +17,17 @@ const defaultContext: PyrepadContextValue = {
   setEditorAdapter: () => {},
 };
 
-export const PyrepadContext = createContext<PyrepadContextValue>(defaultContext);
+export const PyrepadContext =
+  createContext<PyrepadContextValue>(defaultContext);
 
 export interface PyrepadProviderProps {
   adapter: SyncSeam | null;
   children?: React.ReactNode;
 }
 
-export function PyrepadProvider(props: PyrepadProviderProps): React.ReactElement {
+export function PyrepadProvider(
+  props: PyrepadProviderProps,
+): React.ReactElement {
   const { adapter, children } = props;
   const [editorAdapter, setEditorAdapterState] = useState<unknown | null>(null);
 
@@ -48,7 +51,9 @@ export function usePyrepadContext(): PyrepadContextValue {
   const ctx = useContext(PyrepadContext);
   const isUndefined = ctx === undefined || ctx === null;
   if (isUndefined) {
-    throw new Error("usePyrepadContext must be used within a <PyrepadProvider />");
+    throw new Error(
+      "usePyrepadContext must be used within a <PyrepadProvider />",
+    );
   }
   return ctx;
 }

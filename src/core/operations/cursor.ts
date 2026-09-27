@@ -2,7 +2,7 @@
  * A collaborative cursor with a `position` and a `selectionEnd`.
  * Both are zero-based indexes into the document.
  */
-import { TextOp } from "./text-op.ts";
+import { TextOp } from "./text-op.js";
 
 export class Cursor {
   position: number;
@@ -38,8 +38,9 @@ export class Cursor {
         } else if (op.isInsert()) {
           newIndex += op.text.length;
         } else {
-          newIndex -= Math.min(index, op.chars);
-          index -= op.chars;
+          const chars = op.chars ?? 0;
+          newIndex -= Math.min(index, chars);
+          index -= chars;
         }
         const isBeforeCursor = index < 0;
         if (isBeforeCursor) {

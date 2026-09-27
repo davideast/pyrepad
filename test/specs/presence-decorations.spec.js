@@ -8,8 +8,8 @@ import { TextOperation } from "../../src/core/index.ts";
 
 describe("Migrate CodeMirror 5 Adapter & Sub-Pixel Presence Decorations (Issue #4)", function () {
   it("Separates text change driver translation from collaborative UI decoration rendering in dedicated modules", function () {
-    var replacedText = "";
-    var mockCm = {
+    let replacedText = "";
+    const mockCm = {
       on: function () {},
       off: function () {},
       getValue: function () {
@@ -35,25 +35,25 @@ describe("Migrate CodeMirror 5 Adapter & Sub-Pixel Presence Decorations (Issue #
       },
     };
 
-    var driver = new CodeMirror5Adapter(mockCm);
+    const driver = new CodeMirror5Adapter(mockCm);
     expect(driver.decorations instanceof PresenceDecorationManager).toBe(true);
 
     // Verify applyOperation properly synchronizes incoming remote operations
-    var remoteOp = new TextOperation().retain(4).insert("inserted ");
+    const remoteOp = new TextOperation().retain(4).insert("inserted ");
     driver.applyOperation(remoteOp);
     expect(replacedText).toBe("inserted ");
 
     // Verify setOtherCursor mounts collaborative UI decorations independently
-    var cursorData = { position: 4, selectionEnd: 4 };
-    var bookmark = driver.setOtherCursor({ cursor: cursorData, color: "#3b82f6", clientId: "Alice" });
+    const cursorData = { position: 4, selectionEnd: 4 };
+    const bookmark = driver.setOtherCursor({ cursor: cursorData, color: "#3b82f6", clientId: "Alice" });
     expect(bookmark).not.toBeUndefined();
     expect(driver.decorations.getActiveWidgetCount()).toBe(1);
     driver.dispose();
   });
 
   it("Aligns collaborative cursor widgets directly on text line baselines with 0.000px vertical discrepancy", function () {
-    var widget = new PresenceCursorWidget("#ef4444", "Bob", 22);
-    var el = widget.getElement();
+    const widget = new PresenceCursorWidget("#ef4444", "Bob", 22);
+    const el = widget.getElement();
 
     expect(el.className).toBe("other-client firepad-client-cursor");
     expect(el.style.verticalAlign).toBe("baseline");
@@ -68,8 +68,8 @@ describe("Migrate CodeMirror 5 Adapter & Sub-Pixel Presence Decorations (Issue #
   });
 
   it("Guarantees 100% event listener and hover timer disposal upon editor teardown (dispose)", function () {
-    var manager = new PresenceDecorationManager();
-    var mockCm = {
+    const manager = new PresenceDecorationManager();
+    const mockCm = {
       posFromIndex: function (idx) {
         return { line: 0, ch: idx };
       },
@@ -100,7 +100,7 @@ describe("Migrate CodeMirror 5 Adapter & Sub-Pixel Presence Decorations (Issue #
     expect(manager.getActiveWidgetCount()).toBe(2);
     expect(manager.getActiveBookmarkCount()).toBe(2);
 
-    var widget1 = manager.getWidget("Peer1");
+    const widget1 = manager.getWidget("Peer1");
     expect(widget1.isDisposed()).toBe(false);
     expect(widget1.getActiveTimerCount()).toBeGreaterThan(0); // Initial fade timer active
 

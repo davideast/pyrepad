@@ -1,5 +1,6 @@
 {
   "name": "@pyric/pad",
+  "type": "commonjs",
   "description": "The modern ES Module, TypeScript-ready real-time collaborative code and text editing engine for the Pyric ecosystem",
   "version": "2.0.0",
   "author": "David East & Pyric Ecosystem Contributors",
@@ -10,20 +11,12 @@
   "homepage": "https://github.com/davideast/pyrepad",
   "repository": {
     "type": "git",
-    "url": "https://github.com/davideast/pyrepad.git"
-  },
-  "browser": {
-    "jsdom": false
+    "url": "git+https://github.com/davideast/pyrepad.git"
   },
   "bugs": {
     "url": "https://github.com/davideast/pyrepad/issues"
   },
-  "licenses": [
-    {
-      "type": "MIT",
-      "url": "http://firebase.mit-license.org/"
-    }
-  ],
+  "license": "MIT",
   "keywords": [
     "text",
     "word",
@@ -33,68 +26,97 @@
     "collaborative"
   ],
   "main": "dist/firepad.min.js",
+  "sideEffects": false,
   "files": [
-    "src/**",
-    "types/**",
     "dist/**",
+    "!dist/esm/**/*.d.ts.map",
     "LICENSE",
-    "README.md",
-    "package.json"
+    "README.md"
   ],
-  "dependencies": {
-    "firebase": "^7.13.2",
+  "peerDependencies": {
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.13",
+    "firebase": ">=7.13.2",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "@babel/core": "^7.9.0",
-    "@babel/preset-env": "^7.9.0",
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.13",
     "@playwright/test": "^1.62.0",
-    "@pyric/cli": "^0.1.0-alpha.17",
+    "@pyric/cli": "0.1.0-alpha.24",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@typescript-eslint/eslint-plugin": "^8.65.0",
     "@typescript-eslint/parser": "^8.65.0",
     "codemirror": "^5.58.2",
+    "create-pyric": "0.1.0-alpha.24",
+    "esbuild": "^0.28.1",
     "eslint": "^10.8.0",
     "eslint-plugin-react-hooks": "^7.1.1",
+    "firebase": "^7.13.2",
     "husky": "^9.1.7",
-    "jasmine-core": "^3.5.0",
     "jsdom": "^29.1.1",
     "lint-staged": "^17.2.0",
-    "monaco-editor": "^0.20.0",
     "playwright": "^1.62.0",
     "prettier": "^3.9.6",
+    "publint": "^0.3.24",
+    "pyric": "0.1.0-alpha.24",
+    "pyric-admin": "0.1.0-alpha.24",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "typescript": "^5.5.0",
     "vite": "^5.3.0"
   },
   "scripts": {
-    "test": "bun test test/specs/*.spec.js",
+    "test": "PYRIC_SANDBOX=1 bun test test/specs/*.spec.js",
     "dev": "vite",
-    "build": "bun run build:bundle",
+    "build": "bun run build:bundle && bun run build:esm",
     "build:bundle": "bun -e \"require('./tools/bundle.js')\"",
+    "build:esm": "bun -e \"require('fs').rmSync('dist/esm', { recursive: true, force: true })\" && tsc -p tsconfig.build.json && bun -e \"require('fs').writeFileSync('dist/esm/package.json', JSON.stringify({ type: 'module' }) + '\\n')\"",
+    "prepack": "bun run build",
+    "check:package": "bun run build && node -e \"const fs = require('fs'); const min = fs.statSync('dist/firepad.min.js').size; const full = fs.statSync('dist/firepad.js').size; if (min >= full) throw new Error('dist/firepad.min.js (' + min + ') is not smaller than dist/firepad.js (' + full + ')'); if (typeof require('./dist/firepad.min.js').Firepad !== 'function') throw new Error('dist/firepad.min.js does not expose firepad.Firepad');\" && publint --strict && attw --pack . --profile esm-only --exclude-entrypoints .",
     "typecheck": "tsc --noEmit",
     "test:integration": "PYRIC_SANDBOX=1 bun test test/specs/integration.spec.js",
-    "test:seam": "bun test test/specs/sync-seam.spec.js",
-    "test:e2e:sandbox": "bun test test/specs/e2e-sandbox.spec.js",
-    "test:formatting": "bun test test/specs/pure-formatting.spec.js",
-    "test:headless:speed": "bun test test/specs/headless-speed.spec.js",
-    "test:ot:ghost": "bun test test/specs/ot-ghost.spec.js",
-    "verify:agentive:harness": "bun test test/specs/agentive-harness.spec.js",
+    "test:seam": "PYRIC_SANDBOX=1 bun test test/specs/sync-seam.spec.js",
+    "test:e2e:sandbox": "PYRIC_SANDBOX=1 bun test test/specs/e2e-sandbox.spec.js",
+    "test:formatting": "PYRIC_SANDBOX=1 bun test test/specs/pure-formatting.spec.js",
+    "test:headless:speed": "PYRIC_SANDBOX=1 bun test test/specs/headless-speed.spec.js",
+    "test:ot:ghost": "PYRIC_SANDBOX=1 bun test test/specs/ot-ghost.spec.js",
+    "verify:agentive:harness": "PYRIC_SANDBOX=1 bun test test/specs/agentive-harness.spec.js",
     "test:e2e:playwright": "playwright test",
-    "lint": "eslint src/",
+    "lint": "eslint .",
     "prepare": "husky || true"
   },
   "exports": {
     ".": "./dist/firepad.min.js",
-    "./core": "./src/core/index.ts",
-    "./adapters": "./src/adapters/index.ts",
-    "./editors": "./src/editors/index.ts",
-    "./react": "./src/react/index.ts"
+    "./core": {
+      "types": "./dist/esm/core/index.d.ts",
+      "import": "./dist/esm/core/index.js"
+    },
+    "./adapters": {
+      "types": "./dist/esm/adapters/index.d.ts",
+      "import": "./dist/esm/adapters/index.js"
+    },
+    "./editors": {
+      "types": "./dist/esm/editors/index.d.ts",
+      "import": "./dist/esm/editors/index.js"
+    },
+    "./react": {
+      "types": "./dist/esm/react/index.d.ts",
+      "import": "./dist/esm/react/index.js"
+    },
+    "./package.json": "./package.json"
   },
   "lint-staged": {
-    "src/**/*.{ts,js}": [
+    "src/**/*.{ts,tsx,js}": [
       "eslint --fix",
+      "prettier --write"
+    ],
+    "examples/**/*.{ts,tsx}": [
       "prettier --write"
     ]
   }

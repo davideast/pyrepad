@@ -1,14 +1,22 @@
 /**
- * CodeMirror 6 immutable ViewPlugin presence decoration coordinator.
- * Manages remote collaborator caret widgets and selection highlight ranges without mutating DOM buffers.
+ * CodeMirror 6 remote presence decorations. `extension` is a ViewPlugin that
+ * provides the `decorations` facet; setOtherCursor/clearCursor update the
+ * ranges and dispatch a refresh effect so the view re-renders them.
  */
 import {
-  CM6PluginSeam,
-  CM6ViewLike,
-  RemoteCursorData,
-  CM6WidgetLike,
-} from "./types.ts";
-import { CM6PresenceWidget } from "./cm6-presence-widget.ts";
+  StateEffect,
+  type ChangeDesc,
+  type Extension,
+} from "@codemirror/state";
+import {
+  Decoration,
+  ViewPlugin,
+  type DecorationSet,
+  type EditorView,
+  type ViewUpdate,
+} from "@codemirror/view";
+import { CM6PluginSeam, PresenceState, CM6WidgetLike } from "./types.js";
+import { CM6PresenceWidget } from "./cm6-presence-widget.js";
 
 interface RangeSpec {
   from: number;
@@ -19,19 +27,38 @@ interface RangeSpec {
   widget?: CM6PresenceWidget;
 }
 
+const presenceRefresh = StateEffect.define<null>();
+
 export class CM6PresencePlugin implements CM6PluginSeam {
+  readonly extension: Extension;
   private remoteWidgets: Record<string, CM6PresenceWidget> = {};
   private remoteRanges: Record<string, RangeSpec> = {};
   private disposed = false;
 
   constructor() {
-    this.remoteWidgets = {};
-    this.remoteRanges = {};
+    const owner = this;
+    this.extension = ViewPlugin.fromClass(
+      class {
+        decorations: DecorationSet;
+        constructor() {
+          this.decorations = owner.buildDecorations();
+        }
+        update(update: ViewUpdate) {
+          if (update.docChanged) owner.mapRanges(update.changes);
+          const isRefresh = update.transactions.some((tr) =>
+            tr.effects.some((e) => e.is(presenceRefresh)),
+          );
+          if (update.docChanged || isRefresh) {
+            this.decorations = owner.buildDecorations();
+          }
+        }
+      },
+      { decorations: (plugin) => plugin.decorations },
+    );
   }
 
-  setOtherCursor(data: RemoteCursorData, view: CM6ViewLike): void {
-    const isAlreadyDisposed = this.disposed;
-    if (isAlreadyDisposed) return;
+  setOtherCursor(data: PresenceState, view: EditorView): void {
+    if (this.disposed) return;
 
     const { cursor, color, clientId } = data;
     const isValidColor = typeof color === "string" && color.trim().length > 0;
@@ -44,7 +71,7 @@ export class CM6PresencePlugin implements CM6PluginSeam {
       typeof cursor.selectionEnd === "number";
     if (!isValidCursor) return;
 
-    const docLength = this.getDocLength(view);
+    const docLength = view.state.doc.length;
     const isOutOfBounds =
       cursor.position < 0 ||
       cursor.position > docLength ||
@@ -52,7 +79,8 @@ export class CM6PresencePlugin implements CM6PluginSeam {
       cursor.selectionEnd > docLength;
     if (isOutOfBounds) return;
 
-    this.clearCursor(clientId, view);
+    const previous = this.remoteWidgets[clientId];
+    delete this.remoteWidgets[clientId];
 
     const isCollapsed = cursor.position === cursor.selectionEnd;
     if (isCollapsed) {
@@ -62,58 +90,64 @@ export class CM6PresencePlugin implements CM6PluginSeam {
     }
 
     this.notifyViewUpdate(view);
+    // Dispose only after the view has dropped the old widget's DOM.
+    previous?.dispose();
   }
 
-  private getDocLength(view: CM6ViewLike): number {
-    const hasStateDoc = Boolean(
-      view &&
-      view.state &&
-      view.state.doc &&
-      typeof view.state.doc.length === "number",
-    );
-    if (hasStateDoc) return view.state.doc.length;
-    return Infinity;
-  }
-
-  private mountCaretDecoration(data: RemoteCursorData): void {
+  private mountCaretDecoration(data: PresenceState): void {
     const { cursor, color, clientId } = data;
     const pos = cursor.position;
     const widget = new CM6PresenceWidget(color, clientId, 21);
     this.remoteWidgets[clientId] = widget;
-
-    const spec: RangeSpec = {
+    this.remoteRanges[clientId] = {
       from: pos,
       to: pos,
-      clientId: clientId,
+      clientId,
       isCaret: true,
-      widget: widget,
+      widget,
     };
-    this.remoteRanges[clientId] = spec;
   }
 
-  private mountSelectionDecoration(data: RemoteCursorData): void {
+  private mountSelectionDecoration(data: PresenceState): void {
     const { cursor, clientId } = data;
-    const posA = cursor.position;
-    const posB = cursor.selectionEnd;
-    const isForward = posB > posA;
-    const from = isForward ? posA : posB;
-    const to = isForward ? posB : posA;
-
-    const spec: RangeSpec = {
-      from: from,
-      to: to,
-      clientId: clientId,
+    const from = Math.min(cursor.position, cursor.selectionEnd);
+    const to = Math.max(cursor.position, cursor.selectionEnd);
+    this.remoteRanges[clientId] = {
+      from,
+      to,
+      clientId,
       isCaret: false,
       className: "cm-presence-selection",
     };
-    this.remoteRanges[clientId] = spec;
   }
 
-  private notifyViewUpdate(view?: CM6ViewLike): void {
-    const hasDispatch = Boolean(view && typeof view.dispatch === "function");
-    if (!hasDispatch) return;
+  private mapRanges(changes: ChangeDesc): void {
+    for (const range of Object.values(this.remoteRanges)) {
+      range.from = changes.mapPos(range.from);
+      range.to = range.isCaret ? range.from : changes.mapPos(range.to);
+    }
+  }
+
+  private buildDecorations(): DecorationSet {
+    const ranges = Object.values(this.remoteRanges)
+      .filter((item) => item.isCaret || item.to > item.from)
+      .map((item) =>
+        item.isCaret
+          ? Decoration.widget({ widget: item.widget!, side: 1 }).range(
+              item.from,
+            )
+          : Decoration.mark({
+              class: item.className,
+              attributes: { "data-clientid": item.clientId },
+            }).range(item.from, item.to),
+      );
+    return Decoration.set(ranges, true);
+  }
+
+  private notifyViewUpdate(view?: EditorView): void {
+    if (!view) return;
     try {
-      view!.dispatch({});
+      view.dispatch({ effects: presenceRefresh.of(null) });
     } catch (err) {
       console.warn(
         "Unexpected error dispatching CM6 view decoration update:",
@@ -129,51 +163,33 @@ export class CM6PresencePlugin implements CM6PluginSeam {
     className?: string;
     clientId: string;
   }> {
-    const results: Array<{
-      from: number;
-      to: number;
-      widget?: CM6WidgetLike;
-      className?: string;
-      clientId: string;
-    }> = [];
-
-    const keys = Object.keys(this.remoteRanges);
-    for (const key of keys) {
-      const item = this.remoteRanges[key];
-      const hasItem = Boolean(item);
-      if (!hasItem) continue;
-
-      if (item.isCaret) {
-        results.push({
-          from: item.from,
-          to: item.to,
-          widget: item.widget,
-          clientId: item.clientId,
-        });
-      } else {
-        results.push({
-          from: item.from,
-          to: item.to,
-          className: item.className,
-          clientId: item.clientId,
-        });
-      }
-    }
-    return results;
+    return Object.values(this.remoteRanges).map((item) =>
+      item.isCaret
+        ? {
+            from: item.from,
+            to: item.to,
+            widget: item.widget,
+            clientId: item.clientId,
+          }
+        : {
+            from: item.from,
+            to: item.to,
+            className: item.className,
+            clientId: item.clientId,
+          },
+    );
   }
 
-  clearCursor(clientId: string, view?: CM6ViewLike): void {
+  clearCursor(clientId: string, view?: EditorView): void {
     const widget = this.remoteWidgets[clientId];
-    const hasWidget = Boolean(widget);
-    if (hasWidget) {
-      widget.dispose();
-      delete this.remoteWidgets[clientId];
-    }
+    delete this.remoteWidgets[clientId];
     const hasRange = Boolean(this.remoteRanges[clientId]);
     if (hasRange) {
       delete this.remoteRanges[clientId];
       this.notifyViewUpdate(view);
     }
+    // Dispose only after the view has dropped the widget's DOM.
+    widget?.dispose();
   }
 
   getActiveWidgetCount(): number {
@@ -189,16 +205,10 @@ export class CM6PresencePlugin implements CM6PluginSeam {
   }
 
   dispose(): void {
-    const isAlreadyDisposed = this.disposed;
-    if (isAlreadyDisposed) return;
+    if (this.disposed) return;
     this.disposed = true;
-
-    const clientIds = Object.keys(this.remoteRanges).concat(
-      Object.keys(this.remoteWidgets),
-    );
-    const uniqueIds = Array.from(new Set(clientIds));
-    for (const id of uniqueIds) {
-      this.clearCursor(id);
+    for (const widget of Object.values(this.remoteWidgets)) {
+      widget.dispose();
     }
     this.remoteWidgets = {};
     this.remoteRanges = {};

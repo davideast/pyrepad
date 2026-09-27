@@ -1,11 +1,24 @@
 /**
  * Pure formatting and markdown translation without DOM dependencies.
  */
-import { TextOperation } from "../operations/text-operation.ts";
+import { TextOperation } from "../operations/text-operation.js";
+import type { Attributes } from "../operations/text-op.js";
 
-export function toAST(operation: any): any[] {
-  const ast: any[] = [];
-  let currentLine: any = { type: "line", attributes: {}, children: [] };
+export interface ASTText {
+  type: "text";
+  text: string;
+  attributes?: Attributes;
+}
+
+export interface ASTLine {
+  type: "line";
+  attributes: Attributes;
+  children: ASTText[];
+}
+
+export function toAST(operation: TextOperation | null | undefined): ASTLine[] {
+  const ast: ASTLine[] = [];
+  let currentLine: ASTLine = { type: "line", attributes: {}, children: [] };
   ast.push(currentLine);
 
   const isInvalidOperation = !operation || !operation.ops;
@@ -40,7 +53,7 @@ export function toAST(operation: any): any[] {
   return ast;
 }
 
-function processASTChild(op: TextOperation, child: any): void {
+function processASTChild(op: TextOperation, child: ASTText): void {
   const hasValidText = Boolean(child && child.text);
   if (!hasValidText) return;
 
@@ -54,7 +67,7 @@ function processASTChild(op: TextOperation, child: any): void {
   }
 }
 
-export function fromAST(ast: any[]): TextOperation {
+export function fromAST(ast: ASTLine[]): TextOperation {
   const op = new TextOperation();
   const isValidAST = Array.isArray(ast);
   if (!isValidAST) {
@@ -76,7 +89,9 @@ export function fromAST(ast: any[]): TextOperation {
   return op;
 }
 
-export function toMarkdown(operation: any): string {
+export function toMarkdown(
+  operation: TextOperation | null | undefined,
+): string {
   const isInvalidOperation = !operation || !operation.ops;
   if (isInvalidOperation) {
     return "";
@@ -144,10 +159,7 @@ function parseBlockPrefix(line: string): BlockParseResult {
   return { blockType: "text", strippedLine: line };
 }
 
-function parseInlineStyles(
-  content: string,
-  attrs: Record<string, any>,
-): string {
+function parseInlineStyles(content: string, attrs: Attributes): string {
   let text = content;
   const hasMinBoldLength = text.length >= 4;
   const isBoldWrapped =
@@ -178,7 +190,7 @@ export function fromMarkdown(markdownStr: string): TextOperation {
       op.insert("\n");
     }
 
-    const attrs: Record<string, any> = {};
+    const attrs: Attributes = {};
     const blockResult = parseBlockPrefix(lines[i]);
 
     switch (blockResult.blockType) {

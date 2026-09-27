@@ -1,6 +1,6 @@
 /**
- * Asynchronous key-value storage engine interface and IndexedDB / in-memory implementations
- * for offline revision durability with dry transactional execution.
+ * Asynchronous key-value storage engine interface with IndexedDB and in-memory
+ * implementations, used to persist queued offline revisions.
  */
 
 export interface StorageEngineSeam {
@@ -46,7 +46,7 @@ export class InMemoryStorageEngine implements StorageEngineSeam {
 
 export class IndexedDBStorageEngine implements StorageEngineSeam {
   private fallback: InMemoryStorageEngine | null = null;
-  private dbPromise: Promise<any> | null = null;
+  private dbPromise: Promise<IDBDatabase | null> | null = null;
   readonly dbName: string;
   readonly storeName: string;
 
@@ -57,14 +57,13 @@ export class IndexedDBStorageEngine implements StorageEngineSeam {
     this.dbName = dbName;
     this.storeName = storeName;
     const hasIndexedDB =
-      typeof globalThis !== "undefined" &&
-      Boolean((globalThis as any).indexedDB);
+      typeof globalThis !== "undefined" && Boolean(globalThis.indexedDB);
     if (!hasIndexedDB) {
       this.fallback = new InMemoryStorageEngine();
     }
   }
 
-  private async getDB(): Promise<any> {
+  private async getDB(): Promise<IDBDatabase | null> {
     const isFallback = Boolean(this.fallback);
     if (isFallback) return null;
     const hasCachedDB = Boolean(this.dbPromise);
@@ -72,9 +71,9 @@ export class IndexedDBStorageEngine implements StorageEngineSeam {
 
     this.dbPromise = new Promise((resolve, reject) => {
       try {
-        const req = (globalThis as any).indexedDB.open(this.dbName, 1);
-        req.onupgradeneeded = (evt: any) => {
-          const db = evt.target.result;
+        const req = globalThis.indexedDB.open(this.dbName, 1);
+        req.onupgradeneeded = (evt: IDBVersionChangeEvent) => {
+          const db = (evt.target as IDBOpenDBRequest).result;
           const hasStore =
             db.objectStoreNames &&
             db.objectStoreNames.contains &&
@@ -83,8 +82,10 @@ export class IndexedDBStorageEngine implements StorageEngineSeam {
             db.createObjectStore(this.storeName);
           }
         };
-        req.onsuccess = (evt: any) => resolve(evt.target.result);
-        req.onerror = (evt: any) => reject(evt.target.error);
+        req.onsuccess = (evt: Event) =>
+          resolve((evt.target as IDBOpenDBRequest).result);
+        req.onerror = (evt: Event) =>
+          reject((evt.target as IDBOpenDBRequest).error);
       } catch (err) {
         this.fallback = new InMemoryStorageEngine();
         resolve(null);
@@ -97,16 +98,16 @@ export class IndexedDBStorageEngine implements StorageEngineSeam {
     mode: "readonly" | "readwrite",
     fallbackFn: (fb: InMemoryStorageEngine) => Promise<T>,
     storeFn: (
-      store: any,
+      store: IDBObjectStore,
       resolve: (val: T) => void,
-      reject: (err: any) => void,
+      reject: (err: unknown) => void,
     ) => void,
   ): Promise<T> {
     const db = await this.getDB();
     const isFallback = Boolean(
       this.fallback || !db || typeof db.transaction !== "function",
     );
-    if (isFallback) {
+    if (isFallback || !db) {
       if (!this.fallback) this.fallback = new InMemoryStorageEngine();
       return fallbackFn(this.fallback);
     }
@@ -175,7 +176,7 @@ export class IndexedDBStorageEngine implements StorageEngineSeam {
     const isFallback = Boolean(
       this.fallback || !db || typeof db.transaction !== "function",
     );
-    if (isFallback) {
+    if (isFallback || !db) {
       if (!this.fallback) this.fallback = new InMemoryStorageEngine();
       return this.fallback.getAll();
     }

@@ -1,7 +1,7 @@
 /**
  * Independent protocol stream handler for collaborative user cursor presence.
  */
-import { Cursor } from "../../core/index.ts";
+import { Cursor } from "../../core/index.js";
 import {
   RefLike,
   SnapLike,
@@ -10,8 +10,8 @@ import {
   getSnapVal,
   isValidRef,
   toSafeJSON,
-} from "../types.ts";
-import { ReactiveStream } from "../reactive-stream.ts";
+} from "../types.js";
+import { ReactiveStream } from "../reactive-stream.js";
 
 export class PresenceStreamHandler {
   readonly stream = new ReactiveStream<PresenceEvent>();
@@ -89,21 +89,34 @@ export class PresenceStreamHandler {
     this.onCursorChange(userId!, null);
   }
 
-  broadcastPresence(cursor: unknown): Promise<void> {
+  async broadcastPresence(cursor: unknown): Promise<void> {
     const refInvalid = !isValidRef(this.ref);
-    if (refInvalid) return Promise.resolve();
+    if (refInvalid) return;
 
     const userRef = this.ref!.child("users/" + this.getUserId());
     const isRemovingCursor = cursor === null || cursor === undefined;
-    if (isRemovingCursor) {
-      userRef.remove();
-    } else {
-      userRef.set({
-        cursor: toSafeJSON(cursor),
-        color: this.getColor(),
-      });
+    try {
+      if (isRemovingCursor) {
+        await userRef.remove();
+      } else {
+        this.registerDisconnectCleanup(userRef);
+        await userRef.set({
+          cursor: toSafeJSON(cursor),
+          color: this.getColor(),
+        });
+      }
+    } catch (err) {
+      console.warn("Presence write failed:", err);
     }
-    return Promise.resolve();
+  }
+
+  private registerDisconnectCleanup(userRef: RefLike): void {
+    const hasOnDisconnect = typeof userRef.onDisconnect === "function";
+    if (!hasOnDisconnect) return;
+    const pending = userRef.onDisconnect!().remove();
+    Promise.resolve(pending).catch((err) =>
+      console.warn("Presence onDisconnect registration failed:", err),
+    );
   }
 
   dispose(): void {
@@ -114,7 +127,10 @@ export class PresenceStreamHandler {
         const currentUserId = this.getUserId();
         const hasUserId = Boolean(currentUserId);
         if (hasUserId) {
-          this.ref!.child("users/" + currentUserId).remove();
+          const pending = this.ref!.child("users/" + currentUserId).remove();
+          Promise.resolve(pending).catch((err) =>
+            console.warn("Presence removal failed during teardown:", err),
+          );
         }
       } catch (err) {
         console.warn("Unexpected error during presence stream teardown:", err);

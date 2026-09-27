@@ -3,12 +3,12 @@
  */
 import {
   DecorationManagerSeam,
-  RemoteCursorData,
+  PresenceState,
   CodeMirrorLike,
   BookmarkLike,
   TextMarkerLike,
-} from "./types.ts";
-import { PresenceCursorWidget } from "./presence-cursor-widget.ts";
+} from "./types.js";
+import { PresenceCursorWidget } from "./presence-cursor-widget.js";
 
 export class PresenceDecorationManager implements DecorationManagerSeam {
   private activeWidgets: Record<string, PresenceCursorWidget> = {};
@@ -20,7 +20,7 @@ export class PresenceDecorationManager implements DecorationManagerSeam {
   }
 
   setOtherCursor(
-    data: RemoteCursorData,
+    data: PresenceState,
     cm: CodeMirrorLike,
     maxDocIndex?: number,
   ): BookmarkLike | TextMarkerLike | undefined {
@@ -56,7 +56,7 @@ export class PresenceDecorationManager implements DecorationManagerSeam {
   }
 
   private mountCaretWidget(
-    data: RemoteCursorData,
+    data: PresenceState,
     cm: CodeMirrorLike,
   ): BookmarkLike {
     const { cursor, color, clientId } = data;
@@ -84,7 +84,7 @@ export class PresenceDecorationManager implements DecorationManagerSeam {
   }
 
   private mountSelectionRange(
-    data: RemoteCursorData,
+    data: PresenceState,
     cm: CodeMirrorLike,
   ): TextMarkerLike {
     const { cursor } = data;

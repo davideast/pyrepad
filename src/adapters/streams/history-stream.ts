@@ -1,7 +1,7 @@
 /**
  * Independent protocol stream handler for document history and operational transformations.
  */
-import { TextOperation } from "../../core/index.ts";
+import { TextOperation } from "../../core/index.js";
 import {
   RefLike,
   SnapLike,
@@ -10,8 +10,8 @@ import {
   getSnapVal,
   isValidRef,
   toSafeJSON,
-} from "../types.ts";
-import { ReactiveStream } from "../reactive-stream.ts";
+} from "../types.js";
+import { ReactiveStream } from "../reactive-stream.js";
 
 export function revisionToId(rev: number): string {
   return "A" + rev.toString(36);
@@ -83,7 +83,7 @@ export class HistoryStreamHandler {
 
     while (hasNextRevision) {
       const data = combined[revId] as {
-        o?: Record<string, unknown>;
+        o?: unknown[];
         a?: string;
         t?: number;
       };
@@ -130,7 +130,7 @@ export class HistoryStreamHandler {
     while (hasNextPending) {
       this.revision++;
       const data = pending[revId] as {
-        o?: Record<string, unknown>;
+        o?: unknown[];
         a?: string;
         t?: number;
       };
@@ -138,7 +138,7 @@ export class HistoryStreamHandler {
 
       const hasOpData = Boolean(data && data.o);
       if (hasOpData) {
-        this.processPendingOperation(data.o!, data.a, data.t, (retry) => {
+        this.processPendingOperation(revId, data, (retry) => {
           if (retry) triggerRetry = true;
         });
       }
@@ -153,24 +153,20 @@ export class HistoryStreamHandler {
   }
 
   private processPendingOperation(
-    rawOp: Record<string, unknown>,
-    author?: string,
-    timestamp?: number,
+    revId: string,
+    data: { o?: unknown[]; a?: string; t?: number },
     onNeedRetry?: (retry: boolean) => void,
   ): void {
-    const op = TextOperation.fromJSON(rawOp);
-    const revStr = revisionToId(this.revision);
-    const actualAuthor = author || "unknown";
+    const op = TextOperation.fromJSON(data.o!);
+    const actualAuthor = data.a || "unknown";
     this.stream.push({
       revision: this.revision,
       operation: op,
       author: actualAuthor,
-      timestamp: timestamp || Date.now(),
+      timestamp: data.t || Date.now(),
     });
 
-    const hasMatchingSent = Boolean(
-      this.sent && revisionToId(this.revision) === this.sent.id,
-    );
+    const hasMatchingSent = Boolean(this.sent && revId === this.sent.id);
     if (!hasMatchingSent) {
       this.ctx.onOperation(op);
       return;
@@ -212,9 +208,7 @@ export class HistoryStreamHandler {
     }
 
     const historyRef = this.ref!.child("history").child(revStr);
-    const isTransactionUnsupported =
-      typeof historyRef.transaction !== "function";
-    if (isTransactionUnsupported) {
+    if (typeof historyRef.transaction !== "function") {
       callback?.(new Error("Transaction unsupported"), false);
       return;
     }

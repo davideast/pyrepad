@@ -3,32 +3,56 @@
  * Separated cleanly from collaborative UI cursor decoration rendering.
  */
 import {
-  EditorDriverSeam,
+  EditorSeam,
+  EditorEvents,
   CodeMirrorLike,
+  RichTextCodeMirrorLike,
+  OperationStep,
   CursorLike,
   BookmarkLike,
   TextMarkerLike,
-  RemoteCursorData,
-} from "./types.ts";
-import { PresenceDecorationManager } from "./presence-decoration-manager.ts";
-import { TextOperation } from "../core/index.ts";
+  PresenceState,
+} from "./types.js";
+import { PresenceDecorationManager } from "./presence-decoration-manager.js";
+import { TextOperation } from "../core/index.js";
+import { Emitter } from "../core/emitter.js";
 
+// Dispatch boundary: each callback's signature depends on its event name (EditorEvents).
 type Callback = (...args: any[]) => void;
 
-export class CodeMirror5Adapter implements EditorDriverSeam {
-  private cm: any;
-  private rtcm: any;
-  readonly decorations: PresenceDecorationManager;
-  private callbacks: Record<string, Callback[]> = {};
-  private disposed = false;
-  private changeHandler: any;
-  private cursorActivityHandler: any;
-  private focusHandler: any;
-  private blurHandler: any;
+/** A CodeMirror 5 change object, or a rich-text change that carries its own operation. */
+interface CodeMirrorChange {
+  origin?: string;
+  from?: unknown;
+  to?: unknown;
+  text?: string[];
+  removed?: string[];
+  toOperation?(): TextOperation;
+}
 
-  constructor(rtcmOrCm: any) {
-    const hasGetCodeMirror = typeof rtcmOrCm.getCodeMirror === "function";
-    if (hasGetCodeMirror) {
+function isRichTextCodeMirror(
+  editor: CodeMirrorLike | RichTextCodeMirrorLike,
+): editor is RichTextCodeMirrorLike {
+  const candidate = editor as Partial<RichTextCodeMirrorLike>;
+  return typeof candidate.getCodeMirror === "function";
+}
+
+export class CodeMirror5Adapter
+  extends Emitter<EditorEvents>
+  implements EditorSeam
+{
+  private cm: CodeMirrorLike;
+  private rtcm: RichTextCodeMirrorLike | null;
+  readonly decorations: PresenceDecorationManager;
+  private disposed = false;
+  private changeHandler?: (_: unknown, changes: unknown) => void;
+  private cursorActivityHandler?: () => void;
+  private focusHandler?: () => void;
+  private blurHandler?: () => void;
+
+  constructor(rtcmOrCm: CodeMirrorLike | RichTextCodeMirrorLike) {
+    super();
+    if (isRichTextCodeMirror(rtcmOrCm)) {
       this.rtcm = rtcmOrCm;
       this.cm = rtcmOrCm.getCodeMirror();
     } else {
@@ -50,8 +74,7 @@ export class CodeMirror5Adapter implements EditorDriverSeam {
     this.focusHandler = () => this.onFocus();
     this.blurHandler = () => this.onBlur();
 
-    const hasRtcm = Boolean(this.rtcm && typeof this.rtcm.on === "function");
-    if (hasRtcm) {
+    if (this.rtcm && typeof this.rtcm.on === "function") {
       this.rtcm.on("change", this.changeHandler);
       this.rtcm.on("attributesChange", this.changeHandler);
     } else {
@@ -70,23 +93,7 @@ export class CodeMirror5Adapter implements EditorDriverSeam {
       const fn = callbacks[key];
       const isFn = typeof fn === "function";
       if (isFn) {
-        this.on(key, fn!);
-      }
-    }
-  }
-
-  on(event: string, fn: Callback): void {
-    const isNewEvent = !this.callbacks[event];
-    if (isNewEvent) this.callbacks[event] = [];
-    this.callbacks[event].push(fn);
-  }
-
-  trigger(event: string, ...args: unknown[]): void {
-    const handlers = this.callbacks[event];
-    const hasHandlers = Boolean(handlers && handlers.length > 0);
-    if (hasHandlers) {
-      for (const fn of [...handlers]) {
-        fn(...args);
+        this.on(key as keyof EditorEvents, fn!);
       }
     }
   }
@@ -102,30 +109,32 @@ export class CodeMirror5Adapter implements EditorDriverSeam {
     }
   }
 
-  private convertChangesToOperation(changes: any): TextOperation | null {
-    const isRemoteOrigin = changes && changes.origin === "remote";
+  private convertChangesToOperation(changes: unknown): TextOperation | null {
+    // Editor event boundary: CodeMirror 5 ships no types, so fields are probed.
+    const change = changes as CodeMirrorChange | null | undefined;
+    const isRemoteOrigin = change && change.origin === "remote";
     if (isRemoteOrigin) return null;
 
-    const isArrayChanges = Array.isArray(changes);
-    if (isArrayChanges && changes.length > 0) {
-      const hasFromProp = typeof changes[0].from === "object";
-      if (hasFromProp) return this.translateCodeMirrorChangeObject(changes[0]);
+    if (Array.isArray(changes) && changes.length > 0) {
+      const first = changes[0] as CodeMirrorChange;
+      const hasFromProp = typeof first.from === "object";
+      if (hasFromProp) return this.translateCodeMirrorChangeObject(first);
       return TextOperation.fromJSON(changes);
     }
-    const hasToOperation = typeof changes?.toOperation === "function";
-    if (hasToOperation) return changes.toOperation();
+    if (typeof change?.toOperation === "function") return change.toOperation();
 
     const isSingleChangeObj =
-      typeof changes?.from === "object" && typeof changes?.to === "object";
-    if (isSingleChangeObj) return this.translateCodeMirrorChangeObject(changes);
+      typeof change?.from === "object" && typeof change?.to === "object";
+    if (isSingleChangeObj) return this.translateCodeMirrorChangeObject(change!);
 
     const text = this.getValue();
     return new TextOperation().retain(text.length);
   }
 
-  private translateCodeMirrorChangeObject(change: any): TextOperation | null {
-    const hasIndexMethod = typeof this.cm?.indexFromPos === "function";
-    if (!hasIndexMethod) return null;
+  private translateCodeMirrorChangeObject(
+    change: CodeMirrorChange,
+  ): TextOperation | null {
+    if (typeof this.cm?.indexFromPos !== "function") return null;
 
     const startIdx = this.cm.indexFromPos(change.from);
     const removedText = Array.isArray(change.removed)
@@ -155,42 +164,47 @@ export class CodeMirror5Adapter implements EditorDriverSeam {
   applyOperation(operation: unknown): void {
     const isAlreadyDisposed = this.disposed || !this.cm;
     if (isAlreadyDisposed) return;
-    const isTextOp = typeof (operation as any).ops !== "undefined";
+    // Editor seam boundary: a TextOperation, or any object carrying wire `ops`.
+    const isTextOp =
+      typeof (operation as { ops?: unknown }).ops !== "undefined";
     if (!isTextOp) return;
 
-    const op = operation as { ops: Array<any> };
-    const hasReplaceRange = typeof this.cm.replaceRange === "function";
-    if (!hasReplaceRange) return;
+    const op = operation as { ops: OperationStep[] };
+    if (typeof this.cm.replaceRange !== "function") return;
 
     let index = 0;
     for (const step of op.ops) {
-      const hasRetainFn = typeof step.isRetain === "function";
+      const isOp = typeof step === "object";
+      const hasRetainFn = isOp && typeof step.isRetain === "function";
       const isRetainNumber = typeof step === "number" && step > 0;
       const isRetain = hasRetainFn ? step.isRetain() : isRetainNumber;
       if (isRetain) {
         const chars =
-          typeof step.chars === "number" ? step.chars : Number(step);
+          isOp && typeof step.chars === "number" ? step.chars : Number(step);
         index += chars;
         continue;
       }
 
-      const hasInsertFn = typeof step.isInsert === "function";
+      const hasInsertFn = isOp && typeof step.isInsert === "function";
       const isInsertString = typeof step === "string";
       const isInsert = hasInsertFn ? step.isInsert() : isInsertString;
       if (isInsert) {
-        const text = typeof step.text === "string" ? step.text : String(step);
+        const text =
+          isOp && typeof step.text === "string" ? step.text : String(step);
         const fromPos = this.cm.posFromIndex(index);
         this.cm.replaceRange(text, fromPos, fromPos, "remote");
         index += text.length;
         continue;
       }
 
-      const hasDeleteFn = typeof step.isDelete === "function";
+      const hasDeleteFn = isOp && typeof step.isDelete === "function";
       const isDeleteNumber = typeof step === "number" && step < 0;
       const isDelete = hasDeleteFn ? step.isDelete() : isDeleteNumber;
       if (isDelete) {
         const chars =
-          typeof step.chars === "number" ? step.chars : Math.abs(Number(step));
+          isOp && typeof step.chars === "number"
+            ? step.chars
+            : Math.abs(Number(step));
         const fromPos = this.cm.posFromIndex(index);
         const toPos = this.cm.posFromIndex(index + chars);
         this.cm.replaceRange("", fromPos, toPos, "remote");
@@ -225,18 +239,17 @@ export class CodeMirror5Adapter implements EditorDriverSeam {
   }
 
   getCursor(): CursorLike | null {
-    const hasGetCursor = Boolean(
-      this.cm && typeof this.cm.getCursor === "function",
-    );
-    if (!hasGetCursor) return null;
+    if (!this.cm || typeof this.cm.getCursor !== "function") return null;
     const pos = this.cm.getCursor();
-    const hasIndexFromPos = typeof this.cm.indexFromPos === "function";
-    const idx = hasIndexFromPos ? this.cm.indexFromPos(pos) : 0;
+    const idx =
+      typeof this.cm.indexFromPos === "function"
+        ? this.cm.indexFromPos(pos)
+        : 0;
     return { position: idx, selectionEnd: idx };
   }
 
   setOtherCursor(
-    data: RemoteCursorData,
+    data: PresenceState,
   ): BookmarkLike | TextMarkerLike | undefined {
     const isAlreadyDisposed = this.disposed;
     if (isAlreadyDisposed) return undefined;
@@ -263,13 +276,12 @@ export class CodeMirror5Adapter implements EditorDriverSeam {
 
     this.disposed = true;
     this.decorations.dispose();
-    this.callbacks = {};
+    this.off();
 
     const hasOffMethod = Boolean(this.cm && typeof this.cm.off === "function");
     if (!hasOffMethod) return;
 
-    const hasRtcm = Boolean(this.rtcm && typeof this.rtcm.off === "function");
-    if (hasRtcm) {
+    if (this.rtcm && typeof this.rtcm.off === "function") {
       try {
         this.rtcm.off("change", this.changeHandler);
       } catch (err) {

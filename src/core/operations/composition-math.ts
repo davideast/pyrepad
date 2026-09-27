@@ -1,14 +1,21 @@
 /**
- * Composition mathematics for merging sequential Operational Transformations.
+ * Composes two sequential TextOperations into one.
  */
-import { TextOp } from "./text-op.ts";
+import type {
+  Attributes,
+  DeleteOp,
+  InsertOp,
+  RetainOp,
+  TextOp,
+} from "./text-op.js";
+import type { TextOperation } from "./text-operation.js";
 
 export function composeAttributes(
-  first: Record<string, any>,
-  second: Record<string, any>,
+  first: Attributes | null,
+  second: Attributes | null,
   firstOpIsInsert?: boolean,
-): Record<string, any> {
-  const merged: Record<string, any> = {};
+): Attributes {
+  const merged: Attributes = {};
   for (const attr in first) {
     merged[attr] = first[attr];
   }
@@ -23,108 +30,107 @@ export function composeAttributes(
 }
 
 interface ComposeCtx {
-  operation: any;
+  operation: TextOperation;
   ops1: TextOp[];
   ops2: TextOp[];
   state: { i1: number; i2: number };
 }
 
+type OpPair = [TextOp | undefined, TextOp | undefined];
+
 function handleRetainRetain(
   ctx: ComposeCtx,
-  op1: TextOp,
-  op2: TextOp,
-): [TextOp | undefined, TextOp | undefined] {
+  op1: RetainOp,
+  op2: RetainOp,
+): OpPair {
   const attributes = composeAttributes(op1.attributes, op2.attributes);
   if (op1.chars > op2.chars) {
     ctx.operation.retain(op2.chars, attributes);
     op1.chars -= op2.chars;
-    op2 = ctx.ops2[ctx.state.i2++];
+    return [op1, ctx.ops2[ctx.state.i2++]];
   } else if (op1.chars === op2.chars) {
     ctx.operation.retain(op1.chars, attributes);
-    op1 = ctx.ops1[ctx.state.i1++];
-    op2 = ctx.ops2[ctx.state.i2++];
+    return [ctx.ops1[ctx.state.i1++], ctx.ops2[ctx.state.i2++]];
   } else {
     ctx.operation.retain(op1.chars, attributes);
     op2.chars -= op1.chars;
-    op1 = ctx.ops1[ctx.state.i1++];
+    return [ctx.ops1[ctx.state.i1++], op2];
   }
-  return [op1, op2];
 }
 
 function handleInsertDelete(
   ctx: ComposeCtx,
-  op1: TextOp,
-  op2: TextOp,
-): [TextOp | undefined, TextOp | undefined] {
+  op1: InsertOp,
+  op2: DeleteOp,
+): OpPair {
   if (op1.text.length > op2.chars) {
     op1.text = op1.text.slice(op2.chars);
-    op2 = ctx.ops2[ctx.state.i2++];
+    return [op1, ctx.ops2[ctx.state.i2++]];
   } else if (op1.text.length === op2.chars) {
-    op1 = ctx.ops1[ctx.state.i1++];
-    op2 = ctx.ops2[ctx.state.i2++];
+    return [ctx.ops1[ctx.state.i1++], ctx.ops2[ctx.state.i2++]];
   } else {
     op2.chars -= op1.text.length;
-    op1 = ctx.ops1[ctx.state.i1++];
+    return [ctx.ops1[ctx.state.i1++], op2];
   }
-  return [op1, op2];
 }
 
 function handleInsertRetain(
   ctx: ComposeCtx,
-  op1: TextOp,
-  op2: TextOp,
-): [TextOp | undefined, TextOp | undefined] {
+  op1: InsertOp,
+  op2: RetainOp,
+): OpPair {
   const attributes = composeAttributes(op1.attributes, op2.attributes, true);
   if (op1.text.length > op2.chars) {
     ctx.operation.insert(op1.text.slice(0, op2.chars), attributes);
     op1.text = op1.text.slice(op2.chars);
-    op2 = ctx.ops2[ctx.state.i2++];
+    return [op1, ctx.ops2[ctx.state.i2++]];
   } else if (op1.text.length === op2.chars) {
     ctx.operation.insert(op1.text, attributes);
-    op1 = ctx.ops1[ctx.state.i1++];
-    op2 = ctx.ops2[ctx.state.i2++];
+    return [ctx.ops1[ctx.state.i1++], ctx.ops2[ctx.state.i2++]];
   } else {
     ctx.operation.insert(op1.text, attributes);
     op2.chars -= op1.text.length;
-    op1 = ctx.ops1[ctx.state.i1++];
+    return [ctx.ops1[ctx.state.i1++], op2];
   }
-  return [op1, op2];
 }
 
 function handleRetainDelete(
   ctx: ComposeCtx,
-  op1: TextOp,
-  op2: TextOp,
-): [TextOp | undefined, TextOp | undefined] {
+  op1: RetainOp,
+  op2: DeleteOp,
+): OpPair {
   if (op1.chars > op2.chars) {
     ctx.operation.delete(op2.chars);
     op1.chars -= op2.chars;
-    op2 = ctx.ops2[ctx.state.i2++];
+    return [op1, ctx.ops2[ctx.state.i2++]];
   } else if (op1.chars === op2.chars) {
     ctx.operation.delete(op2.chars);
-    op1 = ctx.ops1[ctx.state.i1++];
-    op2 = ctx.ops2[ctx.state.i2++];
+    return [ctx.ops1[ctx.state.i1++], ctx.ops2[ctx.state.i2++]];
   } else {
     ctx.operation.delete(op1.chars);
     op2.chars -= op1.chars;
-    op1 = ctx.ops1[ctx.state.i1++];
+    return [ctx.ops1[ctx.state.i1++], op2];
   }
-  return [op1, op2];
 }
 
-export function composeOperations(operation1: any, operation2: any): any {
+export function composeOperations(
+  operation1: TextOperation,
+  operation2: TextOperation,
+): TextOperation {
   if (operation1.targetLength !== operation2.baseLength) {
     throw new Error(
       "The base length of the second operation has to be the target length of the first operation",
     );
   }
-  const operation = new operation1.constructor();
+  // Instantiate via the runtime constructor so subclasses compose to themselves.
+  const Operation = operation1.constructor as new () => TextOperation;
+  const operation = new Operation();
   const ops1 = operation1.clone().ops;
   const ops2 = operation2.clone().ops;
   const state = { i1: 0, i2: 0 };
   const ctx: ComposeCtx = { operation, ops1, ops2, state };
-  let op1 = ops1[state.i1++];
-  let op2 = ops2[state.i2++];
+  let op1: TextOp | undefined = ops1[state.i1++];
+  let op2: TextOp | undefined = ops2[state.i2++];
 
   while (true) {
     if (typeof op1 === "undefined" && typeof op2 === "undefined") break;
@@ -167,7 +173,7 @@ export function composeOperations(operation1: any, operation2: any): any {
   return operation;
 }
 
-function getSimpleOp(operation: any): TextOp | null {
+function getSimpleOp(operation: TextOperation): TextOp | null {
   const ops = operation.ops;
   switch (ops.length) {
     case 1:
@@ -182,14 +188,17 @@ function getSimpleOp(operation: any): TextOp | null {
   return null;
 }
 
-function getStartIndex(operation: any): number {
+function getStartIndex(operation: TextOperation): number {
   if (operation.ops[0] && operation.ops[0].isRetain()) {
     return operation.ops[0].chars;
   }
   return 0;
 }
 
-export function shouldBeComposedWith(opA: any, opB: any): boolean {
+export function shouldBeComposedWith(
+  opA: TextOperation,
+  opB: TextOperation,
+): boolean {
   if (opA.isNoop() || opB.isNoop()) {
     return true;
   }
@@ -213,7 +222,10 @@ export function shouldBeComposedWith(opA: any, opB: any): boolean {
   return false;
 }
 
-export function shouldBeComposedWithInverted(opA: any, opB: any): boolean {
+export function shouldBeComposedWithInverted(
+  opA: TextOperation,
+  opB: TextOperation,
+): boolean {
   if (opA.isNoop() || opB.isNoop()) {
     return true;
   }

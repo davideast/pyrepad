@@ -1,11 +1,11 @@
 /**
- * Single-file custom reactive hook: useCollaborators.
- * Subscribes solely to segregated teammate presence streams without triggering
- * re-renders during high-frequency operational typing bursts.
+ * useCollaborators: the peers currently present, from the SyncSeam `presence`
+ * stream. Only presence events re-render; document edits do not.
  */
-import { useEffect, useState, useRef, useTransition } from "react";
-import { SyncSeam } from "../adapters/types.ts";
-import { useResolvedAdapter } from "./context.tsx";
+import { useEffect, useState, useTransition } from "react";
+import { SyncSeam, PresenceEvent } from "../adapters/types.js";
+import { useResolvedAdapter } from "./context.js";
+import { consumeStream } from "./consume-stream.js";
 
 export interface CollaboratorPresence {
   userId: string;
@@ -14,63 +14,48 @@ export interface CollaboratorPresence {
   lastSeen: number;
 }
 
+type CollaboratorMap = Record<string, CollaboratorPresence>;
+
+function reducePresence(
+  current: CollaboratorMap,
+  event: PresenceEvent,
+): CollaboratorMap {
+  const isGone = event.state === "disconnected" || event.cursor === null;
+  if (isGone) {
+    const next = Object.assign({}, current);
+    delete next[event.userId];
+    return next;
+  }
+  const updated: CollaboratorPresence = {
+    userId: event.userId,
+    cursor: event.cursor,
+    color: event.color || "#3b82f6",
+    lastSeen: Date.now(),
+  };
+  return Object.assign({}, current, { [event.userId]: updated });
+}
+
 export function useCollaborators(
   custom?: SyncSeam | null,
 ): CollaboratorPresence[] {
   const adapter = useResolvedAdapter(custom);
-  const [collaborators, setCollaborators] = useState<
-    Record<string, CollaboratorPresence>
-  >({});
-  const mapRef = useRef<Record<string, CollaboratorPresence>>({});
-  const [_, startTransition] = useTransition();
+  const [collaborators, setCollaborators] = useState<CollaboratorMap>({});
+  const [, startTransition] = useTransition();
 
   useEffect(() => {
-    const hasAdapter = Boolean(adapter);
-    if (!hasAdapter) {
-      mapRef.current = {};
-      startTransition(() => setCollaborators({}));
-      return;
-    }
-
-    const handleCursor = (userId: string, cursor: unknown, color?: string) => {
-      const isValid = Boolean(userId && userId.trim().length > 0);
+    if (!adapter) return;
+    const stop = consumeStream(adapter.presence, (event) => {
+      const isValid = Boolean(event.userId && event.userId.trim().length > 0);
       if (!isValid) return;
-      const defaultColor = color || "#3b82f6";
-      const updated: CollaboratorPresence = {
-        userId: userId,
-        cursor: cursor,
-        color: defaultColor,
-        lastSeen: Date.now(),
-      };
-      const copy = Object.assign({}, mapRef.current, { [userId]: updated });
-      mapRef.current = copy;
-      startTransition(() => setCollaborators(copy));
-    };
-
-    const hasOn = typeof (adapter as any).on === "function";
-    if (hasOn) {
-      try {
-        (adapter as any).on("cursor", handleCursor);
-      } catch (err) {
-        console.warn("Adapter did not accept cursor event listener:", err);
-      }
-    }
-
+      startTransition(() =>
+        setCollaborators((current) => reducePresence(current, event)),
+      );
+    });
     return () => {
-      const hasOff = typeof (adapter as any).off === "function";
-      if (hasOff) {
-        try {
-          (adapter as any).off("cursor", handleCursor);
-        } catch (err) {
-          console.warn(
-            "Error removing useCollaborators presence listener:",
-            err,
-          );
-        }
-      }
+      stop();
+      setCollaborators({});
     };
   }, [adapter]);
 
-  const keys = Object.keys(collaborators);
-  return keys.map((key) => collaborators[key]);
+  return Object.values(collaborators);
 }

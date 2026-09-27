@@ -15,7 +15,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Bun 🚀
+      - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -23,23 +23,23 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile || bun install --no-cache || npm install --force
 
-      - name: Typecheck TypeScript definitions
+      - name: Typecheck (tsc --noEmit)
         run: bun run typecheck
 
-      - name: Verify ESLint complexity & architecture guardrails
+      - name: Lint (eslint)
         run: bun run lint
 
-      - name: Build distribution bundles
+      - name: Build dist bundles (tools/bundle.js)
         run: bun run build
 
-      - name: Verify 102 unit & seam test suites
+      - name: Unit specs (bun test, Pyric sandbox)
         env:
           PYRIC_SANDBOX: 1
         run: bun test test/specs/*.spec.js
 
-      - name: Install Playwright browsers (Chromium) 🎭
+      - name: Install Playwright Chromium
         run: bun x playwright install --with-deps chromium
 
-      - name: Verify Tier C Multi-Client Collaborative Browser Acceptance Harness 🌐
+      - name: Playwright multi-client e2e specs
         run: bun run test:e2e:playwright
 

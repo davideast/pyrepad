@@ -1,10 +1,11 @@
 /**
- * Single-file custom reactive hook: useAgentiveDiffs.
- * Tracks live AI coding agent co-pilots over dedicated protocol stream channels.
+ * useAgentiveDiffs: the latest status of each AI agent, from the SyncSeam
+ * `agentive` stream.
  */
-import { useEffect, useState, useRef, useTransition } from "react";
-import { SyncSeam } from "../adapters/types.ts";
-import { useResolvedAdapter } from "./context.tsx";
+import { useEffect, useState, useTransition } from "react";
+import { SyncSeam } from "../adapters/types.js";
+import { useResolvedAdapter } from "./context.js";
+import { consumeStream } from "./consume-stream.js";
 
 export interface AgentiveDiffState {
   agentId: string;
@@ -19,58 +20,31 @@ export function useAgentiveDiffs(
 ): AgentiveDiffState[] {
   const adapter = useResolvedAdapter(custom);
   const [agents, setAgents] = useState<Record<string, AgentiveDiffState>>({});
-  const mapRef = useRef<Record<string, AgentiveDiffState>>({});
-  const [_, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
 
   useEffect(() => {
-    const hasAdapter = Boolean(adapter);
-    if (!hasAdapter) {
-      mapRef.current = {};
-      startTransition(() => setAgents({}));
-      return;
-    }
-
-    const handleAgentive = (
-      agentId: string,
-      status: string,
-      ghostDiff?: unknown,
-      exp?: string,
-    ) => {
-      const isValid = Boolean(agentId && agentId.trim().length > 0);
+    if (!adapter) return;
+    const stop = consumeStream(adapter.agentive, (event) => {
+      const isValid = Boolean(event.agentId && event.agentId.trim().length > 0);
       if (!isValid) return;
       const updated: AgentiveDiffState = {
-        agentId: agentId,
-        status: status,
-        ghostDiff: ghostDiff,
-        explanation: exp,
+        agentId: event.agentId,
+        status: event.status,
+        ghostDiff: event.ghostDiff,
+        explanation: event.explanation,
         timestamp: Date.now(),
       };
-      const copy = Object.assign({}, mapRef.current, { [agentId]: updated });
-      mapRef.current = copy;
-      startTransition(() => setAgents(copy));
-    };
-
-    const hasOn = typeof (adapter as any).on === "function";
-    if (hasOn) {
-      try {
-        (adapter as any).on("agentive", handleAgentive);
-      } catch (err) {
-        console.warn("Adapter did not accept agentive event listener:", err);
-      }
-    }
-
+      startTransition(() =>
+        setAgents((current) =>
+          Object.assign({}, current, { [event.agentId]: updated }),
+        ),
+      );
+    });
     return () => {
-      const hasOff = typeof (adapter as any).off === "function";
-      if (hasOff) {
-        try {
-          (adapter as any).off("agentive", handleAgentive);
-        } catch (err) {
-          console.warn("Error removing useAgentiveDiffs listener:", err);
-        }
-      }
+      stop();
+      setAgents({});
     };
   }, [adapter]);
 
-  const keys = Object.keys(agents);
-  return keys.map((key) => agents[key]);
+  return Object.values(agents);
 }

@@ -1,17 +1,20 @@
 /**
  * Operational Transformation text document operation.
  */
-import { TextOp } from "./text-op.ts";
+import { TextOp, type Attributes } from "./text-op.js";
 import {
   composeOperations,
   shouldBeComposedWith,
   shouldBeComposedWithInverted,
-} from "./composition-math.ts";
+} from "./composition-math.js";
 import {
   transformAttributes,
   transformOperations,
-} from "./transformation-math.ts";
-import { applyRetain, applyInsert } from "./apply-math.ts";
+} from "./transformation-math.js";
+import { applyRetain, applyInsert } from "./apply-math.js";
+
+/** Wire format: optional attribute object before each retain/insert; deletes are negative. */
+export type TextOperationJSON = Array<number | string | Attributes>;
 
 export class TextOperation {
   ops: TextOp[];
@@ -31,7 +34,7 @@ export class TextOperation {
     return this.ops.every((op, index) => op.equals(other.ops[index]));
   }
 
-  retain(n: number, attributes?: Record<string, any>): this {
+  retain(n: number, attributes?: Attributes): this {
     if (typeof n !== "number" || n < 0) {
       throw new Error("retain expects a positive integer.");
     }
@@ -48,7 +51,7 @@ export class TextOperation {
     return this;
   }
 
-  insert(str: string, attributes?: Record<string, any>): this {
+  insert(str: string, attributes?: Attributes): this {
     if (typeof str !== "string") {
       throw new Error("insert expects a string");
     }
@@ -133,18 +136,18 @@ export class TextOperation {
       .join(", ");
   }
 
-  toJSON(): any[] {
-    const ops: any[] = [];
+  toJSON(): TextOperationJSON {
+    const ops: TextOperationJSON = [];
     for (let i = 0; i < this.ops.length; i++) {
       const op = this.ops[i];
-      if (!op.hasEmptyAttributes()) {
+      if (op.attributes !== null && !op.hasEmptyAttributes()) {
         ops.push(op.attributes);
       }
-      if (op.type === "retain") {
+      if (op.isRetain()) {
         ops.push(op.chars);
-      } else if (op.type === "insert") {
+      } else if (op.isInsert()) {
         ops.push(op.text);
-      } else if (op.type === "delete") {
+      } else if (op.isDelete()) {
         ops.push(-(op.chars || 0));
       }
     }
@@ -154,13 +157,17 @@ export class TextOperation {
     return ops;
   }
 
-  static fromJSON(ops: any[]): TextOperation {
+  static fromJSON(ops: unknown): TextOperation {
+    if (!Array.isArray(ops)) {
+      throw new Error("fromJSON expects an array of ops");
+    }
     const o = new TextOperation();
     for (let i = 0, l = ops.length; i < l; i++) {
-      let op = ops[i];
-      let attributes: Record<string, any> = {};
+      let op: unknown = ops[i];
+      let attributes: Attributes = {};
       if (typeof op === "object") {
-        attributes = op;
+        // Wire boundary: attribute values are stored as sent, not validated.
+        attributes = (op ?? {}) as Attributes;
         i++;
         op = ops[i];
       }
@@ -182,8 +189,8 @@ export class TextOperation {
 
   apply(
     str: string,
-    oldAttributes?: Record<string, any>[],
-    newAttributes?: Record<string, any>[],
+    oldAttributes?: Attributes[],
+    newAttributes?: Attributes[],
   ): string {
     const operation = this;
     oldAttributes = oldAttributes || [];
@@ -255,9 +262,9 @@ export class TextOperation {
   }
 
   static transformAttributes(
-    attrs1: Record<string, any>,
-    attrs2: Record<string, any>,
-  ): [Record<string, any>, Record<string, any>] {
+    attrs1: Attributes,
+    attrs2: Attributes,
+  ): [Attributes, Attributes] {
     return transformAttributes(attrs1, attrs2);
   }
 

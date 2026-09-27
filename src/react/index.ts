@@ -1,11 +1,10 @@
 /**
- * @pyric/pad/react - Declarative React Component Library & Custom Hooks
- * Empowers collaborative text editing and presence overlays without Virtual DOM render lag.
+ * @pyric/pad/react - React components and hooks for SyncSeam adapters.
  */
-export const VERSION = "2.0.0";
+export { VERSION } from "../version.js";
 
-export * from "./context.tsx";
-export * from "./use-pyrepad-editor.ts";
-export * from "./use-collaborators.ts";
-export * from "./use-agentive-diffs.ts";
-export * from "./collaborative-editor.tsx";
+export * from "./context.js";
+export * from "./use-pyrepad-editor.js";
+export * from "./use-collaborators.js";
+export * from "./use-agentive-diffs.js";
+export * from "./collaborative-editor.js";

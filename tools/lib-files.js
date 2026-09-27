@@ -1,0 +1,55 @@
+// Load order of the legacy lib/ bundle. Shared by tools/bundle.js and test/setup-globals.js.
+const path = require('path');
+
+const root = path.resolve(__dirname, '..');
+
+// A1: the sync seam is src/adapters, bundled by esbuild into an IIFE that loads before
+// every lib/ file. The footer publishes it as the legacy `firepad.SyncSeam` global.
+const SEAM_BUILD_OPTIONS = {
+  entryPoints: [path.join(root, 'src/adapters/index.ts')],
+  bundle: true,
+  format: 'iife',
+  globalName: '__pyrepadSeam',
+  target: 'es2020',
+  platform: 'browser',
+  logLevel: 'silent',
+  footer: { js: 'var firepad = firepad || {};\nfirepad.SyncSeam = __pyrepadSeam;' }
+};
+
+const LIB_FILES = [
+  'lib/utils.js',
+  'lib/span.js',
+  'lib/pyric-sandbox.js',
+  'lib/text-op.js',
+  'lib/text-operation.js',
+  'lib/pure-formatting.js',
+  'lib/document-engine.js',
+  'lib/agentive-presence.js',
+  'lib/mcp-bridge.js',
+  'lib/annotation-list.js',
+  'lib/cursor.js',
+  'lib/firebase-adapter.js',
+  'lib/rich-text-toolbar.js',
+  'lib/wrapped-operation.js',
+  'lib/undo-manager.js',
+  'lib/client.js',
+  'lib/editor-client.js',
+  'lib/ace-adapter.js',
+  'lib/constants.js',
+  'lib/entity-manager.js',
+  'lib/entity.js',
+  'lib/rich-text-codemirror.js',
+  'lib/rich-text-codemirror-adapter.js',
+  'lib/formatting.js',
+  'lib/text.js',
+  'lib/line-formatting.js',
+  'lib/line.js',
+  'lib/parse-html.js',
+  'lib/serialize-html.js',
+  'lib/text-pieces-to-inserts.js',
+  'lib/headless.js',
+  'lib/monaco-adapter.js',
+  'lib/firepad.js'
+];
+
+module.exports = { SEAM_BUILD_OPTIONS, LIB_FILES };

@@ -1,7 +1,6 @@
 .idea
 *.iml
 build/
-bower_components/
 *.sw?
 .DS_Store
 test/coverage/
@@ -17,3 +16,5 @@ _site/
 .pyric/
 test-results/
 playwright-report/
+.pyric-local
+.claude/worktrees/
