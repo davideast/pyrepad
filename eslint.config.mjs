@@ -121,6 +121,7 @@ export default [
       "node_modules/**",
       "dist/**",
       "examples/**",
+      ".claude/**",
       "*.min.js",
       "*.config.js",
       "*.config.mjs"
