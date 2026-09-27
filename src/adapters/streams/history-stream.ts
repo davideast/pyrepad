@@ -83,7 +83,7 @@ export class HistoryStreamHandler {
 
     while (hasNextRevision) {
       const data = combined[revId] as {
-        o?: Record<string, unknown>;
+        o?: unknown[];
         a?: string;
         t?: number;
       };
@@ -130,7 +130,7 @@ export class HistoryStreamHandler {
     while (hasNextPending) {
       this.revision++;
       const data = pending[revId] as {
-        o?: Record<string, unknown>;
+        o?: unknown[];
         a?: string;
         t?: number;
       };
@@ -153,7 +153,7 @@ export class HistoryStreamHandler {
   }
 
   private processPendingOperation(
-    rawOp: Record<string, unknown>,
+    rawOp: unknown[],
     author?: string,
     timestamp?: number,
     onNeedRetry?: (retry: boolean) => void,

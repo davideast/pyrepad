@@ -54,7 +54,7 @@ export interface CursorWidgetSeam {
   getActiveListenerCount(): number;
 }
 
-export interface RemoteCursorData {
+export interface PresenceState {
   cursor: CursorLike;
   color: string;
   clientId: string;
@@ -62,7 +62,7 @@ export interface RemoteCursorData {
 
 export interface DecorationManagerSeam {
   setOtherCursor(
-    data: RemoteCursorData,
+    data: PresenceState,
     cm: CodeMirrorLike,
     maxDocIndex?: number,
   ): BookmarkLike | TextMarkerLike | undefined;
@@ -72,7 +72,7 @@ export interface DecorationManagerSeam {
   getActiveWidgetCount(): number;
 }
 
-export interface EditorDriverSeam {
+export interface EditorSeam {
   onChange(editor: unknown, changes: unknown): void;
   applyOperation(operation: unknown): void;
   onCursorActivity(): void;
@@ -97,7 +97,10 @@ export interface CM6TransactionLike {
 }
 
 export interface CM6ViewLike {
-  state: { doc: { length: number; toString(): string } };
+  state: {
+    doc: { length: number; toString(): string };
+    selection?: { main: { head: number; anchor: number } };
+  };
   dispatch(specs: {
     changes?: Array<{ from: number; to?: number; insert?: string }>;
     annotations?: unknown | unknown[];
@@ -115,7 +118,7 @@ export interface CM6WidgetLike {
 }
 
 export interface CM6PluginSeam {
-  setOtherCursor(data: RemoteCursorData, view: CM6ViewLike): void;
+  setOtherCursor(data: PresenceState, view: CM6ViewLike): void;
   clearCursor(clientId: string, view?: CM6ViewLike): void;
   getDecorations(): Array<{
     from: number;

@@ -2,7 +2,7 @@
  * @pyric/pad/react - Declarative React Component Library & Custom Hooks
  * Empowers collaborative text editing and presence overlays without Virtual DOM render lag.
  */
-export const VERSION = "2.0.0";
+export { VERSION } from "../version.ts";
 
 export * from "./context.tsx";
 export * from "./use-pyrepad-editor.ts";

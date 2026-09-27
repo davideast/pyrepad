@@ -3,7 +3,7 @@
  */
 import {
   DecorationManagerSeam,
-  RemoteCursorData,
+  PresenceState,
   CodeMirrorLike,
   BookmarkLike,
   TextMarkerLike,
@@ -20,7 +20,7 @@ export class PresenceDecorationManager implements DecorationManagerSeam {
   }
 
   setOtherCursor(
-    data: RemoteCursorData,
+    data: PresenceState,
     cm: CodeMirrorLike,
     maxDocIndex?: number,
   ): BookmarkLike | TextMarkerLike | undefined {
@@ -56,7 +56,7 @@ export class PresenceDecorationManager implements DecorationManagerSeam {
   }
 
   private mountCaretWidget(
-    data: RemoteCursorData,
+    data: PresenceState,
     cm: CodeMirrorLike,
   ): BookmarkLike {
     const { cursor, color, clientId } = data;
@@ -84,7 +84,7 @@ export class PresenceDecorationManager implements DecorationManagerSeam {
   }
 
   private mountSelectionRange(
-    data: RemoteCursorData,
+    data: PresenceState,
     cm: CodeMirrorLike,
   ): TextMarkerLike {
     const { cursor } = data;

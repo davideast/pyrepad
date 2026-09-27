@@ -3,19 +3,19 @@
  * Separated cleanly from collaborative UI cursor decoration rendering.
  */
 import {
-  EditorDriverSeam,
+  EditorSeam,
   CodeMirrorLike,
   CursorLike,
   BookmarkLike,
   TextMarkerLike,
-  RemoteCursorData,
+  PresenceState,
 } from "./types.ts";
 import { PresenceDecorationManager } from "./presence-decoration-manager.ts";
 import { TextOperation } from "../core/index.ts";
 
 type Callback = (...args: any[]) => void;
 
-export class CodeMirror5Adapter implements EditorDriverSeam {
+export class CodeMirror5Adapter implements EditorSeam {
   private cm: any;
   private rtcm: any;
   readonly decorations: PresenceDecorationManager;
@@ -236,7 +236,7 @@ export class CodeMirror5Adapter implements EditorDriverSeam {
   }
 
   setOtherCursor(
-    data: RemoteCursorData,
+    data: PresenceState,
   ): BookmarkLike | TextMarkerLike | undefined {
     const isAlreadyDisposed = this.disposed;
     if (isAlreadyDisposed) return undefined;

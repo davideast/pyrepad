@@ -2,7 +2,7 @@
  * @pyric/pad/core
  * Zero-DOM Operational Transformation Math & Document Engine
  */
-export const VERSION = "2.0.0";
+export { VERSION } from "../version.ts";
 export { TextOp } from "./operations/text-op.ts";
 export { TextOperation } from "./operations/text-operation.ts";
 export { Cursor } from "./operations/cursor.ts";

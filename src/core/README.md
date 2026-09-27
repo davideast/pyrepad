@@ -35,7 +35,9 @@ const [op1Prime, op2Prime] = TextOperation.transform(op1, op2);
 ## 🧪 Verification & Testing
 
 Every module inside `@pyric/pad/core` is verified against 102 rigorous integration and property-based test suites running over Bun:
+
 ```bash
 bun test test/specs/*.spec.js
 ```
+
 All 41,100+ assertions execute in under 2 seconds.
