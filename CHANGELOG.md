@@ -59,3 +59,9 @@ Remediation of the whole-repo review of `main` @ 80d42ac. Finding ids refer to
   isolated context B; both consoles were error-free; the host drained and stopped on SIGINT.
   Gate: typecheck clean, `eslint .` 0 errors / 21 warnings (frozen `lib/`), 264 unit specs across
   31 files, Playwright e2e 2/2.
+- 2026-09-27 — Wave 3 close (`9d99f1a`): `npm pack --dry-run` → 100 files, 188.6 kB packed, no
+  `src/` or `test/` entries; `publint --strict` → 0 errors / 0 warnings (3 suggestions:
+  `sideEffects`, object `browser`, `license` field); `bun run check:package` exit 0 (attw green on
+  node16-ESM and bundler for all four subpaths); fresh clone of `remediation/main` with
+  `.pyric-local/` copied in → `bun install --frozen-lockfile`, build, typecheck (`strict: true`)
+  and 267/267 specs all clean. `main` untouched.
