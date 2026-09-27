@@ -24,6 +24,7 @@ export class ReactiveStream<T> implements AsyncIterable<T> {
   [Symbol.asyncIterator](): AsyncIterator<T> {
     const queue: T[] = [];
     let resolveNext: ((value: IteratorResult<T>) => void) | null = null;
+    let finished = false;
     const unsubscribe = this.subscribe((evt: T) => {
       const hasPendingResolver = resolveNext !== null;
       if (hasPendingResolver) {
@@ -34,6 +35,10 @@ export class ReactiveStream<T> implements AsyncIterable<T> {
         queue.push(evt);
       }
     });
+    const doneResult = (): IteratorResult<T> => ({
+      value: undefined,
+      done: true,
+    });
 
     return {
       next(): Promise<IteratorResult<T>> {
@@ -42,13 +47,19 @@ export class ReactiveStream<T> implements AsyncIterable<T> {
           const nextItem = queue.shift()!;
           return Promise.resolve({ value: nextItem, done: false });
         }
+        if (finished) return Promise.resolve(doneResult());
         return new Promise<IteratorResult<T>>((resolve) => {
           resolveNext = resolve;
         });
       },
       return(): Promise<IteratorResult<T>> {
+        finished = true;
         unsubscribe();
-        return Promise.resolve({ value: undefined, done: true });
+        queue.length = 0;
+        const pending = resolveNext;
+        resolveNext = null;
+        if (pending) pending(doneResult());
+        return Promise.resolve(doneResult());
       },
     };
   }
