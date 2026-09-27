@@ -17,6 +17,15 @@ import { AgentiveStreamHandler } from "./streams/agentive-stream.ts";
 
 type EventCallback = (...args: any[]) => void;
 
+/** Bounds commit re-attempts after a lost revision race; `schedule` is injectable for tests. */
+export interface RetryPolicy {
+  maxRetries: number;
+  baseDelayMs: number;
+  schedule(fn: () => void, delayMs: number): void;
+}
+
+type CommitSettle = { resolve(a: CommitAck): void; reject(e: Error): void };
+
 export abstract class AbstractSyncAdapter implements SyncSeam {
   protected ref: RefLike | null = null;
   protected userId: string = "";
@@ -25,6 +34,12 @@ export abstract class AbstractSyncAdapter implements SyncSeam {
   protected disposed = false;
   protected listeners: Record<string, EventCallback[]> = {};
   public callbacks: AdapterCallbacks = {};
+  public retryPolicy: RetryPolicy = {
+    maxRetries: 5,
+    baseDelayMs: 100,
+    schedule: (fn, delayMs) => void setTimeout(fn, delayMs),
+  };
+  private pendingCommits = new Set<CommitSettle>();
 
   protected historyHandler!: HistoryStreamHandler;
   protected presenceHandler!: PresenceStreamHandler;
@@ -197,42 +212,49 @@ export abstract class AbstractSyncAdapter implements SyncSeam {
   }
 
   commitOperation(operation: unknown, author?: string): Promise<CommitAck> {
-    return new Promise<CommitAck>((resolve, reject) => {
-      this.executeCommitAttempt(
-        operation as TextOperation,
-        resolve,
-        reject,
-        author,
-      );
+    if (this.disposed) return Promise.reject(new Error("Adapter is disposed"));
+    const settle = {} as CommitSettle;
+    const result = new Promise<CommitAck>((resolve, reject) => {
+      Object.assign(settle, { resolve, reject });
+      this.pendingCommits.add(settle);
+      this.executeCommitAttempt(operation as TextOperation, settle, author, 0);
     });
+    return result.finally(() => this.pendingCommits.delete(settle));
   }
 
   protected executeCommitAttempt(
     op: TextOperation,
-    resolve: (ack: CommitAck) => void,
-    reject: (err: Error) => void,
-    author?: string,
+    settle: CommitSettle,
+    author: string | undefined,
+    attempt: number,
   ): void {
     this.sendOperation(
       op,
       (err: Error | null, committed?: boolean) => {
-        const isSuccessful = Boolean(committed);
-        if (isSuccessful) {
+        if (committed) {
           this.onCommitSuccess(author || this.userId);
-          resolve({
+          settle.resolve({
             revision: this.historyHandler.getRevision(),
             committed: true,
           });
           return;
         }
-        const hasError = Boolean(err);
-        if (hasError) {
-          reject(err!);
-          return;
-        }
-        this.once("retry", () =>
-          this.executeCommitAttempt(op, resolve, reject, author),
-        );
+        if (err) return settle.reject(err);
+        this.once("retry", () => {
+          const { maxRetries, baseDelayMs, schedule } = this.retryPolicy;
+          if (attempt >= maxRetries) {
+            return settle.reject(
+              new Error(`Commit failed after ${maxRetries} retries`),
+            );
+          }
+          schedule(
+            () => {
+              if (this.disposed) return;
+              this.executeCommitAttempt(op, settle, author, attempt + 1);
+            },
+            baseDelayMs * 2 ** attempt,
+          );
+        });
       },
       author,
     );
@@ -283,6 +305,9 @@ export abstract class AbstractSyncAdapter implements SyncSeam {
     this.ready = false;
     this.callbacks = {};
     this.listeners = {};
+    for (const settle of [...this.pendingCommits]) {
+      settle.reject(new Error("Adapter disposed before commit settled"));
+    }
 
     const refValid = isValidRef(this.ref);
     if (refValid) {

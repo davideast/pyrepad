@@ -17,8 +17,11 @@ import {
   OfflineRevisionQueue,
   PendingRevisionRecord,
 } from "./revision-queue.ts";
+import { ConflictListeners } from "./conflict-event.ts";
 
 type EventCallback = (...args: any[]) => void;
+
+export type { OfflineConflictEvent } from "./conflict-event.ts";
 
 export class OfflineDurableAdapter implements SyncSeam {
   readonly network: SyncSeam;
@@ -26,6 +29,8 @@ export class OfflineDurableAdapter implements SyncSeam {
   private disposed = false;
   private currentRevision = 0;
   private onlineHandler: (() => void) | null = null;
+  private inFlight: Promise<Map<string, CommitAck>> | null = null;
+  private conflicts = new ConflictListeners();
   public callbacks: AdapterCallbacks = {};
 
   constructor(
@@ -61,7 +66,6 @@ export class OfflineDurableAdapter implements SyncSeam {
     };
 
     (this.network as any).on("ready", triggerReconcile);
-    (this.network as any).on("reconnected", triggerReconcile);
     (this.network as any).on("worker_sync", triggerReconcile);
   }
 
@@ -99,6 +103,8 @@ export class OfflineDurableAdapter implements SyncSeam {
     const isDisposed = this.disposed;
     if (isDisposed) throw new Error("OfflineDurableAdapter is disposed");
 
+    // Every op is enqueued and only ever sent by the single-flight drain, so a
+    // record cannot be committed both directly and by a reconnect replay.
     const opAuthor = author || "offline-client";
     const recordId = await this.queue.enqueue(
       this.currentRevision,
@@ -106,105 +112,111 @@ export class OfflineDurableAdapter implements SyncSeam {
       opAuthor,
     );
 
-    try {
-      const ack = await this.network.commitOperation(operation, opAuthor);
-      const isCommitted = Boolean(ack && ack.committed);
-      if (isCommitted) {
-        await this.queue.dequeue(recordId);
-        this.currentRevision = ack.revision;
-        return ack;
-      }
-      return { revision: this.currentRevision, committed: false };
-    } catch (_networkError) {
-      // Network offline disconnect or transit drop; operation remains safely buffered in IndexedDB
-      return { revision: this.currentRevision, committed: false };
+    let outcome = await this.awaitInFlightOutcome(recordId);
+    if (!outcome && !this.disposed) {
+      outcome = (await this.drainLatched()).get(recordId);
     }
+    return outcome || { revision: this.currentRevision, committed: false };
+  }
+
+  private async awaitInFlightOutcome(
+    recordId: string,
+  ): Promise<CommitAck | undefined> {
+    // A drain that started before our enqueue may or may not include the record.
+    while (this.inFlight) {
+      const outcomes = await this.inFlight;
+      const outcome = outcomes.get(recordId);
+      if (outcome) return outcome;
+    }
+    return undefined;
   }
 
   async reconcile(canonicalRemoteOps?: unknown[]): Promise<number> {
-    const isDisposed = this.disposed;
-    if (isDisposed) return 0;
+    const outcomes = await this.drainLatched(canonicalRemoteOps);
+    let reconciledCount = 0;
+    for (const ack of outcomes.values()) {
+      if (ack.committed) reconciledCount++;
+    }
+    return reconciledCount;
+  }
+
+  /** Single-flight latch: concurrent callers join the drain already running. */
+  private drainLatched(
+    canonicalRemoteOps?: unknown[],
+  ): Promise<Map<string, CommitAck>> {
+    if (this.inFlight) return this.inFlight;
+    const run = this.drain(canonicalRemoteOps).finally(() => {
+      if (this.inFlight === run) this.inFlight = null;
+    });
+    this.inFlight = run;
+    return run;
+  }
+
+  private async drain(
+    canonicalRemoteOps?: unknown[],
+  ): Promise<Map<string, CommitAck>> {
+    const outcomes = new Map<string, CommitAck>();
+    if (this.disposed) return outcomes;
 
     const pending = await this.queue.getPendingRevisions();
-    const hasNoPending = pending.length === 0;
-    if (hasNoPending) return 0;
-
-    let reconciledCount = 0;
-    const remotes: TextOperation[] = [];
-
-    if (canonicalRemoteOps && canonicalRemoteOps.length > 0) {
-      for (const raw of canonicalRemoteOps) {
-        const parsed = this.parseTextOp(raw);
-        const isValidRemote = Boolean(parsed);
-        if (isValidRemote) remotes.push(parsed!);
-      }
-    }
+    // A malformed canonical op rejects the drain rather than rebasing on partial history.
+    const remotes = (canonicalRemoteOps || []).map((raw) =>
+      this.parseTextOp(raw),
+    );
 
     for (const item of pending) {
-      const success = await this.reconcileRecord(item, remotes);
-      if (success) {
-        reconciledCount++;
-      }
+      if (this.disposed) break;
+      const ack = await this.reconcileRecord(item, remotes);
+      outcomes.set(item.id, ack);
     }
 
-    return reconciledCount;
+    return outcomes;
   }
 
   private async reconcileRecord(
     item: PendingRevisionRecord,
     remotes: TextOperation[],
-  ): Promise<boolean> {
-    let localOp = this.parseTextOp(item.operationJSON);
-    const hasRemotes = remotes.length > 0;
-    const canTransform = hasRemotes && Boolean(localOp);
-
-    if (canTransform) {
+  ): Promise<CommitAck> {
+    const notCommitted = { revision: this.currentRevision, committed: false };
+    let localOp: TextOperation;
+    try {
+      localOp = this.parseTextOp(item.operationJSON);
       for (let i = 0; i < remotes.length; i++) {
-        try {
-          const transformed = TextOperation.transform(localOp!, remotes[i]);
-          localOp = transformed[0];
-          remotes[i] = transformed[1];
-        } catch (err) {
-          console.warn(
-            "Unresolvable OT conflict during reconcile; performing state rollback:",
-            err,
-          );
-          await this.queue.dequeue(item.id);
-          return false;
-        }
+        const transformed = TextOperation.transform(localOp, remotes[i]);
+        localOp = transformed[0];
+        remotes[i] = transformed[1];
       }
+    } catch (err) {
+      // Unresolvable: roll the record back and hand the dropped op to the caller.
+      await this.queue.dequeue(item.id);
+      this.conflicts.emit({
+        recordId: item.id,
+        author: item.author,
+        revision: item.revision,
+        operation: item.operationJSON,
+        error: err instanceof Error ? err : new Error(String(err)),
+      });
+      return notCommitted;
     }
 
-    const opToSubmit = localOp || item.operationJSON;
     try {
-      const ack = await this.network.commitOperation(opToSubmit, item.author);
+      const ack = await this.network.commitOperation(localOp, item.author);
       const isCommitted = Boolean(ack && ack.committed);
       if (isCommitted) {
         await this.queue.dequeue(item.id);
         this.currentRevision = ack.revision;
-        return true;
+        return ack;
       }
-      return false;
-    } catch (err) {
-      console.warn("Network error during offline revision replay:", err);
-      return false;
+      return notCommitted;
+    } catch (_networkError) {
+      // Offline or disposed: the record stays buffered for the next reconcile.
+      return notCommitted;
     }
   }
 
-  private parseTextOp(payload: unknown): TextOperation | null {
-    const isAlreadyOp = payload instanceof TextOperation;
-    if (isAlreadyOp) return payload as TextOperation;
-    const isObject = typeof payload === "object" && payload !== null;
-    if (!isObject) return null;
-    const hasFromJSON = typeof (TextOperation as any).fromJSON === "function";
-    if (hasFromJSON) {
-      try {
-        return (TextOperation as any).fromJSON(payload);
-      } catch (_e) {
-        return null;
-      }
-    }
-    return null;
+  private parseTextOp(payload: unknown): TextOperation {
+    if (payload instanceof TextOperation) return payload;
+    return TextOperation.fromJSON(payload as any[]);
   }
 
   private delegateToNetwork(method: string, ...args: unknown[]): unknown {
@@ -230,12 +242,15 @@ export class OfflineDurableAdapter implements SyncSeam {
   }
 
   on(event: string, callback: EventCallback): void {
+    if (event === "conflict") return this.conflicts.on(callback);
     this.delegateToNetwork("on", event, callback);
   }
   once(event: string, callback: EventCallback): void {
+    if (event === "conflict") return this.conflicts.once(callback);
     this.delegateToNetwork("once", event, callback);
   }
   off(event: string, callback?: EventCallback): void {
+    if (event === "conflict") return this.conflicts.off(callback);
     this.delegateToNetwork("off", event, callback);
   }
   trigger(event: string, ...args: unknown[]): void {
@@ -289,6 +304,7 @@ export class OfflineDurableAdapter implements SyncSeam {
     const isAlreadyDisposed = this.disposed;
     if (isAlreadyDisposed) return;
     this.disposed = true;
+    this.conflicts.off();
 
     const hasRemoveListener =
       typeof globalThis !== "undefined" &&

@@ -155,6 +155,9 @@ export class TextOperation {
   }
 
   static fromJSON(ops: any[]): TextOperation {
+    if (!Array.isArray(ops)) {
+      throw new Error("fromJSON expects an array of ops");
+    }
     const o = new TextOperation();
     for (let i = 0, l = ops.length; i < l; i++) {
       let op = ops[i];
