@@ -1,158 +1,285 @@
-# Pyrepad (`@pyric/pad`) ⚡
+# Pyrepad (`@pyric/pad`)
 
-**The modern ES Module, TypeScript-ready successor to Firepad — built for reactive web frameworks and real-time collaboration in the [Pyric](https://github.com/davideast/pyric) ecosystem.**
+Pyrepad is a real-time collaborative text and code editing library: Operational Transformation (OT)
+primitives, a synchronization seam over the Realtime Database, CodeMirror 5 and 6 bindings, and React
+hooks. It is the successor to [Firepad](https://github.com/FirebaseExtended/firepad), rewritten as
+TypeScript ES modules for the [Pyric](https://github.com/davideast/pyric) ecosystem.
 
-Pyrepad is an open-source, high-performance real-time collaborative code and text editing engine designed for state-of-the-art web applications, multiplayer Figma-style cursors, and AI coding co-pilots.
+## Lineage & Attribution
 
----
+Pyrepad (`@pyric/pad`) is the successor to [Firepad](https://github.com/FirebaseExtended/firepad),
+originally created by Firebase and Google under the MIT License, and keeps that license
+([LICENSE](LICENSE)).
 
-## 🏛️ Lineage & Open-Source Attribution
+While Pyrepad re-engineers the synchronization seams for browser SharedWorkers, modular React
+frameworks, and AI agentive ghost diffs, we gratefully acknowledge the original Firepad team for
+developing the battle-tested Operational Transformation (OT) string algorithms that form our
+foundation.
 
-Pyrepad (`@pyric/pad`) is the contemporary successor to [Firepad](https://github.com/FirebaseExtended/firepad), originally created by Firebase and Google under the MIT License.
+## Contents
 
-While Pyrepad cleanly re-engineers the synchronization seams for browser SharedWorkers, modular React frameworks, and AI agentive ghost diffs, we gratefully acknowledge the original Firepad team for developing the battle-tested Operational Transformation (OT) string algorithms that form our foundation.
+- [Install](#install)
+- [Modules](#modules)
+  - [`@pyric/pad/core`](#pyricpadcore)
+  - [`@pyric/pad/adapters`](#pyricpadadapters)
+  - [`@pyric/pad/editors`](#pyricpadeditors)
+  - [`@pyric/pad/react`](#pyricpadreact)
+- [Legacy Firepad 1.x bundle](#legacy-firepad-1x-bundle)
+- [Local development with Pyric](#local-development-with-pyric)
+- [Database structure](#database-structure)
+- [Repository layout](#repository-layout)
+- [Contributing](#contributing)
 
----
+## Install
 
-## ✨ Features
+`@pyric/pad` is not published to npm yet. Its `exports` map defines the four subpath imports
+below; inside this repository the examples import the same modules from `src/`.
 
-* **⚡ Pure ES Module Architecture**: Subpath export maps designed for tree-shaking and zero-DOM headless server execution (`@pyric/pad/core`).
-* **👥 Figma & Google Docs Multiplayer Cursors**: Sub-pixel geometric alignment with colored caret bars, username tooltip badges, and smart hover auto-fade transitions.
-* **🤖 AI Agentive Collaboration Seam**: First-class support for AI co-pilots proposing tentative Operational Transformation "ghost diffs" in real time without mutating authoritative document history.
-* **🔥 Native Pyric & Modular Firebase Support**: Connect directly to Firebase v9+ modular references or simulate offline/local multi-tab collaboration at 60fps over Pyric's browser **SharedWorker**.
-* **🛡️ Conflict-Free & Resilient**: Sequential pending revision buffering eliminates typing stalls, while atomic initial document composing guarantees identical start-up state across all connected clients.
+`firebase`, `react`, and `react-dom` are peer dependencies: install the ones you use. The CodeMirror 6
+binding also needs `@codemirror/state` and `@codemirror/view`.
 
+## Modules
 
-## Table of Contents
+The package has four subpath exports. Each one is usable on its own.
 
- * [Getting Started With Firebase](#getting-started-with-firebase)
- * [Live Demo](#live-demo)
- * [Downloading Firepad](#downloading-firepad)
- * [Documentation](#documentation)
- * [Examples](#examples)
- * [Contributing](#contributing)
- * [Database Structure](#database-structure)
- * [Repo Structure](#repo-structure)
+| Import | Contents |
+| --- | --- |
+| `@pyric/pad/core` | DOM-free OT: `TextOperation`, `Cursor`, `WrappedOperation`, `UndoManager`, `AnnotationList`, `PureFormatting` |
+| `@pyric/pad/adapters` | The `SyncSeam` interface and its adapters: `FirebaseAdapter`, `PyricSandboxAdapter`, `SharedWorkerAdapter`, `OfflineDurableAdapter` |
+| `@pyric/pad/editors` | Editor bindings that implement `EditorSeam`: `CodeMirror5Adapter`, `CodeMirror6Adapter`, plus remote-cursor widgets |
+| `@pyric/pad/react` | `PyrepadProvider`, `usePyrepadEditor`, `useCollaborators`, `useAgentiveDiffs`, `<CollaborativeEditor />` |
 
+Every module also exports `VERSION`. The vocabulary used below (`SyncSeam`, `EditorSeam`,
+`PresenceState`, `ghostDiff`) is defined in [CONTEXT.md](CONTEXT.md).
 
-## Getting Started With Firebase
+### `@pyric/pad/core`
 
-Firepad requires [Firebase](https://firebase.google.com/) in order to sync and store data. Firebase
-is a suite of integrated products designed to help you develop your app, grow your user base, and
-earn money. You can [sign up here for a free account](https://console.firebase.google.com/).
+Pure OT math. It never touches the DOM, so it runs in Node, Bun, and workers.
+See [`src/core/README.md`](src/core/README.md).
 
+```ts
+import { TextOperation } from "@pyric/pad/core";
 
-## Live Demo
+const doc = "hello";
+const a = new TextOperation().retain(5).insert(" world"); // one user appends
+const b = new TextOperation().insert(">> ").retain(5);    // another prepends
 
-Visit [firepad.io](http://demo.firepad.io/) to see a live demo of Firepad in rich text mode, or the
-[examples page](http://www.firepad.io/examples/) to see it setup for collaborative code editing.
-
-[![a screenshot of demo.firepad.io including a picture of two cats and a discussion about fonts](screenshot.png)](http://demo.firepad.io/)
-
-
-## Downloading Firepad
-
-Firepad uses [Firebase](https://firebase.google.com) as a backend, so it requires no server-side
-code. It can be added to any web app by including a few JavaScript files:
-
-```HTML
-<head>
-  <!-- Firebase -->
-  <script src="https://www.gstatic.com/firebasejs/7.13.2/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/7.13.2/firebase-auth.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/7.13.2/firebase-database.js"></script>
-
-  <!-- CodeMirror -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.17.0/codemirror.js"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.17.0/codemirror.css"/>
-
-  <!-- Firepad -->
-  <link rel="stylesheet" href="https://firepad.io/releases/v1.5.10/firepad.css" />
-  <script src="https://firepad.io/releases/v1.5.10/firepad.min.js"></script>
-</head>
+const [aPrime, bPrime] = TextOperation.transform(a, b);
+const merged = bPrime.apply(a.apply(doc));
+console.log(merged);                                        // ">> hello world"
+console.log(merged === aPrime.apply(b.apply(doc)));         // true
 ```
 
-Then, you need to initialize the Firebase SDK and Firepad:
+### `@pyric/pad/adapters`
 
-```HTML
-<body onload="init()">
-  <div id="firepad"></div>
-  <script>
-    function init() {
-      // Initialize the Firebase SDK.
-      firebase.initializeApp({
-        apiKey: '<API_KEY>',
-        databaseURL: 'https://<DATABASE_NAME>.firebaseio.com'
-      });
+A `SyncSeam` owns one document location in the Realtime Database. It exposes three async-iterable
+streams (`operations`, `presence`, `agentive`) and the methods `whenReady()`, `isHistoryEmpty()`,
+`commitOperation(op)`, `broadcastPresence(cursor)`, `broadcastAgentive(event)`, and `dispose()`.
 
-      // Get Firebase Database reference.
-      var firepadRef = firebase.database().ref();
+`FirebaseAdapter` accepts either a namespaced reference (`firebase.database().ref(...)`) or a
+modular config: a `ref` plus the `firebase/database` functions it needs.
 
-      // Create CodeMirror (with lineWrapping on).
-      var codeMirror = CodeMirror(document.getElementById('firepad'), { lineWrapping: true });
+```ts
+import { initializeApp } from "firebase/app";
+import {
+  getDatabase, ref, child, get, set, remove, runTransaction,
+  onValue, onChildAdded, onChildChanged, onChildRemoved,
+} from "firebase/database";
+import { FirebaseAdapter } from "@pyric/pad/adapters";
 
-      // Create Firepad (with rich text toolbar and shortcuts enabled).
-      var firepad = Firepad.fromCodeMirror(firepadRef, codeMirror,
-          { richTextShortcuts: true, richTextToolbar: true, defaultText: 'Hello, World!' });
-    }
-  </script>
-</body>
+const db = getDatabase(initializeApp({ projectId: "demo-pad", databaseURL: "https://demo-pad.firebaseio.com" }));
+
+const adapter = new FirebaseAdapter(
+  {
+    ref: ref(db, "pads/readme"),
+    child, get, set, remove, runTransaction,
+    onValue, onChildAdded, onChildChanged, onChildRemoved,
+  },
+  "alice",   // user id
+  "#3b82f6", // cursor colour
+);
+
+await adapter.whenReady();
+for await (const { author, operation } of adapter.operations) {
+  console.log(author, operation.toString());
+}
 ```
 
-## Documentation
+Other adapters: `PyricSandboxAdapter(ref, userId, color)` for a Pyric sandbox reference,
+`SharedWorkerAdapter(ref, userId, color, port)` for cross-tab sync over a worker port, and
+`OfflineDurableAdapter(network, storage?, docId?)`, which wraps any of them and queues commits in
+IndexedDB while offline. It emits a `conflict` event (`OfflineConflictEvent`) for a queued edit
+that cannot be rebased.
 
-Firepad supports rich text editing with [CodeMirror](http://codemirror.net/) and code editing via
-[Ace](http://ace.c9.io/). Check out the detailed setup instructions at [firepad.io/docs](http://www.firepad.io/docs).
+AI agents publish their status and proposed edits on the separate `agentive` stream, so they never
+delay document edits:
 
+```ts
+await adapter.broadcastAgentive({
+  agentId: "copilot",
+  status: "suggesting",
+  ghostDiff: { text: "+ const leverage = true;" },
+  explanation: "Adds the missing flag",
+});
+```
 
-## Examples
+### `@pyric/pad/editors`
 
-You can find some Firepad examples [here](examples/README.md).
+Editor adapters translate between an editor and `TextOperation`s. Wiring one to a `SyncSeam` by
+hand (this is what `usePyrepadEditor` does for you):
 
+```ts
+import { EditorView } from "@codemirror/view";
+import { CodeMirror6Adapter } from "@pyric/pad/editors";
+
+const view = new EditorView({ parent: document.getElementById("editor")! });
+const editor = new CodeMirror6Adapter(view);
+
+// local edits -> database
+editor.on("change", (operation) => void adapter.commitOperation(operation));
+editor.on("cursor", (cursor) => cursor && void adapter.broadcastPresence(cursor));
+
+// remote edits and cursors -> editor (skip our own commits)
+(async () => {
+  for await (const { author, operation } of adapter.operations) {
+    if (author !== "alice") editor.applyOperation(operation);
+  }
+})();
+(async () => {
+  for await (const { userId, cursor, color } of adapter.presence) {
+    if (cursor) editor.setOtherCursor({ clientId: userId, color, cursor: cursor as any });
+    else editor.clearCursor(userId);
+  }
+})();
+```
+
+`CodeMirror5Adapter` takes a CodeMirror 5 instance and has the same interface (`EditorSeam`).
+
+### `@pyric/pad/react`
+
+Put a `SyncSeam` in context with `PyrepadProvider`, then bind an editor with `usePyrepadEditor`.
+The hook subscribes to the adapter's streams in an effect, so typing does not re-render React.
+`defaultText` seeds the shared document once, when it is empty; do not also pre-fill the editor.
+
+```tsx
+import { useEffect, useRef, useState } from "react";
+import { EditorView } from "@codemirror/view";
+import {
+  PyrepadProvider, usePyrepadEditor, useCollaborators, useAgentiveDiffs,
+} from "@pyric/pad/react";
+
+function Editor() {
+  const host = useRef<HTMLDivElement>(null);
+  const [view, setView] = useState<EditorView | null>(null);
+
+  useEffect(() => {
+    const v = new EditorView({ parent: host.current! });
+    setView(v);
+    return () => v.destroy();
+  }, []);
+
+  const { isReady } = usePyrepadEditor({
+    editor: view,
+    type: "cm6",
+    userId: "alice",
+    defaultText: "// start typing\n",
+  });
+  const people = useCollaborators();   // [{ userId, color, cursor, lastSeen }]
+  const agents = useAgentiveDiffs();   // [{ agentId, status, ghostDiff, explanation, timestamp }]
+
+  return (
+    <>
+      <p>{isReady ? "live" : "connecting"} · {people.length} here · {agents.length} agents</p>
+      <div ref={host} />
+    </>
+  );
+}
+
+export function App({ adapter }) {
+  return (
+    <PyrepadProvider adapter={adapter}>
+      <Editor />
+    </PyrepadProvider>
+  );
+}
+```
+
+`type` is `"cm6"` for an `EditorView` and `"cm5"` (the default) for a CodeMirror 5 instance.
+Every hook also accepts an adapter directly instead of reading it from context.
+`<CollaborativeEditor adapter editor type userId defaultText>` wraps `usePyrepadEditor` and renders
+a bar of collaborators and agents above its children.
+
+## Legacy Firepad 1.x bundle
+
+`bun run build` concatenates the frozen Firepad 1.x sources in `lib/` into `dist/firepad.js`,
+`dist/firepad.min.js`, and `dist/firepad.css`. Loaded with a `<script>` tag, the bundle sets
+`window.firepad` (the namespace, including `firepad.SyncSeam` and `firepad.DocumentEngine`) and
+`window.Firepad` (the 1.x constructor, `Firepad.fromCodeMirror(ref, codeMirror, options)`). It is
+the only way to get rich text and the Ace / Monaco bindings. It receives fixes only; see
+[ADR-0002](docs/adr/0002-freeze-lib-legacy-bundle.md).
+
+[`examples/pyric-studio-live.html`](examples/pyric-studio-live.html) uses it against a local Pyric
+sandbox. The original Firepad 1.5 CDN examples are kept, unmaintained, in
+[`examples/legacy/`](examples/legacy/README.md).
+
+## Local development with Pyric
+
+Development and tests run against [Pyric](https://github.com/davideast/pyric), a local
+Firebase-compatible sandbox, instead of a cloud project ([ADR-0001](docs/adr/0001-sync-seam-and-pyric-sandbox.md)).
+
+- **Node.js >= 22.15.** `@pyric/cli` requires it, and its hosted mode stores state with Node's
+  built-in SQLite.
+- **Hosted mode.** `vite.config.mjs` registers `pyric({ hosted: true })` from `@pyric/cli/vite`.
+  The sandbox runs in a Node process next to the Vite server rather than in a browser SharedWorker,
+  so every tab and browser context shares one database. In pages served by Vite, `firebase/*`
+  imports resolve to the sandbox.
+- **Rules.** `database.rules.json` holds open development rules (`".read": true, ".write": true`).
+  Keep it: without a rules file Pyric denies every Realtime Database read and write.
+- **Run Vite under Node.** `bun run dev` starts Vite through its Node shebang. Do not run it with
+  `bun --bun`; the hosted sandbox needs the Node runtime.
+- **State** is persisted in `.pyric/state/hosted/state.sqlite` (gitignored). One hosted sandbox
+  can own a project directory at a time; a second one refuses to start until the first is stopped.
+
+```bash
+bun install
+bun run dev                          # http://localhost:5173
+bun run dev -- --port 5181 --strictPort --host 127.0.0.1   # another port
+```
+
+Open `/examples/` on the dev server for the demos (see [examples/README.md](examples/README.md)).
+
+The unit specs run in-process against the Pyric sandbox and require `PYRIC_SANDBOX=1`:
+
+```bash
+PYRIC_SANDBOX=1 bun test test/specs/*.spec.js   # or: bun run test
+bun run test:e2e:playwright                     # builds, then starts Vite on port 5188 (PW_PORT overrides)
+```
+
+## Database structure
+
+Each document lives under one reference:
+
+- `<document>/`
+  - `users/<user id>/` - removed when the user disconnects.
+    - `cursor` - the user's cursor position and selection.
+    - `color` - the user's cursor colour.
+  - `history/<revision id>/` - one entry per revision. The id is `A` followed by the revision
+    number in base 36 (`A0`, `A1`, ...).
+    - `a` - the author's user id.
+    - `o` - the operation, as `TextOperation.toJSON()`.
+    - `t` - the committing client's `Date.now()`, in milliseconds.
+  - `agentive/<agent id>/` - latest `status`, `ghostDiff`, `explanation`, and `timestamp` for each AI agent.
+
+## Repository layout
+
+- `src/` - the four `@pyric/pad/*` modules (`core`, `adapters`, `editors`, `react`).
+- `lib/` - frozen Firepad 1.x sources for the legacy bundle.
+- `tools/bundle.js` - builds `dist/` (the legacy bundle).
+- `test/specs/` - Bun unit specs; `test/e2e-playwright/` - multi-client browser specs.
+- `examples/` - runnable demos; `examples/legacy/` - unmaintained Firepad 1.5 examples.
+- `docs/adr/` - architecture decisions. `CONTEXT.md` - domain glossary.
 
 ## Contributing
 
-If you'd like to contribute to Firepad, please first read through our [contribution
-guidelines](.github/CONTRIBUTING.md). Local setup instructions are available [here](.github/CONTRIBUTING.md#local-setup).
-
-## Database Structure
-How is the data structured in Firebase?
-
-* `<document id>/` - A unique hash generated when pushing a new item to Firebase.
-    * `users/`
-        * `<user id>/` - A unique hash that identifies each user. 
-          * `cursor` - The current location of the user's cursor. 
-          * `color` - The color of the user's cursor.
-    * `history/` - The sequence of revisions that are automatically made as the document is edited.
-        * `<revision id>/` - A unique id that ranges from 'A0' onwards.
-            * `a` - The user id that made the revision.
-            * `o/` - Array of operations (eg TextOperation objects) that represent document changes.
-            * `t` - Timestamp in milliseconds determined by the Firebase servers.
-    * `checkpoint/` - Snapshot automatically created every 100 revisions.  
-        * `a` - The user id that triggered the checkpoint.
-        * `id` - The latest revision at the time the checkpoint was taken.
-        * `o/` - A representation of the document state at that time that includes styling and plaintext.   
-
-
-## Repo Structure
-
-Here are some highlights of the directory structure and notable source files:
-
-* `dist/` - output directory for all files generated by grunt (`firepad.js`, `firepad.min.js`, `firepad.css`, `firepad.eot`).
-* `examples/` - examples of embedding Firepad.
-* `font/` - icon font used for rich text toolbar.
-* `lib/`
-    * `firepad.js` - Entry point for Firepad.
-    * `text-operation.js`, `client.js` - Heart of the Operation Transformation implementation.  Based on
-      [ot.js](https://github.com/Operational-Transformation/ot.js/) but extended to allow arbitrary
-      attributes on text (for representing rich-text).
-    * `annotation-list.js` - A data model for representing annotations on text (i.e. spans of text with a particular
-      set of attributes).
-    * `rich-text-codemirror.js` - Uses `AnnotationList` to track annotations on the text and maintain the appropriate
-      set of markers on a CodeMirror instance.
-    * `firebase-adapter.js` - Handles integration with Firebase (appending operations, triggering retries,
-      presence, etc.).
-* `test/` - Jasmine tests for Firepad (many of these were borrowed from ot.js).
-
-[gh-actions]: https://github.com/FirebaseExtended/firepad/actions
-[gh-actions-badge]: https://github.com/FirebaseExtended/firepad/workflows/CI%20Tests/badge.svg
+See [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md) for setup, the check that every change must
+pass, and the pre-commit hook.

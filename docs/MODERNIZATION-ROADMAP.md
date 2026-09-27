@@ -93,7 +93,7 @@ We apply our canonical domain vocabulary ([CONTEXT.md](../CONTEXT.md)) and deep 
 **Goal**: Equip Firepad with native AI agent collaboration capabilities (streaming ghost diffs, reasoning highlights, and interactive MCP tool control).
 
 ### PR 4.1: Implement `AgentivePresence` & Ghost Diff Pipeline
-- **Scope**: Extend `DocumentEngine` to consume `AgentivePresence.tentativeDiff` payloads from the reactive `agentive` stream. Implement OT transformation support so ghost text suggestions automatically rebase against concurrent human keystrokes.
+- **Scope**: Extend `DocumentEngine` to consume `AgentivePresence.ghostDiff` payloads from the reactive `agentive` stream. Implement OT transformation support so ghost text suggestions automatically rebase against concurrent human keystrokes.
 - **Verification Check**: 
   ```bash
   bun test:ot:ghost

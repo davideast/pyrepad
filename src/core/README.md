@@ -14,6 +14,7 @@ To ensure autonomous coding agents and human engineers can collaborate concurren
    - `operations/annotation-list.ts` (Rich-text span tracking linked list)
    - `operations/annotation-mutations.ts` (Linked list node mutation and splicing algorithms)
    - `history/undo-manager.ts` (Collaborative undo/redo stack transformation)
+   - `emitter.ts` (Typed synchronous `Emitter<Events>` shared by the sync adapters and editor adapters; internal, not exported from `@pyric/pad/core`)
 2. **Strict Function Ceilings**: Functions are capped at 60 lines (`"max-lines-per-function": ["error", 60]`) and 4 parameters (`"max-params": ["error", 4]`). Complex multi-variable calculations pass structured context interfaces (`ComposeCtx`, `TransformCtx`, `ApplyCtx`).
 3. **Zero-DOM Headless Guarantee**: This module is strictly prohibited from accessing browser DOM symbols (`window`, `document`, `HTMLElement`, `navigator`). It runs on Node.js, Bun, and other non-browser runtimes without JSDOM or browser emulation.
 
