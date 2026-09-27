@@ -12,18 +12,10 @@
     "type": "git",
     "url": "https://github.com/davideast/pyrepad.git"
   },
-  "browser": {
-    "jsdom": false
-  },
   "bugs": {
     "url": "https://github.com/davideast/pyrepad/issues"
   },
-  "licenses": [
-    {
-      "type": "MIT",
-      "url": "http://firebase.mit-license.org/"
-    }
-  ],
+  "license": "MIT",
   "keywords": [
     "text",
     "word",
@@ -33,6 +25,7 @@
     "collaborative"
   ],
   "main": "dist/firepad.min.js",
+  "sideEffects": false,
   "files": [
     "dist/**",
     "!dist/esm/**/*.d.ts.map",
@@ -120,6 +113,9 @@
   "lint-staged": {
     "src/**/*.{ts,tsx,js}": [
       "eslint --fix",
+      "prettier --write"
+    ],
+    "examples/**/*.{ts,tsx}": [
       "prettier --write"
     ]
   },
