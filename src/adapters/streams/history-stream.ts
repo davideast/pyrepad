@@ -138,7 +138,7 @@ export class HistoryStreamHandler {
 
       const hasOpData = Boolean(data && data.o);
       if (hasOpData) {
-        this.processPendingOperation(data.o!, data.a, data.t, (retry) => {
+        this.processPendingOperation(revId, data, (retry) => {
           if (retry) triggerRetry = true;
         });
       }
@@ -153,24 +153,20 @@ export class HistoryStreamHandler {
   }
 
   private processPendingOperation(
-    rawOp: unknown[],
-    author?: string,
-    timestamp?: number,
+    revId: string,
+    data: { o?: unknown[]; a?: string; t?: number },
     onNeedRetry?: (retry: boolean) => void,
   ): void {
-    const op = TextOperation.fromJSON(rawOp);
-    const revStr = revisionToId(this.revision);
-    const actualAuthor = author || "unknown";
+    const op = TextOperation.fromJSON(data.o!);
+    const actualAuthor = data.a || "unknown";
     this.stream.push({
       revision: this.revision,
       operation: op,
       author: actualAuthor,
-      timestamp: timestamp || Date.now(),
+      timestamp: data.t || Date.now(),
     });
 
-    const hasMatchingSent = Boolean(
-      this.sent && revisionToId(this.revision) === this.sent.id,
-    );
+    const hasMatchingSent = Boolean(this.sent && revId === this.sent.id);
     if (!hasMatchingSent) {
       this.ctx.onOperation(op);
       return;
