@@ -3,8 +3,8 @@
  */
 import type { Extension } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
-import type { TextOperation } from "../core/index.ts";
-import type { Listener } from "../core/emitter.ts";
+import type { TextOperation } from "../core/index.js";
+import type { Listener } from "../core/emitter.js";
 
 export interface CursorLike {
   position: number;

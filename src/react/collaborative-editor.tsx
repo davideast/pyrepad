@@ -3,10 +3,10 @@
  * and shows a status bar of peers and AI agents above the editor mount point.
  */
 import React from "react";
-import { SyncSeam } from "../adapters/types.ts";
-import { usePyrepadEditor } from "./use-pyrepad-editor.ts";
-import { useCollaborators, CollaboratorPresence } from "./use-collaborators.ts";
-import { useAgentiveDiffs, AgentiveDiffState } from "./use-agentive-diffs.ts";
+import { SyncSeam } from "../adapters/types.js";
+import { usePyrepadEditor } from "./use-pyrepad-editor.js";
+import { useCollaborators, CollaboratorPresence } from "./use-collaborators.js";
+import { useAgentiveDiffs, AgentiveDiffState } from "./use-agentive-diffs.js";
 
 export interface CollaborativeEditorProps {
   adapter?: SyncSeam | null;

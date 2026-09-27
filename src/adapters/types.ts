@@ -1,7 +1,7 @@
 /**
  * Type definitions and interfaces for @pyric/pad/adapters synchronization seam.
  */
-import { TextOperation, Cursor } from "../core/index.ts";
+import { TextOperation, Cursor } from "../core/index.js";
 
 export interface TextOperationEvent {
   revision: number;

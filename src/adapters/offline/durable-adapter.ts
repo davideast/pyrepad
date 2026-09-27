@@ -3,8 +3,8 @@
  * Queues unsent edits in an OfflineRevisionQueue, replays them on reconnect after rebasing
  * onto remote history, and reports ops that cannot be rebased via a "conflict" event.
  */
-import { TextOperation } from "../../core/index.ts";
-import { Emitter } from "../../core/emitter.ts";
+import { TextOperation } from "../../core/index.js";
+import { Emitter } from "../../core/emitter.js";
 import {
   SyncSeam,
   CommitAck,
@@ -14,15 +14,15 @@ import {
   PresenceEvent,
   AgentivePresenceEvent,
   OfflineConflictEvent,
-} from "../types.ts";
-import type { AbstractSyncAdapter } from "../base-adapter.ts";
-import { StorageEngineSeam, IndexedDBStorageEngine } from "./storage-engine.ts";
+} from "../types.js";
+import type { AbstractSyncAdapter } from "../base-adapter.js";
+import { StorageEngineSeam, IndexedDBStorageEngine } from "./storage-engine.js";
 import {
   OfflineRevisionQueue,
   PendingRevisionRecord,
-} from "./revision-queue.ts";
+} from "./revision-queue.js";
 
-export type { OfflineConflictEvent } from "../types.ts";
+export type { OfflineConflictEvent } from "../types.js";
 
 /** Any network adapter: the rest of AbstractSyncAdapter's API is optional (JS networks may omit it). */
 export type DurableNetwork = SyncSeam &

@@ -1,7 +1,7 @@
 /**
  * Independent protocol stream handler for document history and operational transformations.
  */
-import { TextOperation } from "../../core/index.ts";
+import { TextOperation } from "../../core/index.js";
 import {
   RefLike,
   SnapLike,
@@ -10,8 +10,8 @@ import {
   getSnapVal,
   isValidRef,
   toSafeJSON,
-} from "../types.ts";
-import { ReactiveStream } from "../reactive-stream.ts";
+} from "../types.js";
+import { ReactiveStream } from "../reactive-stream.js";
 
 export function revisionToId(rev: number): string {
   return "A" + rev.toString(36);

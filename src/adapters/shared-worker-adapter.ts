@@ -2,8 +2,8 @@
  * Pyric SharedWorker cross-tab network adapter implementing SyncSeam.
  * Coordinates multi-window real-time editing over worker ports without browser DOM dependencies.
  */
-import { RefLike, isValidRef } from "./types.ts";
-import { AbstractSyncAdapter } from "./base-adapter.ts";
+import { RefLike, isValidRef } from "./types.js";
+import { AbstractSyncAdapter } from "./base-adapter.js";
 
 export interface MessagePortLike {
   postMessage(message: unknown): void;

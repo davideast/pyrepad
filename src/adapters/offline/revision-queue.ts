@@ -2,8 +2,8 @@
  * Persistent offline revision queue backed by asynchronous storage engines.
  * Buffers local edits while offline; with IndexedDB storage they survive a page reload.
  */
-import { StorageEngineSeam } from "./storage-engine.ts";
-import { toSafeJSON } from "../types.ts";
+import { StorageEngineSeam } from "./storage-engine.js";
+import { toSafeJSON } from "../types.js";
 
 export interface PendingRevisionRecord {
   id: string;

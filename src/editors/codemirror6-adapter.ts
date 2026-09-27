@@ -18,10 +18,10 @@ import {
   EditorEvents,
   PresenceState,
   CursorLike,
-} from "./types.ts";
-import { CM6PresencePlugin } from "./cm6-decoration-plugin.ts";
-import { TextOperation } from "../core/index.ts";
-import { Emitter } from "../core/emitter.ts";
+} from "./types.js";
+import { CM6PresencePlugin } from "./cm6-decoration-plugin.js";
+import { TextOperation } from "../core/index.js";
+import { Emitter } from "../core/emitter.js";
 
 type Callback = (...args: any[]) => void;
 

@@ -10,10 +10,10 @@ import {
   BookmarkLike,
   TextMarkerLike,
   PresenceState,
-} from "./types.ts";
-import { PresenceDecorationManager } from "./presence-decoration-manager.ts";
-import { TextOperation } from "../core/index.ts";
-import { Emitter } from "../core/emitter.ts";
+} from "./types.js";
+import { PresenceDecorationManager } from "./presence-decoration-manager.js";
+import { TextOperation } from "../core/index.js";
+import { Emitter } from "../core/emitter.js";
 
 type Callback = (...args: any[]) => void;
 

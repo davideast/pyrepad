@@ -1,7 +1,7 @@
 /**
  * Node and span data structures for AnnotationList.
  */
-import { Span } from "../span.ts";
+import { Span } from "../span.js";
 
 export function assert(condition: unknown, text?: string): asserts condition {
   if (!condition) {

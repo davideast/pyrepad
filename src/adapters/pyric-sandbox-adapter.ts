@@ -1,8 +1,8 @@
 /**
  * Pyric Sandbox collaborative editing adapter implementing SyncSeam.
  */
-import { RefLike } from "./types.ts";
-import { AbstractSyncAdapter } from "./base-adapter.ts";
+import { RefLike } from "./types.js";
+import { AbstractSyncAdapter } from "./base-adapter.js";
 
 export class PyricSandboxAdapter extends AbstractSyncAdapter {
   constructor(ref: RefLike | null, userId?: string, userColor?: string) {

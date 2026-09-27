@@ -1,10 +1,10 @@
 /**
  * @pyric/pad/react - React components and hooks for SyncSeam adapters.
  */
-export { VERSION } from "../version.ts";
+export { VERSION } from "../version.js";
 
-export * from "./context.tsx";
-export * from "./use-pyrepad-editor.ts";
-export * from "./use-collaborators.ts";
-export * from "./use-agentive-diffs.ts";
-export * from "./collaborative-editor.tsx";
+export * from "./context.js";
+export * from "./use-pyrepad-editor.js";
+export * from "./use-collaborators.js";
+export * from "./use-agentive-diffs.js";
+export * from "./collaborative-editor.js";

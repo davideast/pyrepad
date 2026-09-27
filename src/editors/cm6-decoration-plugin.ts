@@ -15,8 +15,8 @@ import {
   type EditorView,
   type ViewUpdate,
 } from "@codemirror/view";
-import { CM6PluginSeam, PresenceState, CM6WidgetLike } from "./types.ts";
-import { CM6PresenceWidget } from "./cm6-presence-widget.ts";
+import { CM6PluginSeam, PresenceState, CM6WidgetLike } from "./types.js";
+import { CM6PresenceWidget } from "./cm6-presence-widget.js";
 
 interface RangeSpec {
   from: number;

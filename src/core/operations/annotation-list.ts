@@ -8,12 +8,12 @@ import {
   OldAnnotatedSpan,
   NewAnnotatedSpan,
   Span,
-} from "./annotation-node.ts";
+} from "./annotation-node.js";
 import {
   wrapOperation,
   getAffectedNodes,
   type AffectedNodesResult,
-} from "./annotation-mutations.ts";
+} from "./annotation-mutations.js";
 
 export class AnnotationList {
   private head: Node;

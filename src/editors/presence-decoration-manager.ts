@@ -7,8 +7,8 @@ import {
   CodeMirrorLike,
   BookmarkLike,
   TextMarkerLike,
-} from "./types.ts";
-import { PresenceCursorWidget } from "./presence-cursor-widget.ts";
+} from "./types.js";
+import { PresenceCursorWidget } from "./presence-cursor-widget.js";
 
 export class PresenceDecorationManager implements DecorationManagerSeam {
   private activeWidgets: Record<string, PresenceCursorWidget> = {};

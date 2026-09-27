@@ -2,7 +2,7 @@
  * A collaborative cursor with a `position` and a `selectionEnd`.
  * Both are zero-based indexes into the document.
  */
-import { TextOp } from "./text-op.ts";
+import { TextOp } from "./text-op.js";
 
 export class Cursor {
   position: number;
