@@ -38,8 +38,9 @@ export class Cursor {
         } else if (op.isInsert()) {
           newIndex += op.text.length;
         } else {
-          newIndex -= Math.min(index, op.chars);
-          index -= op.chars;
+          const chars = op.chars ?? 0;
+          newIndex -= Math.min(index, chars);
+          index -= chars;
         }
         const isBeforeCursor = index < 0;
         if (isBeforeCursor) {

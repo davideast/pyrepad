@@ -114,7 +114,8 @@ export class CodeMirror6Adapter
   }
 
   applyOperation(operation: unknown): void {
-    const isAlreadyDisposed = this.disposed || !this.view;
+    const view = this.view;
+    const isAlreadyDisposed = this.disposed || !view;
     if (isAlreadyDisposed) return;
     const isTextOp = typeof (operation as any).ops !== "undefined";
     if (!isTextOp) return;
@@ -156,7 +157,7 @@ export class CodeMirror6Adapter
 
     if (changes.length > 0) {
       try {
-        this.view.dispatch({
+        view.dispatch({
           changes: changes,
           annotations: this.remoteOrigin.of(true),
         });

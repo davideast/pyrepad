@@ -1,20 +1,43 @@
 /**
  * Atomic operation primitive (retain, insert, or delete).
  */
+export type TextOpType = "retain" | "insert" | "delete";
+
+/** A formatting attribute value; `false` on a retain removes the attribute. */
+export type AttributeValue = string | number | boolean;
+export type Attributes = Record<string, AttributeValue>;
+
+export type RetainOp = TextOp & {
+  type: "retain";
+  chars: number;
+  attributes: Attributes;
+};
+export type InsertOp = TextOp & {
+  type: "insert";
+  text: string;
+  attributes: Attributes;
+};
+export type DeleteOp = TextOp & { type: "delete"; chars: number };
+
 export class TextOp {
-  type: "retain" | "insert" | "delete";
+  type: TextOpType;
   chars: number | null = null;
   text: string | null = null;
-  attributes: Record<string, any> | null = null;
+  attributes: Attributes | null = null;
 
-  constructor(type: "retain" | "insert" | "delete", ...args: any[]) {
+  constructor(
+    type: TextOpType,
+    payload?: string | number,
+    attributes?: Attributes,
+  ) {
     this.type = type;
-    this.initializePayload(args);
+    this.initializePayload(payload, attributes);
   }
 
-  private initializePayload(args: any[]): void {
-    const [payload, attributes = {}] = args;
-
+  private initializePayload(
+    payload: string | number | undefined,
+    attributes: Attributes = {},
+  ): void {
     const isTextValid = typeof payload === "string";
     const isCharsValid = typeof payload === "number";
     const areAttributesValid =
@@ -53,15 +76,15 @@ export class TextOp {
     }
   }
 
-  isInsert(): boolean {
+  isInsert(): this is InsertOp {
     return this.type === "insert";
   }
 
-  isDelete(): boolean {
+  isDelete(): this is DeleteOp {
     return this.type === "delete";
   }
 
-  isRetain(): boolean {
+  isRetain(): this is RetainOp {
     return this.type === "retain";
   }
 
@@ -74,7 +97,7 @@ export class TextOp {
     );
   }
 
-  attributesEqual(otherAttributes: Record<string, any>): boolean {
+  attributesEqual(otherAttributes: Attributes): boolean {
     const attrs = this.attributes || {};
     for (const attr in attrs) {
       if (attrs[attr] !== otherAttributes[attr]) {

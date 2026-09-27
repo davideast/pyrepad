@@ -53,8 +53,7 @@ export class OfflineDurableAdapter implements SyncSeam {
   }
 
   private bindNetworkEvents(): void {
-    const hasOnMethod = typeof this.network.on === "function";
-    if (!hasOnMethod) return;
+    if (typeof this.network.on !== "function") return;
 
     this.network.on("operation", () => {
       this.currentRevision++;
@@ -245,9 +244,10 @@ export class OfflineDurableAdapter implements SyncSeam {
     explanation?: string,
   ): Promise<void> {
     const net = this.network;
+    // `status!`: the string overload requires it; TS cannot correlate that here.
     return typeof eventOrAgentId === "object"
       ? net.broadcastAgentive(eventOrAgentId)
-      : net.broadcastAgentive(eventOrAgentId, status, ghostDiff, explanation);
+      : net.broadcastAgentive(eventOrAgentId, status!, ghostDiff, explanation);
   }
 
   whenReady(): Promise<void> {

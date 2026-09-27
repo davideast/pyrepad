@@ -1,45 +1,54 @@
 /**
  * A WrappedOperation contains an operation and corresponding metadata.
  */
-function composeMeta(a: any, b: any): any {
+import type { TextOperation } from "./text-operation.js";
+
+/** Metadata is opaque; it may implement compose/transform/invert hooks. */
+function hasMethod<K extends string>(
+  value: unknown,
+  name: K,
+): value is Record<K, (...args: unknown[]) => unknown> {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    typeof (value as Record<K, unknown>)[name] === "function"
+  );
+}
+
+function composeMeta(a: unknown, b: unknown): unknown {
   if (a && typeof a === "object") {
-    if (typeof a.compose === "function") {
+    if (hasMethod(a, "compose")) {
       return a.compose(b);
     }
-    return { ...a, ...b };
+    // Spread tolerates any value for `b`, exactly as the untyped original did.
+    return { ...a, ...(b as object) };
   }
   return b;
 }
 
-function transformMeta(meta: any, operation: any): any {
-  if (meta && typeof meta === "object") {
-    if (typeof meta.transform === "function") {
-      return meta.transform(operation);
-    }
+function transformMeta(meta: unknown, operation: TextOperation): unknown {
+  if (hasMethod(meta, "transform")) {
+    return meta.transform(operation);
   }
   return meta;
 }
 
 export class WrappedOperation {
-  wrapped: any;
-  meta: any;
+  wrapped: TextOperation;
+  meta: unknown;
 
-  constructor(operation: any, meta: any) {
+  constructor(operation: TextOperation, meta: unknown) {
     this.wrapped = operation;
     this.meta = meta;
   }
 
-  apply(...args: any[]): any {
+  apply(...args: Parameters<TextOperation["apply"]>): string {
     return this.wrapped.apply(...args);
   }
 
-  invert(...args: any[]): WrappedOperation {
+  invert(...args: Parameters<TextOperation["invert"]>): WrappedOperation {
     let nextMeta = this.meta;
-    const isInvertible =
-      nextMeta !== null &&
-      typeof nextMeta === "object" &&
-      typeof nextMeta.invert === "function";
-    if (isInvertible) {
+    if (hasMethod(nextMeta, "invert")) {
       nextMeta = nextMeta.invert(...args);
     }
     return new WrappedOperation(this.wrapped.invert(...args), nextMeta);

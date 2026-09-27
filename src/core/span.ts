@@ -5,7 +5,7 @@ export interface Annotation {
   equals(other: unknown): boolean;
 }
 
-export class Span<T = any> {
+export class Span<T = Annotation> {
   pos: number;
   length: number;
   annotation?: T;
