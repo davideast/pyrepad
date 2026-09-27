@@ -3,6 +3,8 @@
  */
 import type { Extension } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
+import type { TextOperation } from "../core/index.ts";
+import type { Listener } from "../core/emitter.ts";
 
 export interface CursorLike {
   position: number;
@@ -74,7 +76,25 @@ export interface DecorationManagerSeam {
   getActiveWidgetCount(): number;
 }
 
+/** Listener argument tuples for the events the editor adapters trigger. */
+export type EditorEvents = {
+  change: [operation: TextOperation, inverse: TextOperation];
+  cursor: [cursor: CursorLike | null];
+  focus: [];
+  blur: [];
+};
+
 export interface EditorSeam {
+  on<K extends keyof EditorEvents>(
+    event: K,
+    fn: Listener<EditorEvents[K]>,
+  ): void;
+  off<K extends keyof EditorEvents>(
+    event: K,
+    fn?: Listener<EditorEvents[K]>,
+  ): void;
+  setOtherCursor(data: PresenceState): unknown;
+  clearCursor(clientId: string): void;
   onChange(editor: unknown, changes: unknown): void;
   applyOperation(operation: unknown): void;
   onCursorActivity(): void;

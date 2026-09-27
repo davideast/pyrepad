@@ -4,6 +4,7 @@
  */
 import {
   EditorSeam,
+  EditorEvents,
   CodeMirrorLike,
   CursorLike,
   BookmarkLike,
@@ -12,14 +13,17 @@ import {
 } from "./types.ts";
 import { PresenceDecorationManager } from "./presence-decoration-manager.ts";
 import { TextOperation } from "../core/index.ts";
+import { Emitter } from "../core/emitter.ts";
 
 type Callback = (...args: any[]) => void;
 
-export class CodeMirror5Adapter implements EditorSeam {
+export class CodeMirror5Adapter
+  extends Emitter<EditorEvents>
+  implements EditorSeam
+{
   private cm: any;
   private rtcm: any;
   readonly decorations: PresenceDecorationManager;
-  private callbacks: Record<string, Callback[]> = {};
   private disposed = false;
   private changeHandler: any;
   private cursorActivityHandler: any;
@@ -27,6 +31,7 @@ export class CodeMirror5Adapter implements EditorSeam {
   private blurHandler: any;
 
   constructor(rtcmOrCm: any) {
+    super();
     const hasGetCodeMirror = typeof rtcmOrCm.getCodeMirror === "function";
     if (hasGetCodeMirror) {
       this.rtcm = rtcmOrCm;
@@ -70,23 +75,7 @@ export class CodeMirror5Adapter implements EditorSeam {
       const fn = callbacks[key];
       const isFn = typeof fn === "function";
       if (isFn) {
-        this.on(key, fn!);
-      }
-    }
-  }
-
-  on(event: string, fn: Callback): void {
-    const isNewEvent = !this.callbacks[event];
-    if (isNewEvent) this.callbacks[event] = [];
-    this.callbacks[event].push(fn);
-  }
-
-  trigger(event: string, ...args: unknown[]): void {
-    const handlers = this.callbacks[event];
-    const hasHandlers = Boolean(handlers && handlers.length > 0);
-    if (hasHandlers) {
-      for (const fn of [...handlers]) {
-        fn(...args);
+        this.on(key as keyof EditorEvents, fn!);
       }
     }
   }
@@ -263,7 +252,7 @@ export class CodeMirror5Adapter implements EditorSeam {
 
     this.disposed = true;
     this.decorations.dispose();
-    this.callbacks = {};
+    this.off();
 
     const hasOffMethod = Boolean(this.cm && typeof this.cm.off === "function");
     if (!hasOffMethod) return;

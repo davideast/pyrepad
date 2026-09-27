@@ -3,19 +3,20 @@
  * Coordinates modular stream handlers well within all complexity guardrails.
  */
 import { TextOperation } from "../core/index.ts";
+import { Emitter } from "../core/emitter.ts";
 import {
   SyncSeam,
   RefLike,
   SnapLike,
   CommitAck,
   AdapterCallbacks,
+  AdapterEvents,
+  AgentivePresenceEvent,
   isValidRef,
 } from "./types.ts";
 import { HistoryStreamHandler } from "./streams/history-stream.ts";
 import { PresenceStreamHandler } from "./streams/presence-stream.ts";
 import { AgentiveStreamHandler } from "./streams/agentive-stream.ts";
-
-type EventCallback = (...args: any[]) => void;
 
 /** Bounds commit re-attempts after a lost revision race; `schedule` is injectable for tests. */
 export interface RetryPolicy {
@@ -26,13 +27,15 @@ export interface RetryPolicy {
 
 type CommitSettle = { resolve(a: CommitAck): void; reject(e: Error): void };
 
-export abstract class AbstractSyncAdapter implements SyncSeam {
+export abstract class AbstractSyncAdapter
+  extends Emitter<AdapterEvents>
+  implements SyncSeam
+{
   protected ref: RefLike | null = null;
   protected userId: string = "";
   protected userColor: string = "#000000";
   protected ready = false;
   protected disposed = false;
-  protected listeners: Record<string, EventCallback[]> = {};
   public callbacks: AdapterCallbacks = {};
   public retryPolicy: RetryPolicy = {
     maxRetries: 5,
@@ -40,6 +43,7 @@ export abstract class AbstractSyncAdapter implements SyncSeam {
     schedule: (fn, delayMs) => void setTimeout(fn, delayMs),
   };
   private pendingCommits = new Set<CommitSettle>();
+  private readyWaiters = new Set<(err: Error) => void>();
 
   protected historyHandler!: HistoryStreamHandler;
   protected presenceHandler!: PresenceStreamHandler;
@@ -73,7 +77,9 @@ export abstract class AbstractSyncAdapter implements SyncSeam {
       (id, cursor, c) => this.trigger("cursor", id, cursor, c),
     );
 
-    this.agentiveHandler = new AgentiveStreamHandler(this.ref);
+    this.agentiveHandler = new AgentiveStreamHandler(this.ref, (event) =>
+      this.trigger("agentive", event),
+    );
   }
 
   get operations() {
@@ -146,48 +152,29 @@ export abstract class AbstractSyncAdapter implements SyncSeam {
     }
   }
 
-  on(event: string, callback: EventCallback): void {
-    const isNewEvent = !this.listeners[event];
-    if (isNewEvent) this.listeners[event] = [];
-    this.listeners[event].push(callback);
+  /** Resolves once the initial history is composed; see `SyncSeam.whenReady`. */
+  whenReady(): Promise<void> {
+    if (this.disposed) {
+      return Promise.reject(new Error("Adapter disposed before ready"));
+    }
+    if (this.ready) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      this.readyWaiters.add(reject);
+      this.once("ready", () => {
+        this.readyWaiters.delete(reject);
+        resolve();
+      });
+    });
   }
 
-  once(event: string, callback: EventCallback): void {
-    const onceWrapper: EventCallback = (...args: unknown[]) => {
-      this.off(event, onceWrapper);
-      callback(...args);
-    };
-    this.on(event, onceWrapper);
-  }
-
-  off(event: string, callback?: EventCallback): void {
-    const hasEvent = Boolean(this.listeners[event]);
-    if (!hasEvent) return;
-    if (!callback) {
-      delete this.listeners[event];
-    } else {
-      this.listeners[event] = this.listeners[event].filter(
-        (cb) => cb !== callback,
-      );
-    }
-  }
-
-  trigger(event: string, ...args: unknown[]): void {
-    const callbacks = this.listeners[event];
-    const hasListeners = Boolean(callbacks && callbacks.length > 0);
-    if (hasListeners) {
-      for (const cb of [...callbacks]) {
-        cb(...args);
-      }
-    }
-    const reg = this.callbacks as Record<
-      string,
-      ((...a: unknown[]) => void) | undefined
-    >;
-    const handler = reg[event];
-    if (typeof handler === "function") {
-      handler!(...args);
-    }
+  /** Also forwards to the matching `registerCallbacks` entry. */
+  override trigger<K extends keyof AdapterEvents>(
+    event: K,
+    ...args: AdapterEvents[K]
+  ): void {
+    super.trigger(event, ...args);
+    const handler = (this.callbacks as Record<string, unknown>)[event];
+    if (typeof handler === "function") handler(...args);
   }
 
   registerCallbacks(callbacks: AdapterCallbacks): void {
@@ -270,14 +257,25 @@ export abstract class AbstractSyncAdapter implements SyncSeam {
     return this.presenceHandler.broadcastPresence(cursor);
   }
 
+  broadcastAgentive(event: AgentivePresenceEvent): Promise<void>;
+  /** @deprecated Pass a single `AgentivePresenceEvent` instead. */
   broadcastAgentive(
     agentId: string,
     status: string,
     ghostDiff?: unknown,
     explanation?: string,
+  ): Promise<void>;
+  broadcastAgentive(
+    eventOrAgentId: AgentivePresenceEvent | string,
+    status?: string,
+    ghostDiff?: unknown,
+    explanation?: string,
   ): Promise<void> {
+    if (typeof eventOrAgentId === "object") {
+      return this.agentiveHandler.broadcastAgentive(eventOrAgentId);
+    }
     return this.agentiveHandler.broadcastAgentive(
-      agentId,
+      eventOrAgentId,
       status,
       ghostDiff,
       explanation,
@@ -304,10 +302,14 @@ export abstract class AbstractSyncAdapter implements SyncSeam {
     this.disposed = true;
     this.ready = false;
     this.callbacks = {};
-    this.listeners = {};
+    this.off();
     for (const settle of [...this.pendingCommits]) {
       settle.reject(new Error("Adapter disposed before commit settled"));
     }
+    for (const reject of [...this.readyWaiters]) {
+      reject(new Error("Adapter disposed before ready"));
+    }
+    this.readyWaiters.clear();
 
     const refValid = isValidRef(this.ref);
     if (refValid) {

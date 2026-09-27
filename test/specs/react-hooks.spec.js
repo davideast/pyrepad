@@ -48,12 +48,22 @@ function createFakeSeam(opts) {
     dispose: function () {
       return Promise.resolve();
     },
+    // Without `readiness` the fake never becomes ready, so defaultText never seeds.
+    whenReady: function () {
+      return new Promise(function () {});
+    },
   };
   if (options.readiness) {
     seam.isReady = false;
     seam.historyEmpty = true;
     seam.once = function (event, cb) {
       if (event === "ready") readyListeners.push(cb);
+    };
+    seam.whenReady = function () {
+      if (seam.isReady) return Promise.resolve();
+      return new Promise(function (resolve) {
+        readyListeners.push(resolve);
+      });
     };
     seam.isHistoryEmpty = function () {
       if (!seam.isReady) throw new Error("not ready");
@@ -84,6 +94,11 @@ function createFakeEditor(text) {
     disposed: false,
     on: function (event, fn) {
       (handlers[event] = handlers[event] || []).push(fn);
+    },
+    off: function (event, fn) {
+      handlers[event] = (handlers[event] || []).filter(function (h) {
+        return h !== fn;
+      });
     },
     fire: function (event) {
       var args = Array.prototype.slice.call(arguments, 1);

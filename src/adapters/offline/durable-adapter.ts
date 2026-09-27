@@ -4,37 +4,44 @@
  * and multi-revision Operational Transform rebase and rollback resolution.
  */
 import { TextOperation } from "../../core/index.ts";
+import { Emitter } from "../../core/emitter.ts";
 import {
   SyncSeam,
   CommitAck,
   AdapterCallbacks,
+  AdapterEvents,
   TextOperationEvent,
   PresenceEvent,
   AgentivePresenceEvent,
+  OfflineConflictEvent,
 } from "../types.ts";
+import type { AbstractSyncAdapter } from "../base-adapter.ts";
 import { StorageEngineSeam, IndexedDBStorageEngine } from "./storage-engine.ts";
 import {
   OfflineRevisionQueue,
   PendingRevisionRecord,
 } from "./revision-queue.ts";
-import { ConflictListeners } from "./conflict-event.ts";
 
-type EventCallback = (...args: any[]) => void;
+export type { OfflineConflictEvent } from "../types.ts";
 
-export type { OfflineConflictEvent } from "./conflict-event.ts";
+/** Any network adapter: the rest of AbstractSyncAdapter's API is optional (JS networks may omit it). */
+export type DurableNetwork = SyncSeam &
+  Partial<Omit<AbstractSyncAdapter, keyof SyncSeam>>;
+
+type AnyListener = (...args: any[]) => void;
 
 export class OfflineDurableAdapter implements SyncSeam {
-  readonly network: SyncSeam;
+  readonly network: DurableNetwork;
   readonly queue: OfflineRevisionQueue;
   private disposed = false;
   private currentRevision = 0;
   private onlineHandler: (() => void) | null = null;
   private inFlight: Promise<Map<string, CommitAck>> | null = null;
-  private conflicts = new ConflictListeners();
+  private conflicts = new Emitter<{ conflict: [OfflineConflictEvent] }>();
   public callbacks: AdapterCallbacks = {};
 
   constructor(
-    network: SyncSeam,
+    network: DurableNetwork,
     storage?: StorageEngineSeam,
     docId: string = "default_doc",
   ) {
@@ -46,10 +53,10 @@ export class OfflineDurableAdapter implements SyncSeam {
   }
 
   private bindNetworkEvents(): void {
-    const hasOnMethod = typeof (this.network as any).on === "function";
+    const hasOnMethod = typeof this.network.on === "function";
     if (!hasOnMethod) return;
 
-    (this.network as any).on("operation", (_op: any) => {
+    this.network.on("operation", () => {
       this.currentRevision++;
     });
 
@@ -65,8 +72,8 @@ export class OfflineDurableAdapter implements SyncSeam {
       }
     };
 
-    (this.network as any).on("ready", triggerReconcile);
-    (this.network as any).on("worker_sync", triggerReconcile);
+    this.network.on("ready", triggerReconcile);
+    this.network.on("worker_sync", triggerReconcile);
   }
 
   private bindGlobalOnlineTrigger(): void {
@@ -189,7 +196,7 @@ export class OfflineDurableAdapter implements SyncSeam {
     } catch (err) {
       // Unresolvable: roll the record back and hand the dropped op to the caller.
       await this.queue.dequeue(item.id);
-      this.conflicts.emit({
+      this.conflicts.trigger("conflict", {
         recordId: item.id,
         author: item.author,
         revision: item.revision,
@@ -219,47 +226,58 @@ export class OfflineDurableAdapter implements SyncSeam {
     return TextOperation.fromJSON(payload as any[]);
   }
 
-  private delegateToNetwork(method: string, ...args: unknown[]): unknown {
-    const fn = (this.network as any)[method];
-    const isCallable = typeof fn === "function";
-    if (isCallable) {
-      return fn.apply(this.network, args);
-    }
-    return undefined;
-  }
-
   broadcastPresence(cursor: unknown): Promise<void> {
     return this.network.broadcastPresence(cursor);
   }
 
+  broadcastAgentive(event: AgentivePresenceEvent): Promise<void>;
+  /** @deprecated Pass a single `AgentivePresenceEvent` instead. */
   broadcastAgentive(
     agentId: string,
     status: string,
     ghostDiff?: unknown,
-    exp?: string,
+    explanation?: string,
+  ): Promise<void>;
+  broadcastAgentive(
+    eventOrAgentId: AgentivePresenceEvent | string,
+    status?: string,
+    ghostDiff?: unknown,
+    explanation?: string,
   ): Promise<void> {
-    return this.network.broadcastAgentive(agentId, status, ghostDiff, exp);
+    const net = this.network;
+    return typeof eventOrAgentId === "object"
+      ? net.broadcastAgentive(eventOrAgentId)
+      : net.broadcastAgentive(eventOrAgentId, status, ghostDiff, explanation);
   }
 
-  on(event: string, callback: EventCallback): void {
-    if (event === "conflict") return this.conflicts.on(callback);
-    this.delegateToNetwork("on", event, callback);
+  whenReady(): Promise<void> {
+    // A JS network written before `whenReady` existed is treated as ready.
+    return this.network.whenReady?.() ?? Promise.resolve();
   }
-  once(event: string, callback: EventCallback): void {
-    if (event === "conflict") return this.conflicts.once(callback);
-    this.delegateToNetwork("once", event, callback);
+
+  // "conflict" is this adapter's own event; every other event is the network's.
+  on(event: keyof AdapterEvents | "conflict", callback: AnyListener): void {
+    if (event === "conflict") this.conflicts.on(event, callback);
+    else this.network.on?.(event, callback);
   }
-  off(event: string, callback?: EventCallback): void {
-    if (event === "conflict") return this.conflicts.off(callback);
-    this.delegateToNetwork("off", event, callback);
+  once(event: keyof AdapterEvents | "conflict", callback: AnyListener): void {
+    if (event === "conflict") this.conflicts.once(event, callback);
+    else this.network.once?.(event, callback);
   }
-  trigger(event: string, ...args: unknown[]): void {
-    this.delegateToNetwork("trigger", event, ...args);
+  off(event: keyof AdapterEvents | "conflict", callback?: AnyListener): void {
+    if (event === "conflict") this.conflicts.off(event, callback);
+    else this.network.off?.(event, callback);
+  }
+  trigger<K extends keyof AdapterEvents>(
+    event: K,
+    ...args: AdapterEvents[K]
+  ): void {
+    this.network.trigger?.(event, ...args);
   }
 
   registerCallbacks(callbacks: AdapterCallbacks): void {
     this.callbacks = callbacks || {};
-    this.delegateToNetwork("registerCallbacks", callbacks);
+    this.network.registerCallbacks?.(callbacks);
   }
 
   sendOperation(
@@ -279,21 +297,21 @@ export class OfflineDurableAdapter implements SyncSeam {
   }
 
   sendCursor(cursor: unknown): void {
-    this.delegateToNetwork("sendCursor", cursor);
+    this.network.sendCursor?.(cursor);
   }
 
   isHistoryEmpty(): boolean {
-    const res = this.delegateToNetwork("isHistoryEmpty");
-    const isDefined = res !== undefined && res !== null;
-    if (isDefined) return Boolean(res);
+    // A JS network without `isHistoryEmpty` falls back to the revisions seen here.
+    const res = this.network.isHistoryEmpty?.();
+    if (res !== undefined && res !== null) return Boolean(res);
     return this.currentRevision === 0;
   }
 
   setColor(color: string): void {
-    this.delegateToNetwork("setColor", color);
+    this.network.setColor?.(color);
   }
   setUserId(id: string): void {
-    this.delegateToNetwork("setUserId", id);
+    this.network.setUserId?.(id);
   }
 
   isDisposed(): boolean {
