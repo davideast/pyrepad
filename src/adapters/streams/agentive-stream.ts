@@ -15,9 +15,14 @@ import { ReactiveStream } from "../reactive-stream.ts";
 export class AgentiveStreamHandler {
   readonly stream = new ReactiveStream<AgentivePresenceEvent>();
   private ref: RefLike | null;
+  private onAgentive?: (event: AgentivePresenceEvent) => void;
 
-  constructor(ref: RefLike | null) {
+  constructor(
+    ref: RefLike | null,
+    onAgentive?: (event: AgentivePresenceEvent) => void,
+  ) {
     this.ref = ref;
+    this.onAgentive = onAgentive;
   }
 
   startMonitoring(): void {
@@ -42,7 +47,7 @@ export class AgentiveStreamHandler {
     const hasStatus = typeof data.status === "string";
     if (!hasStatus) return;
 
-    this.stream.push({
+    const event: AgentivePresenceEvent = {
       agentId: agentId!,
       status: data.status as string,
       ghostDiff:
@@ -50,23 +55,39 @@ export class AgentiveStreamHandler {
           ? (data.ghostDiff as Record<string, unknown>)
           : null,
       explanation: typeof data.explanation === "string" ? data.explanation : "",
-    });
+    };
+    this.stream.push(event);
+    this.onAgentive?.(event);
   }
 
+  broadcastAgentive(event: AgentivePresenceEvent): Promise<void>;
+  /** @deprecated Pass a single `AgentivePresenceEvent` instead. */
   broadcastAgentive(
     agentId: string,
     status: string,
     ghostDiff?: unknown,
     explanation?: string,
+  ): Promise<void>;
+  broadcastAgentive(
+    eventOrAgentId: AgentivePresenceEvent | string,
+    status?: string,
+    ghostDiffArg?: unknown,
+    explanationArg?: string,
   ): Promise<void> {
     const refInvalid = !isValidRef(this.ref);
     if (refInvalid) return Promise.resolve();
+
+    const isEvent = typeof eventOrAgentId === "object";
+    const agentId = isEvent ? eventOrAgentId.agentId : eventOrAgentId;
+    const ghostDiff = isEvent ? eventOrAgentId.ghostDiff : ghostDiffArg;
+    const explanation = isEvent ? eventOrAgentId.explanation : explanationArg;
+    const nextStatus = isEvent ? eventOrAgentId.status : status;
 
     const diffData = ghostDiff ? toSafeJSON(ghostDiff) : null;
     const agentiveRef = this.ref!.child("agentive/" + agentId);
     return Promise.resolve(
       agentiveRef.set({
-        status,
+        status: nextStatus,
         ghostDiff: diffData,
         explanation: explanation || "",
         timestamp: Date.now(),

@@ -74,6 +74,11 @@ export function toSafeJSON(payload: unknown): unknown {
   return payload;
 }
 
+export interface OnDisconnectLike {
+  remove(): Promise<void> | void;
+  cancel(): Promise<void> | void;
+}
+
 export interface RefLike {
   child(path: string): RefLike;
   root?: RefLike;
@@ -82,6 +87,7 @@ export interface RefLike {
   off(event?: string, callback?: (snap: SnapLike) => void): void;
   set(value: unknown): Promise<void> | void;
   remove(): Promise<void> | void;
+  onDisconnect?(): OnDisconnectLike;
   transaction?(
     updateFn: (current: unknown) => unknown,
     onComplete?: (
