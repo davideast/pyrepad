@@ -1,7 +1,7 @@
 /**
  * Independent protocol stream handler for collaborative user cursor presence.
  */
-import { Cursor } from "../../core/index.ts";
+import { Cursor } from "../../core/index.js";
 import {
   RefLike,
   SnapLike,
@@ -10,8 +10,8 @@ import {
   getSnapVal,
   isValidRef,
   toSafeJSON,
-} from "../types.ts";
-import { ReactiveStream } from "../reactive-stream.ts";
+} from "../types.js";
+import { ReactiveStream } from "../reactive-stream.js";
 
 export class PresenceStreamHandler {
   readonly stream = new ReactiveStream<PresenceEvent>();

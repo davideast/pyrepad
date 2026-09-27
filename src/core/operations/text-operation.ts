@@ -1,17 +1,17 @@
 /**
  * Operational Transformation text document operation.
  */
-import { TextOp } from "./text-op.ts";
+import { TextOp } from "./text-op.js";
 import {
   composeOperations,
   shouldBeComposedWith,
   shouldBeComposedWithInverted,
-} from "./composition-math.ts";
+} from "./composition-math.js";
 import {
   transformAttributes,
   transformOperations,
-} from "./transformation-math.ts";
-import { applyRetain, applyInsert } from "./apply-math.ts";
+} from "./transformation-math.js";
+import { applyRetain, applyInsert } from "./apply-math.js";
 
 export class TextOperation {
   ops: TextOp[];

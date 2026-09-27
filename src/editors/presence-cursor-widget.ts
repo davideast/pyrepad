@@ -1,8 +1,8 @@
 /**
  * CodeMirror 5 remote presence caret widget with a username tooltip.
  */
-import { CursorWidgetSeam } from "./types.ts";
-import { PresenceWidgetBase } from "./presence-widget-base.ts";
+import { CursorWidgetSeam } from "./types.js";
+import { PresenceWidgetBase } from "./presence-widget-base.js";
 
 export class PresenceCursorWidget
   extends PresenceWidgetBase

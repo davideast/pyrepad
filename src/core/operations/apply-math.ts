@@ -1,7 +1,7 @@
 /**
  * Applies a TextOperation to a string and its per-character attributes.
  */
-import { TextOp } from "./text-op.ts";
+import { TextOp } from "./text-op.js";
 
 export interface ApplyCtx {
   str: string;

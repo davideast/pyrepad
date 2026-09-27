@@ -30,5 +30,7 @@ fs.writeFileSync(path.join(distDir, 'firepad.js'), bundle);
 if (fs.existsSync(path.join(root, 'lib/firepad.css'))) {
   fs.copyFileSync(path.join(root, 'lib/firepad.css'), path.join(distDir, 'firepad.css'));
 }
-fs.writeFileSync(path.join(distDir, 'firepad.min.js'), bundle);
+// P1: a real minification of the same bundle; `/*!` legal comments are kept.
+const minified = esbuild.transformSync(bundle, { minify: true, legalComments: 'inline', logLevel: 'silent' });
+fs.writeFileSync(path.join(distDir, 'firepad.min.js'), minified.code);
 console.log('Successfully built dist/seam.iife.js, dist/firepad.js, dist/firepad.min.js, and dist/firepad.css!');

@@ -2,8 +2,8 @@
  * Abstract synchronization adapter implementing common SyncSeam boilerplate.
  * Wires the history, presence, and agentive stream handlers to one document ref.
  */
-import { TextOperation } from "../core/index.ts";
-import { Emitter } from "../core/emitter.ts";
+import { TextOperation } from "../core/index.js";
+import { Emitter } from "../core/emitter.js";
 import {
   SyncSeam,
   RefLike,
@@ -13,10 +13,10 @@ import {
   AdapterEvents,
   AgentivePresenceEvent,
   isValidRef,
-} from "./types.ts";
-import { HistoryStreamHandler } from "./streams/history-stream.ts";
-import { PresenceStreamHandler } from "./streams/presence-stream.ts";
-import { AgentiveStreamHandler } from "./streams/agentive-stream.ts";
+} from "./types.js";
+import { HistoryStreamHandler } from "./streams/history-stream.js";
+import { PresenceStreamHandler } from "./streams/presence-stream.js";
+import { AgentiveStreamHandler } from "./streams/agentive-stream.js";
 
 /** Bounds commit re-attempts after a lost revision race; `schedule` is injectable for tests. */
 export interface RetryPolicy {

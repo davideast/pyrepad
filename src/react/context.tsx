@@ -3,7 +3,7 @@
  * available to the hooks below it.
  */
 import React, { createContext, useContext, useState, useMemo } from "react";
-import { SyncSeam } from "../adapters/types.ts";
+import { SyncSeam } from "../adapters/types.js";
 
 export interface PyrepadContextValue {
   adapter: SyncSeam | null;

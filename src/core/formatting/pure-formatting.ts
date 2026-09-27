@@ -1,7 +1,7 @@
 /**
  * Pure formatting and markdown translation without DOM dependencies.
  */
-import { TextOperation } from "../operations/text-operation.ts";
+import { TextOperation } from "../operations/text-operation.js";
 
 export function toAST(operation: any): any[] {
   const ast: any[] = [];

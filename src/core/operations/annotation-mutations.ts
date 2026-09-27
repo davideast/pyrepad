@@ -8,7 +8,7 @@ import {
   OldAnnotatedSpan,
   NewAnnotatedSpan,
   Span,
-} from "./annotation-node.ts";
+} from "./annotation-node.js";
 
 export interface AffectedNodesResult {
   startPos: number;

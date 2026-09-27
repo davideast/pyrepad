@@ -12,13 +12,13 @@
  * The binding lives in an effect and refs, so edits never cause a React render.
  */
 import { useEffect, useRef, useState, useContext } from "react";
-import { SyncSeam, PresenceEvent } from "../adapters/types.ts";
-import { EditorSeam, CursorLike } from "../editors/types.ts";
-import { CodeMirror5Adapter } from "../editors/codemirror-adapter.ts";
-import { CodeMirror6Adapter } from "../editors/codemirror6-adapter.ts";
-import { TextOperation } from "../core/index.ts";
-import { PyrepadContext, useResolvedAdapter } from "./context.tsx";
-import { consumeStream } from "./consume-stream.ts";
+import { SyncSeam, PresenceEvent } from "../adapters/types.js";
+import { EditorSeam, CursorLike } from "../editors/types.js";
+import { CodeMirror5Adapter } from "../editors/codemirror-adapter.js";
+import { CodeMirror6Adapter } from "../editors/codemirror6-adapter.js";
+import { TextOperation } from "../core/index.js";
+import { PyrepadContext, useResolvedAdapter } from "./context.js";
+import { consumeStream } from "./consume-stream.js";
 
 export interface UsePyrepadEditorOptions {
   adapter?: SyncSeam | null;

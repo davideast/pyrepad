@@ -2,8 +2,8 @@
  * Firebase Realtime Database adapter implementing SyncSeam.
  * Accepts namespaced refs, or modular refs plus the v9+ functions in `FirebaseModularConfig`.
  */
-import { RefLike, SnapLike, isValidRef } from "./types.ts";
-import { AbstractSyncAdapter } from "./base-adapter.ts";
+import { RefLike, SnapLike, isValidRef } from "./types.js";
+import { AbstractSyncAdapter } from "./base-adapter.js";
 
 type SnapCallback = (snap: SnapLike) => void;
 type Unsubscribe = () => void;

@@ -3,9 +3,9 @@
  * `agentive` stream.
  */
 import { useEffect, useState, useTransition } from "react";
-import { SyncSeam } from "../adapters/types.ts";
-import { useResolvedAdapter } from "./context.tsx";
-import { consumeStream } from "./consume-stream.ts";
+import { SyncSeam } from "../adapters/types.js";
+import { useResolvedAdapter } from "./context.js";
+import { consumeStream } from "./consume-stream.js";
 
 export interface AgentiveDiffState {
   agentId: string;

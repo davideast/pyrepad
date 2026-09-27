@@ -10,8 +10,7 @@
     "strict": false,
     "noEmit": true,
     "skipLibCheck": true,
-    "esModuleInterop": true,
-    "allowImportingTsExtensions": true
+    "esModuleInterop": true
   },
   "include": ["lib/**/*.d.ts", "src/**/*.ts", "src/**/*.tsx"]
 }

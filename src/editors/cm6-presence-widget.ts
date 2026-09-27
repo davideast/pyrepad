@@ -3,8 +3,8 @@
  * `Decoration.widget` by the presence ViewPlugin.
  */
 import { WidgetType } from "@codemirror/view";
-import { CM6WidgetLike } from "./types.ts";
-import { PresenceWidgetBase } from "./presence-widget-base.ts";
+import { CM6WidgetLike } from "./types.js";
+import { PresenceWidgetBase } from "./presence-widget-base.js";
 
 export class CM6PresenceWidget extends WidgetType implements CM6WidgetLike {
   readonly clientId: string;

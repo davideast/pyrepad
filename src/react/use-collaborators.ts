@@ -3,9 +3,9 @@
  * stream. Only presence events re-render; document edits do not.
  */
 import { useEffect, useState, useTransition } from "react";
-import { SyncSeam, PresenceEvent } from "../adapters/types.ts";
-import { useResolvedAdapter } from "./context.tsx";
-import { consumeStream } from "./consume-stream.ts";
+import { SyncSeam, PresenceEvent } from "../adapters/types.js";
+import { useResolvedAdapter } from "./context.js";
+import { consumeStream } from "./consume-stream.js";
 
 export interface CollaboratorPresence {
   userId: string;
