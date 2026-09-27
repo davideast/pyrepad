@@ -186,3 +186,26 @@ Status/Context/Decision/Consequences; ADR-0002 records the A1 decision.
 - [ ] After Wave 2: run the hosted-mode two-client probe (`examples/pyric-studio-live.html`)
       manually and record the result in CHANGELOG.
 - [ ] After Wave 3: `npm pack --dry-run`, `publint`, fresh-clone `bun install --frozen-lockfile`.
+
+## Wave 4 — Findings raised during Waves 2–3 (owner-approved 2026-09-27)
+
+**T15 `react-ot-client`** (C7, raised by T8) — owns `src/adapters/**` (a new `ot-client.ts` or
+similar next to `base-adapter.ts`), `src/react/use-pyrepad-editor.ts` (only the commit/apply
+path), new specs. The `src` path applies remote `operations` events without transforming them
+against local ops still in flight, and the adapter's retry re-sends the same op untransformed.
+Port the client state machine (`Synchronized` / `AwaitingConfirm` / `AwaitingWithBuffer`, see
+`lib/client.js` and `lib/editor-client.js`) into `src/adapters` so that everything above
+`commitOperation`/`operations` sees a converged document. Red spec: two `usePyrepadEditor`
+instances (or two `EditorSeam` fakes) over one sandbox adapter pair, interleaved concurrent edits
+with delayed acks, must converge to the same text; today they diverge.
+
+**T16 `react-demo-hosted`** (raised by T14) — owns `examples/react-demo-main.tsx`,
+`examples/react-collaborative-demo.html`, `examples/README.md`. The demo builds its adapters with
+a `null` ref, so seeding is rejected and the agent badge never shows; it papers over this with a
+manual `setValue` peer sync. Back both editors with a real ref from the hosted sandbox
+(`firebase/database` modular imports, as `examples/pyric-studio-live.html` does) through
+`PyricSandboxAdapter`/`FirebaseAdapter`, delete the manual peer sync, and verify in a browser under
+the hosted dev server: zero console errors/warnings, `defaultText` seeded once, an edit in one
+editor appears in the other, the agentive badge appears after `broadcastAgentive`.
+
+Merge order: T15 → T16; T16 is re-verified after T15 lands.
