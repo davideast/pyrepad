@@ -189,7 +189,7 @@ describe("CodeMirror6Adapter against a real EditorView", () => {
 
     for (let k = 0; k < 25; k++) {
       const view = k % 2 === 0 ? viewAlice : viewBob;
-      const pos = Math.floor(Math.random() * view.state.doc.length);
+      const pos = helpers.randomInt(view.state.doc.length);
       view.dispatch({ changes: { from: pos, insert: " [edit " + k + "]" } });
     }
 
