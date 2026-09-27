@@ -8,7 +8,11 @@ Current examples, built against this repo's `dist/` bundle and `src/` modules:
   * [`offline-indexeddb-demo.html`](./offline-indexeddb-demo.html) - Offline editing with an
   IndexedDB-backed durable adapter.
   * [`react-collaborative-demo.html`](./react-collaborative-demo.html) with
-  [`react-demo-main.tsx`](./react-demo-main.tsx) - React hooks demo (run with `bun run dev`).
+  [`react-demo-main.tsx`](./react-demo-main.tsx) - React hooks demo: two `CollaborativeEditor`s,
+  each with its own `FirebaseAdapter` on one path of the hosted Pyric sandbox (`firebase/database`
+  modular imports, mapped to Pyric by `@pyric/cli/vite`). Run with `bun run dev` (needs the
+  repo-root `database.rules.json`) and open `/examples/react-collaborative-demo.html`; add
+  `?room=<name>` to start from an empty document.
 
 ## Legacy examples
 
