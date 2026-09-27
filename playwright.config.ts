@@ -1,5 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
+// Each parallel worktree needs its own dev server; override with PW_PORT.
+const port = process.env.PW_PORT || "5188";
+
 export default defineConfig({
   testDir: "./test/e2e-playwright",
   timeout: 30000,
@@ -12,7 +15,7 @@ export default defineConfig({
   workers: 1,
   reporter: process.env.CI ? "github" : "list",
   use: {
-    baseURL: "http://127.0.0.1:5188",
+    baseURL: `http://127.0.0.1:${port}`,
     trace: "on-first-retry",
   },
   projects: [
@@ -22,8 +25,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "bun run build && bun run vite --port 5188 --strictPort --host 127.0.0.1",
-    url: "http://127.0.0.1:5188/test/e2e-playwright/fixture.html",
+    command: `bun run build && bun run vite --port ${port} --strictPort --host 127.0.0.1`,
+    url: `http://127.0.0.1:${port}/test/e2e-playwright/fixture.html`,
     reuseExistingServer: !process.env.CI,
     stdout: "ignore",
     stderr: "pipe",
