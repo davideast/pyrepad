@@ -3,7 +3,6 @@ import {
   PyricSandboxAdapter,
   FirebaseAdapter,
   FirebaseModularAdapter,
-  FirestoreAdapter,
   SharedWorkerAdapter,
   OfflineDurableAdapter,
   IndexedDBAdapter,
@@ -181,8 +180,47 @@ verifySyncAdapterContract("FirebaseModularAdapter (Alias)", function (ref, userI
   return new FirebaseModularAdapter(ref, userId, color);
 });
 
-verifySyncAdapterContract("FirestoreAdapter (Alias)", function (ref, userId, color) {
-  return new FirestoreAdapter(ref, userId, color);
+// Modular (v9-style) bindings over the sandbox database. Targets are opaque boxes with no
+// .child/.on methods, as real modular DatabaseReferences are (only `.root`), so every
+// listener must be routed through the config's free functions.
+function createModularConfig(sandboxRef) {
+  function box(r) {
+    return {
+      __ref: r,
+      get root() { return r.root ? box(r.root) : undefined; },
+    };
+  }
+  function listen(event) {
+    return function (target, cb) {
+      target.__ref.on(event, cb);
+      return function () { target.__ref.off(event, cb); };
+    };
+  }
+  return {
+    ref: box(sandboxRef),
+    child: function (parent, path) { return box(parent.__ref.child(path)); },
+    onValue: listen("value"),
+    onChildAdded: listen("child_added"),
+    onChildChanged: listen("child_changed"),
+    onChildRemoved: listen("child_removed"),
+    get: function (target) {
+      return new Promise(function (resolve) { target.__ref.once("value", resolve); });
+    },
+    set: function (target, value) { return target.__ref.set(value); },
+    remove: function (target) { return target.__ref.remove(); },
+    runTransaction: function (target, update) {
+      return new Promise(function (resolve, reject) {
+        target.__ref.transaction(update, function (err, committed, snapshot) {
+          if (err) reject(err);
+          else resolve({ committed: committed, snapshot: snapshot });
+        });
+      });
+    },
+  };
+}
+
+verifySyncAdapterContract("FirebaseAdapter (modular config)", function (ref, userId, color) {
+  return new FirebaseAdapter(createModularConfig(ref), userId, color);
 });
 
 // Execute Tier B Pluggable Conformance Suite against SharedWorker multi-tab environment driver (Issue #12)
@@ -208,35 +246,133 @@ verifySyncAdapterContract("IndexedDBAdapter (Alias)", function (ref, userId, col
 });
 
 describe("Modular Tree-Shakable Firebase Bindings (Issue #12)", function () {
-  it("Wraps pure modular functions without requiring .child method attached directly on reference object", async function () {
-    var rawRef = { path: "/my-collaborative-doc" };
-    var childCalls = 0;
-    var onValueCalls = 0;
+  function snap(key, value) {
+    return { key: key, val: function () { return value; } };
+  }
 
-    var modularConfig = {
-      ref: rawRef,
-      child: function (parent, childPath) {
-        childCalls++;
-        return { path: (parent ? parent.path : "") + "/" + childPath };
-      },
-      onValue: function (targetRef, cb) {
-        onValueCalls++;
-        if (targetRef && targetRef.path && targetRef.path.indexOf("connected") !== -1) {
-          cb({ val: function () { return true; } });
-        }
-      },
-      once: function (targetRef, cb) {
-        if (targetRef && targetRef.path && targetRef.path.indexOf("history") !== -1) {
-          cb({ val: function () { return null; } });
-        }
-      },
-      off: function () {},
+  // A modular fake that records each registered listener per free function, keyed by
+  // target path, and returns an unsubscribe that records its invocation.
+  function createRecordingConfig() {
+    var rec = {
+      onValue: {},
+      onChildAdded: {},
+      onChildChanged: {},
+      onChildRemoved: {},
+      unsubscribed: [],
+      getCalls: [],
     };
+    function listen(name) {
+      return function (target, cb) {
+        rec[name][target.path] = cb;
+        return function () { rec.unsubscribed.push(name + ":" + target.path); };
+      };
+    }
+    var config = {
+      ref: { path: "/doc" },
+      child: function (parent, path) { return { path: parent.path + "/" + path }; },
+      onValue: listen("onValue"),
+      onChildAdded: listen("onChildAdded"),
+      onChildChanged: listen("onChildChanged"),
+      onChildRemoved: listen("onChildRemoved"),
+      get: function (target) {
+        rec.getCalls.push(target.path);
+        return Promise.resolve(snap(target.path.split("/").pop(), { seeded: true }));
+      },
+      set: function () {},
+      remove: function () {},
+    };
+    return { config: config, rec: rec };
+  }
 
-    var adapter = new FirebaseAdapter(modularConfig, "firebase-client", "#eab308");
-    await new Promise((resolve) => queueMicrotask(resolve));
-    expect(childCalls).toBeGreaterThan(0);
-    expect(onValueCalls).toBeGreaterThan(0);
+  function proxyFor(config) {
+    var adapter = new FirebaseAdapter(config, "modular-client", "#eab308");
+    return { adapter: adapter, ref: adapter.ref };
+  }
+
+  it("Routes child_added/changed/removed to the matching modular listener and delivers child snapshots with their keys", async function () {
+    var fake = createRecordingConfig();
+    var h = proxyFor(fake.config);
+    var history = h.ref.child("history-probe");
+
+    var added = [];
+    var changed = [];
+    var removed = [];
+    history.on("child_added", function (s) { added.push([s.key, s.val()]); });
+    history.on("child_changed", function (s) { changed.push([s.key, s.val()]); });
+    history.on("child_removed", function (s) { removed.push([s.key, s.val()]); });
+
+    expect(fake.rec.onValue["/doc/history-probe"]).toBeUndefined();
+    fake.rec.onChildAdded["/doc/history-probe"](snap("A0", { a: "x" }));
+    fake.rec.onChildChanged["/doc/history-probe"](snap("A0", { a: "y" }));
+    fake.rec.onChildRemoved["/doc/history-probe"](snap("A0", null));
+
+    expect(added).toEqual([["A0", { a: "x" }]]);
+    expect(changed).toEqual([["A0", { a: "y" }]]);
+    expect(removed).toEqual([["A0", null]]);
+    await h.adapter.dispose();
+  });
+
+  it("off() invokes the unsubscribe functions returned by modular listeners, including from a fresh child proxy", async function () {
+    var fake = createRecordingConfig();
+    var h = proxyFor(fake.config);
+
+    var received = [];
+    var cb = function (s) { received.push(s.key); };
+    h.ref.child("probe").on("child_added", cb);
+    h.ref.child("probe").on("value", cb);
+
+    h.ref.child("probe").off("child_added", cb);
+    expect(fake.rec.unsubscribed).toEqual(["onChildAdded:/doc/probe"]);
+
+    h.ref.child("probe").off();
+    expect(fake.rec.unsubscribed).toEqual([
+      "onChildAdded:/doc/probe",
+      "onValue:/doc/probe",
+    ]);
+    await h.adapter.dispose();
+  });
+
+  it("once('value') maps to modular get() and delivers its snapshot", async function () {
+    var fake = createRecordingConfig();
+    var h = proxyFor(fake.config);
+
+    var delivered = await new Promise(function (resolve) {
+      h.ref.child("probe-once").once("value", resolve);
+    });
+
+    expect(fake.rec.getCalls).toContain("/doc/probe-once");
+    expect(delivered.key).toBe("probe-once");
+    expect(delivered.val()).toEqual({ seeded: true });
+    expect(fake.rec.onValue["/doc/probe-once"]).toBeUndefined();
+    await h.adapter.dispose();
+  });
+
+  it("Delivers seeded history through modular child listeners so the adapter reaches ready with the document", async function () {
+    var db = globalThis.firepad.PyricSandbox.createDatabase();
+    var ref = db.ref("/test-modular-seeded");
+    ref.child("history/A0").set({
+      a: "seed",
+      o: new TextOperation().insert("hello").toJSON(),
+      t: Date.now(),
+    });
+
+    var adapter = new FirebaseAdapter(createModularConfig(ref), "late", "#00ff00");
+    var doc = await new Promise(function (resolve) {
+      var seen = null;
+      adapter.on("operation", function (op) { seen = op; });
+      adapter.on("ready", function () { resolve(seen); });
+    });
+    expect(doc.toString()).toBe("insert 'hello'");
+
+    var live = new Promise(function (resolve) {
+      adapter.on("operation", function (op) { resolve(op.toString()); });
+    });
+    ref.child("history/A1").set({
+      a: "other",
+      o: new TextOperation().retain(5).insert("!").toJSON(),
+      t: Date.now(),
+    });
+    expect(await live).toBe("retain 5, insert '!'");
     await adapter.dispose();
   });
 });
