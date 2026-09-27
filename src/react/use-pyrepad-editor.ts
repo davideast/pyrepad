@@ -13,7 +13,7 @@
  */
 import { useEffect, useRef, useState, useContext } from "react";
 import { SyncSeam, PresenceEvent } from "../adapters/types.ts";
-import { EditorSeam, PresenceState, CursorLike } from "../editors/types.ts";
+import { EditorSeam, CursorLike } from "../editors/types.ts";
 import { CodeMirror5Adapter } from "../editors/codemirror-adapter.ts";
 import { CodeMirror6Adapter } from "../editors/codemirror6-adapter.ts";
 import { TextOperation } from "../core/index.ts";
@@ -24,7 +24,7 @@ export interface UsePyrepadEditorOptions {
   adapter?: SyncSeam | null;
   /**
    * A CodeMirror 5 instance, a CodeMirror 6 `EditorView`, or an editor adapter
-   * you built yourself (anything with `applyOperation` and `on`). A
+   * you built yourself (an `EditorSeam`; its listeners are removed on unmount). A
    * caller-built adapter is not disposed on unmount.
    *
    * `dbRef` was removed: the SyncSeam adapter already owns the database ref.
@@ -48,29 +48,16 @@ export interface UsePyrepadEditorResult {
   isReady: boolean;
 }
 
-/** What the hook drives beyond EditorSeam; both CodeMirror adapters provide it. */
-type BindableEditor = EditorSeam & {
-  on(event: string, fn: (...args: any[]) => void): void;
-  setOtherCursor(data: PresenceState): unknown;
-  clearCursor(clientId: string): void;
-};
-
-/** Readiness is not part of SyncSeam; AbstractSyncAdapter and the offline adapter expose it. */
-interface ReadinessAware {
-  once(event: "ready", callback: () => void): void;
-  isHistoryEmpty(): boolean;
-}
-
 interface Binding {
   adapter: SyncSeam;
-  seam: BindableEditor;
+  seam: EditorSeam;
   authorId: string;
   editor: unknown;
   getDefaultText(): string | undefined;
 }
 
-function isBindableEditor(editor: unknown): editor is BindableEditor {
-  const candidate = editor as Partial<BindableEditor>;
+function isEditorSeam(editor: unknown): editor is EditorSeam {
+  const candidate = editor as Partial<EditorSeam>;
   return (
     typeof candidate.applyOperation === "function" &&
     typeof candidate.on === "function"
@@ -80,8 +67,8 @@ function isBindableEditor(editor: unknown): editor is BindableEditor {
 function resolveEditorSeam(
   editor: unknown,
   type: "cm5" | "cm6" | undefined,
-): { seam: BindableEditor; owned: boolean } {
-  if (isBindableEditor(editor)) return { seam: editor, owned: false };
+): { seam: EditorSeam; owned: boolean } {
+  if (isEditorSeam(editor)) return { seam: editor, owned: false };
   const seam =
     type === "cm6"
       ? new CodeMirror6Adapter(
@@ -91,34 +78,18 @@ function resolveEditorSeam(
   return { seam, owned: true };
 }
 
-function isReadinessAware(
-  adapter: SyncSeam,
-): adapter is SyncSeam & ReadinessAware {
-  const candidate = adapter as Partial<ReadinessAware>;
-  return (
-    typeof candidate.once === "function" &&
-    typeof candidate.isHistoryEmpty === "function"
-  );
-}
-
 /** Calls back with `isHistoryEmpty()` once the adapter is ready (now or later). */
 function whenReady(
   adapter: SyncSeam,
   callback: (historyEmpty: boolean) => void,
 ): () => void {
-  if (!isReadinessAware(adapter)) return () => {};
   let cancelled = false;
-  const check = () => {
-    if (!cancelled) callback(adapter.isHistoryEmpty());
-  };
-  let alreadyReady = true;
-  try {
-    adapter.isHistoryEmpty();
-  } catch {
-    alreadyReady = false;
-  }
-  if (alreadyReady) check();
-  else adapter.once("ready", check);
+  adapter.whenReady().then(
+    () => {
+      if (!cancelled) callback(adapter.isHistoryEmpty());
+    },
+    () => {}, // disposed before ready: nothing to seed
+  );
   return () => {
     cancelled = true;
   };
@@ -140,7 +111,7 @@ function commit(adapter: SyncSeam, op: unknown, authorId: string): void {
     .catch((err) => console.warn("usePyrepadEditor commit failed:", err));
 }
 
-function applyPresence(seam: BindableEditor, event: PresenceEvent): void {
+function applyPresence(seam: EditorSeam, event: PresenceEvent): void {
   const cursor = event.cursor as CursorLike | null;
   const isGone =
     event.state === "disconnected" ||
@@ -169,18 +140,16 @@ function seedDefaultText(binding: Binding, historyEmpty: boolean): void {
 
 function bindEditorToSeam(binding: Binding): () => void {
   const { adapter, seam, authorId } = binding;
-  let bound = true;
 
-  // EditorSeam has no `off`; the `bound` flag makes these inert after cleanup.
-  seam.on("change", (op: unknown) => {
-    if (bound) commit(adapter, op, authorId);
-  });
-  seam.on("cursor", (cursor: unknown) => {
-    if (!bound || !cursor) return;
+  const onChange = (op: unknown) => commit(adapter, op, authorId);
+  const onCursor = (cursor: unknown) => {
+    if (!cursor) return;
     adapter
       .broadcastPresence(cursor)
       .catch((err) => console.warn("usePyrepadEditor presence failed:", err));
-  });
+  };
+  seam.on("change", onChange);
+  seam.on("cursor", onCursor);
 
   const stopOperations = consumeStream(adapter.operations, (event) => {
     if (event.author !== authorId) seam.applyOperation(event.operation);
@@ -193,7 +162,8 @@ function bindEditorToSeam(binding: Binding): () => void {
   );
 
   return () => {
-    bound = false;
+    seam.off("change", onChange);
+    seam.off("cursor", onCursor);
     stopOperations();
     stopPresence();
     cancelSeed();

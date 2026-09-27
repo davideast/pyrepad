@@ -103,8 +103,18 @@ export interface SyncSeam {
   readonly presence: AsyncIterable<PresenceEvent>;
   readonly agentive: AsyncIterable<AgentivePresenceEvent>;
 
+  /**
+   * Resolves once the initial document is composed; rejects if the adapter is
+   * disposed first. `operations` does not replay the composed document, so
+   * subscribe before awaiting this or immediately after it resolves.
+   */
+  whenReady(): Promise<void>;
+  /** True when the composed history has no revisions; throws before ready. */
+  isHistoryEmpty(): boolean;
   commitOperation(operation: unknown, author?: string): Promise<CommitAck>;
   broadcastPresence(cursor: unknown): Promise<void>;
+  broadcastAgentive(event: AgentivePresenceEvent): Promise<void>;
+  /** @deprecated Pass a single `AgentivePresenceEvent` instead. */
   broadcastAgentive(
     agentId: string,
     status: string,
@@ -112,6 +122,29 @@ export interface SyncSeam {
     explanation?: string,
   ): Promise<void>;
   dispose(): Promise<void>;
+}
+
+/** Listener argument tuples for the events AbstractSyncAdapter triggers. */
+export type AdapterEvents = {
+  ready: [];
+  operation: [op: unknown];
+  ack: [];
+  retry: [];
+  cursor: [userId: string, cursor: unknown, color?: string];
+  agentive: [event: AgentivePresenceEvent];
+  worker_sync: [payload: unknown];
+};
+
+/**
+ * "conflict" event raised by OfflineDurableAdapter when a queued offline op cannot be
+ * rebased onto the canonical history and is dropped from the queue.
+ */
+export interface OfflineConflictEvent {
+  recordId: string;
+  author: string;
+  revision: number;
+  operation: unknown;
+  error: Error;
 }
 
 export interface AdapterCallbacks {

@@ -13,22 +13,31 @@ import {
   type Text,
 } from "@codemirror/state";
 import { EditorView, type ViewUpdate } from "@codemirror/view";
-import { EditorSeam, PresenceState, CursorLike } from "./types.ts";
+import {
+  EditorSeam,
+  EditorEvents,
+  PresenceState,
+  CursorLike,
+} from "./types.ts";
 import { CM6PresencePlugin } from "./cm6-decoration-plugin.ts";
 import { TextOperation } from "../core/index.ts";
+import { Emitter } from "../core/emitter.ts";
 
 type Callback = (...args: any[]) => void;
 
-export class CodeMirror6Adapter implements EditorSeam {
+export class CodeMirror6Adapter
+  extends Emitter<EditorEvents>
+  implements EditorSeam
+{
   private view: EditorView | null;
   readonly presencePlugin: CM6PresencePlugin;
   readonly remoteOrigin: AnnotationType<boolean> = Annotation.define<boolean>();
   private readonly compartment = new Compartment();
-  private callbacks: Record<string, Callback[]> = {};
   private disposed = false;
   private wired = false;
 
   constructor(view: EditorView) {
+    super();
     this.view = view;
     this.presencePlugin = new CM6PresencePlugin();
     const listener = EditorView.updateListener.of((update: ViewUpdate) => {
@@ -52,23 +61,7 @@ export class CodeMirror6Adapter implements EditorSeam {
       const fn = callbacks[key];
       const isFn = typeof fn === "function";
       if (isFn) {
-        this.on(key, fn!);
-      }
-    }
-  }
-
-  on(event: string, fn: Callback): void {
-    const isNewEvent = !this.callbacks[event];
-    if (isNewEvent) this.callbacks[event] = [];
-    this.callbacks[event].push(fn);
-  }
-
-  trigger(event: string, ...args: unknown[]): void {
-    const handlers = this.callbacks[event];
-    const hasHandlers = Boolean(handlers && handlers.length > 0);
-    if (hasHandlers) {
-      for (const fn of [...handlers]) {
-        fn(...args);
+        this.on(key as keyof EditorEvents, fn!);
       }
     }
   }
@@ -241,7 +234,7 @@ export class CodeMirror6Adapter implements EditorSeam {
       }
     }
     this.presencePlugin.dispose();
-    this.callbacks = {};
+    this.off();
     this.view = null;
   }
 }
