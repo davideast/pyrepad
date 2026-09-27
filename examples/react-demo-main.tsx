@@ -5,7 +5,7 @@
 import React, { useEffect, useRef, useState, useTransition } from "react";
 import { createRoot } from "react-dom/client";
 import { PyrepadProvider, CollaborativeEditor, VERSION } from "../src/react/index.ts";
-import { SharedWorkerAdapter } from "../src/adapters/index.ts";
+import { SharedWorkerAdapter, type AgentivePresenceEvent } from "../src/adapters/index.ts";
 
 const channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("pyric_esm_react_studio") : null;
 const workerPort = channel || { postMessage: () => {}, addEventListener: () => {}, removeEventListener: () => {} };
@@ -78,7 +78,7 @@ function EditorPane({ title, adapter, userColor, userId, initialDoc, peerCM, onC
   useEffect(() => {
     const isReady = Boolean(containerRef.current && !cmInstance && typeof (window as any).CodeMirror === "function");
     if (isReady) {
-      const cm = (window as any).CodeMirror(containerRef.current!, { lineNumbers: true, mode: "javascript", theme: "dracula", value: initialDoc || "" });
+      const cm = (window as any).CodeMirror(containerRef.current!, { lineNumbers: true, mode: "javascript", theme: "dracula", value: "" }); // defaultText seeds the shared document; pre-filling the editor would skip it
       cm.on("change", (_i: any, ch: any) => {
         const isSelf = ch.origin !== "peer" && Boolean(peerCM);
         if (isSelf) peerCM.setValue(cm.getValue());
@@ -146,10 +146,9 @@ function App(): React.ReactElement {
   };
 
   const handleSpawnAgent = () => {
-    const hasTriggerA = Boolean(adapterA && typeof (adapterA as any).trigger === "function");
-    if (hasTriggerA) (adapterA as any).trigger("agentive", "Jules-AI", "Refactoring AST for deep seam boundaries", { diff: "+ const leverage = true;" }, "Enhancing modular depth");
-    const hasTriggerB = Boolean(adapterB && typeof (adapterB as any).trigger === "function");
-    if (hasTriggerB) (adapterB as any).trigger("agentive", "Jules-AI", "Refactoring AST for deep seam boundaries", { diff: "+ const leverage = true;" }, "Enhancing modular depth");
+    const event: AgentivePresenceEvent = { agentId: "Jules-AI", status: "Refactoring AST for deep seam boundaries", ghostDiff: { diff: "+ const leverage = true;" }, explanation: "Enhancing modular depth" };
+    void adapterA.broadcastAgentive(event);
+    void adapterB.broadcastAgentive(event);
   };
 
   return (

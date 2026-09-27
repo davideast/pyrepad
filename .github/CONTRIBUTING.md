@@ -1,96 +1,60 @@
-# Contributing | Firepad
+# Contributing to Pyrepad (`@pyric/pad`)
 
-Thank you for contributing to the Firebase community!
+Bugs and feature requests go in [GitHub issues](https://github.com/davideast/pyrepad/issues).
+For a new feature, open an issue with a proposal before sending a pull request.
 
- - [Have a usage question?](#question)
- - [Think you found a bug?](#issue)
- - [Have a feature request?](#feature)
- - [Want to submit a pull request?](#submit)
- - [Need to get set up locally?](#local-setup)
+## Local setup
 
+Requirements: [Bun](https://bun.sh) and Node.js >= 22.15 (the Pyric dev server runs under Node; see
+[Local development with Pyric](../README.md#local-development-with-pyric) in the README).
 
-## <a name="question"></a>Have a usage question?
-
-We get lots of those and we love helping you, but GitHub is not the best place for them. Issues
-which just ask about usage will be closed. Here are some resources to get help:
-
-- Go through the [documentation](https://firepad.io/docs/)
-- Try out some [examples](../examples/README.md)
-
-If the official documentation doesn't help, try asking a question on the
-[Firebase Google Group](https://groups.google.com/forum/#!forum/firebase-talk) or one of our
-other [official support channels](https://firebase.google.com/support/).
-
-**Please avoid double posting across multiple channels!**
-
-
-## <a name="issue"></a>Think you found a bug?
-
-Yeah, we're definitely not perfect!
-
-Search through [old issues](https://github.com/firebase/firepad/issues) before submitting a new
-issue as your question may have already been answered.
-
-If your issue appears to be a bug, and hasn't been reported,
-[open a new issue](https://github.com/firebase/firepad/issues/new). Please use the provided bug
-report template and include a minimal repro.
-
-If you are up to the challenge, [submit a pull request](#submit) with a fix!
-
-
-## <a name="feature"></a>Have a feature request?
-
-Great, we love hearing how we can improve our products! After making sure someone hasn't already
-requested the feature in the [existing issues](https://github.com/firebase/firepad/issues), go
-ahead and [open a new issue](https://github.com/firebase/firepad/issues/new). Feel free to remove
-the bug report template and instead provide an explanation of your feature request. Provide code
-samples if applicable. Try to think about what it will allow you to do that you can't do today? How
-will it make current workarounds straightforward? What potential bugs and edge cases does it help to
-avoid?
-
-
-## <a name="submit"></a>Want to submit a pull request?
-
-Sweet, we'd love to accept your contribution! [Open a new pull request](https://github.com/firebase/firepad/pull/new/master)
-and fill out the provided form.
-
-**If you want to implement a new feature, please open an issue with a proposal first so that we can
-figure out if the feature makes sense and how it will work.**
-
-Make sure your changes pass our linter and the tests all pass on your local machine. We've hooked
-up this repo with continuous integration to double check those things for you.
-
-Most non-trivial changes should include some extra test coverage. If you aren't sure how to add
-tests, feel free to submit regardless and ask us for some advice.
-
-Finally, you will need to sign our [Contributor License Agreement](https://cla.developers.google.com/about/google-individual)
-before we can accept your pull request.
-
-
-## <a name="local-setup"></a>Need to get set up locally?
-
-If you'd like to contribute to Firepad, you'll need to do the following to get your environment
-set up.
-
-### Install Dependencies
+The Pyric packages are currently installed from local tarballs. `package.json` points `pyric`,
+`pyric-admin`, `create-pyric`, and `@pyric/cli` at `./.pyric-local/*-0.1.0-alpha.24.tgz`; that
+directory is gitignored, so put the four tarballs there first. Then:
 
 ```bash
-$ git clone https://github.com/firebase/firepad.git
-$ cd firepad                # go to the firepad directory
-$ npm install -g grunt-cli  # globally install grunt task runner
-$ npm install               # install local npm build / test dependencies
-$ grunt coffee              # build coffee once initially (so tests will work)
+bun install
 ```
 
-### Lint, Build, and Test
+`bun install` also installs the Husky git hooks (the `prepare` script).
+
+## The gate
+
+Every change must pass the same checks CI runs:
 
 ```bash
-$ grunt            # lint, build, and test
-
-$ grunt build      # lint and build
-$ grunt test       # just test
-
-$ grunt watch      # lint and build whenever source files change
+bun run typecheck && bun run lint && PYRIC_SANDBOX=1 bun test test/specs/*.spec.js
+bun run test:e2e:playwright
 ```
 
-The output files are written to the `/dist/` directory.
+- `bun run typecheck` runs `tsc --noEmit` over `src/**` and `lib/**/*.d.ts`.
+- `bun run lint` runs `eslint .`, which covers the whole repo (`src/`, `test/`, `tools/`, `lib/`);
+  only `examples/`, `dist/`, and config files are ignored. The architecture guardrails (300-line
+  files, 60-line functions, 4 parameters, nesting depth 4) are errors everywhere except in spec
+  files, which have no length limits, and in `lib/`, the frozen legacy bundle, where they are
+  relaxed (see [ADR-0002](../docs/adr/0002-freeze-lib-legacy-bundle.md)).
+- The unit specs require `PYRIC_SANDBOX=1`; `test/setup-globals.js` (preloaded by `bunfig.toml`)
+  refuses to run without it. `bun run test` sets it for you.
+- `bun run test:e2e:playwright` builds the bundle and starts its own Vite server on port 5188. Set
+  `PW_PORT` to use another port (for example when several checkouts run at once). Install the
+  browser once with `bun x playwright install chromium`.
+
+## Pre-commit hook
+
+`.husky/pre-commit` runs `lint-staged` (ESLint `--fix` and Prettier on staged `src/**/*.{ts,tsx,js}`)
+and then the unit specs with `PYRIC_SANDBOX=1`. A commit that breaks either is rejected.
+
+## Structure
+
+- `src/core`, `src/adapters`, `src/editors`, `src/react` are the four `@pyric/pad/*` subpath
+  modules. New code goes here.
+- `lib/` is the legacy Firepad 1.x bundle. It is frozen: fixes only, no new features.
+- `test/specs/` holds the Bun unit specs; `test/e2e-playwright/` the browser specs.
+- `examples/` holds runnable demos; `examples/legacy/` the old Firepad 1.5 CDN examples.
+- Domain vocabulary is in [`CONTEXT.md`](../CONTEXT.md); architecture decisions are in
+  [`docs/adr/`](../docs/adr).
+
+Keep changes small and scoped. The operating rules in
+[`docs/REMEDIATION-PLAN.md`](../docs/REMEDIATION-PLAN.md) describe how work is split: one
+change per branch, bug fixes start with a failing spec, and no new abstractions or unrelated edits
+in the same change.
