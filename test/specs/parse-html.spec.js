@@ -1,10 +1,10 @@
 describe('Parse HTML Tests', function() {
-  var Line = firepad.Line;
-  var Text = firepad.Text;
-  var lf = firepad.LineFormatting();
-  var tf = firepad.Formatting();
-  var parse = firepad.ParseHtml;
-  var LIST_TYPE = firepad.LineFormatting.LIST_TYPE;
+  const Line = firepad.Line;
+  const Text = firepad.Text;
+  const lf = firepad.LineFormatting();
+  const tf = firepad.Formatting();
+  const parse = firepad.ParseHtml;
+  const LIST_TYPE = firepad.LineFormatting.LIST_TYPE;
 
   it('Empty HTML', function() {
     parseTest('', []);
@@ -29,7 +29,7 @@ describe('Parse HTML Tests', function() {
   });
 
   function styleTest(style, textFormatting) {
-    var html = '<div style="' + style + '">Test</div>';
+    const html = '<div style="' + style + '">Test</div>';
     parseTest(html, [
       Line([Text('Test', textFormatting)], lf)
     ]);
@@ -67,7 +67,7 @@ describe('Parse HTML Tests', function() {
   });
 
   function inlineTest(tag, textFormatting) {
-    var html = '<' + tag + '>Test</' + tag + '>';
+    const html = '<' + tag + '>Test</' + tag + '>';
     parseTest(html, [
       Line([Text('Test', textFormatting)], lf)
     ]);
@@ -81,7 +81,7 @@ describe('Parse HTML Tests', function() {
   });
 
   function fontTest(attrs, textFormatting) {
-    var html = '<font ' + attrs + '>Test</font>';
+    const html = '<font ' + attrs + '>Test</font>';
     parseTest(html, [
       Line([Text('Test', textFormatting)], lf)
     ]);
@@ -102,21 +102,21 @@ describe('Parse HTML Tests', function() {
   });
 
   function entityText(entityType, info) {
-    var formatting = new firepad.Formatting(
+    const formatting = new firepad.Formatting(
       (new firepad.Entity(entityType, info)).toAttributes()
     );
     return Text(firepad.sentinelConstants.ENTITY_SENTINEL_CHARACTER, formatting);
   }
 
   it('Images', function() {
-    var t = Text('Foo', tf);
+    const t = Text('Foo', tf);
     parseTest('Foo<img src="http://www.google.com/favicon.ico">Foo', [
       Line([t, entityText('img', { src: 'http://www.google.com/favicon.ico' }), t], lf)
     ]);
   });
 
   it('Unordered list', function() {
-    var t = Text('Foo', tf);
+    const t = Text('Foo', tf);
     parseTest('<ul><li>Foo</li><li>Foo</li></ul>', [
       Line([t], lf.indent(1).listItem(LIST_TYPE.UNORDERED)),
       Line([t], lf.indent(1).listItem(LIST_TYPE.UNORDERED))
@@ -124,7 +124,7 @@ describe('Parse HTML Tests', function() {
   });
 
   it('Ordered list', function() {
-    var t = Text('Foo', tf);
+    const t = Text('Foo', tf);
     parseTest('<ol><li>Foo</li><li>Foo</li></ul>', [
       Line([t], lf.indent(1).listItem(LIST_TYPE.ORDERED)),
       Line([t], lf.indent(1).listItem(LIST_TYPE.ORDERED))
@@ -132,7 +132,7 @@ describe('Parse HTML Tests', function() {
   });
 
   it('Divs listed in list items', function() {
-    var t = Text('Foo', tf);
+    const t = Text('Foo', tf);
     parseTest('<ol><li><div>Foo</div><div>Foo</div></li><li>Foo</li></ul>', [
       Line([t], lf.indent(1).listItem(LIST_TYPE.ORDERED)),
       Line([t], lf.indent(1)), // should be indented, but no list item.
@@ -141,7 +141,7 @@ describe('Parse HTML Tests', function() {
   });
 
   it('Complex list (1)', function() {
-    var t = Text('Foo', tf);
+    const t = Text('Foo', tf);
     parseTest('<ol><li>Foo<ol><li>Foo</li><li>Foo</li></ol></li><li>Foo</li></ol>', [
       Line([t], lf.indent(1).listItem(LIST_TYPE.ORDERED)),
       Line([t], lf.indent(2).listItem(LIST_TYPE.ORDERED)),
@@ -152,7 +152,7 @@ describe('Parse HTML Tests', function() {
 
   // same as last, but with no text on each line.
   it('Complex list (2)', function() {
-    var t = Text('Foo', tf);
+    const t = Text('Foo', tf);
     parseTest('<ol><li><ol><li></li><li></li></ol></li><li></li></ol>', [
       Line([], lf.indent(1).listItem(LIST_TYPE.ORDERED)),
       Line([], lf.indent(2).listItem(LIST_TYPE.ORDERED)),
@@ -169,7 +169,7 @@ describe('Parse HTML Tests', function() {
   });
 
   it('Todo list support', function() {
-    var t = Text('Foo', tf);
+    const t = Text('Foo', tf);
     parseTest('<ul class="firepad-todo"><li>Foo</li><li class="firepad-checked">Foo</li></ul>', [
       Line([t], lf.indent(1).listItem(LIST_TYPE.TODO)),
       Line([t], lf.indent(1).listItem(LIST_TYPE.TODOCHECKED))
@@ -203,13 +203,14 @@ describe('Parse HTML Tests', function() {
   }
 
   function parseTest(html, expLines) {
-    var actLines = parse(html, new firepad.EntityManager());
-    for(var i = 0; i < expLines.length; i++) {
-      var expLine = dumpLine(expLines[i]);
+    const actLines = parse(html, new firepad.EntityManager());
+    let i;
+    for(i = 0; i < expLines.length; i++) {
+      const expLine = dumpLine(expLines[i]);
       if (i >= actLines.length) {
         throw new Error("Line " + i + ":\n  Expected: " + expLine + "\n  Actual  : <none>");
       }
-      var actLine = dumpLine(actLines[i]);
+      const actLine = dumpLine(actLines[i]);
       if (actLine !== expLine) {
         throw new Error("Line " + i + ":\n  Expected: " + expLine + "\n  Actual  : " + actLine);
       }
@@ -222,12 +223,12 @@ describe('Parse HTML Tests', function() {
 
   function dumpLine(line) {
     expect(line instanceof Line).toBe(true);
-    var text = 'Line([';
-    for(var i = 0; i < line.textPieces.length; i++) {
+    let text = 'Line([';
+    for(let i = 0; i < line.textPieces.length; i++) {
       if (i !== 0) {
         text += ', ';
       }
-      var t = line.textPieces[i];
+      const t = line.textPieces[i];
       text += 'Text("' + t.text + '", ' + dumpObj(t.formatting.attributes) + ')';
     }
     text += '], ' + dumpObj(line.formatting.attributes) + ')';
@@ -239,10 +240,10 @@ describe('Parse HTML Tests', function() {
     if (obj === null) {
       return 'null';
     } else if (typeof obj === 'object') {
-      var keys = Object.keys(obj);
+      const keys = Object.keys(obj);
       keys.sort();
-      var text = '{ ';
-      for(var i = 0; i < keys.length; i++) {
+      let text = '{ ';
+      for(let i = 0; i < keys.length; i++) {
         if (i !== 0) {
           text += ', ';
         }

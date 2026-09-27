@@ -1,13 +1,13 @@
 describe('SyncSeam & PyricSandboxAdapter', function() {
-  var PyricSandbox = firepad.PyricSandbox;
-  var SyncSeam = firepad.SyncSeam;
-  var TextOperation = firepad.TextOperation;
-  var Cursor = firepad.Cursor;
+  const PyricSandbox = firepad.PyricSandbox;
+  const SyncSeam = firepad.SyncSeam;
+  const TextOperation = firepad.TextOperation;
+  const Cursor = firepad.Cursor;
 
   it('Initializes with reactive streams for operations, presence, and agentive', function(done) {
-    var db = PyricSandbox.createDatabase();
-    var ref = db.ref('/test-seam');
-    var adapter = new SyncSeam.PyricSandboxAdapter(ref, 'user-A', '#00ff00');
+    const db = PyricSandbox.createDatabase();
+    const ref = db.ref('/test-seam');
+    const adapter = new SyncSeam.PyricSandboxAdapter(ref, 'user-A', '#00ff00');
 
     expect(adapter.operations).toBeDefined();
     expect(adapter.presence).toBeDefined();
@@ -24,20 +24,20 @@ describe('SyncSeam & PyricSandboxAdapter', function() {
   });
 
   it('Handles commitOperation and streams operation events', async function() {
-    var db = PyricSandbox.createDatabase();
-    var ref = db.ref('/test-ops');
-    var adapterA = new SyncSeam.PyricSandboxAdapter(ref, 'user-A', '#ff0000');
-    var adapterB = new SyncSeam.PyricSandboxAdapter(ref, 'user-B', '#0000ff');
+    const db = PyricSandbox.createDatabase();
+    const ref = db.ref('/test-ops');
+    const adapterA = new SyncSeam.PyricSandboxAdapter(ref, 'user-A', '#ff0000');
+    const adapterB = new SyncSeam.PyricSandboxAdapter(ref, 'user-B', '#0000ff');
 
     await new Promise(r => setTimeout(r, 20));
 
-    var receivedB = null;
-    var unsub = adapterB.operations.subscribe(function(evt) {
+    let receivedB = null;
+    const unsub = adapterB.operations.subscribe(function(evt) {
       receivedB = evt;
     });
 
-    var op = new TextOperation().insert('Hello Seam!');
-    var ack = await adapterA.commitOperation(op);
+    const op = new TextOperation().insert('Hello Seam!');
+    const ack = await adapterA.commitOperation(op);
     expect(ack.committed).toBe(true);
     expect(ack.revision).toBe(1);
 
@@ -52,21 +52,21 @@ describe('SyncSeam & PyricSandboxAdapter', function() {
   });
 
   it('Handles broadcastPresence and streams cursor updates', async function() {
-    var db = PyricSandbox.createDatabase();
-    var ref = db.ref('/test-cursor');
-    var adapterA = new SyncSeam.PyricSandboxAdapter(ref, 'user-A', '#ff0000');
-    var adapterB = new SyncSeam.PyricSandboxAdapter(ref, 'user-B', '#0000ff');
+    const db = PyricSandbox.createDatabase();
+    const ref = db.ref('/test-cursor');
+    const adapterA = new SyncSeam.PyricSandboxAdapter(ref, 'user-A', '#ff0000');
+    const adapterB = new SyncSeam.PyricSandboxAdapter(ref, 'user-B', '#0000ff');
 
     await new Promise(r => setTimeout(r, 20));
 
-    var cursorB = null;
+    let cursorB = null;
     adapterB.presence.subscribe(function(evt) {
       if (evt.userId === 'user-A') {
         cursorB = evt;
       }
     });
 
-    var cur = new Cursor(0, 5);
+    const cur = new Cursor(0, 5);
     await adapterA.broadcastPresence(cur);
 
     await new Promise(r => setTimeout(r, 30));
@@ -80,14 +80,14 @@ describe('SyncSeam & PyricSandboxAdapter', function() {
   });
 
   it('Handles broadcastAgentive and streams AI co-pilot status & tentative ghost diffs', async function() {
-    var db = PyricSandbox.createDatabase();
-    var ref = db.ref('/test-agentive');
-    var adapterA = new SyncSeam.PyricSandboxAdapter(ref, 'user-A', '#ff0000');
-    var adapterB = new SyncSeam.PyricSandboxAdapter(ref, 'user-B', '#0000ff');
+    const db = PyricSandbox.createDatabase();
+    const ref = db.ref('/test-agentive');
+    const adapterA = new SyncSeam.PyricSandboxAdapter(ref, 'user-A', '#ff0000');
+    const adapterB = new SyncSeam.PyricSandboxAdapter(ref, 'user-B', '#0000ff');
 
     await new Promise(r => setTimeout(r, 20));
 
-    var agentEvent = null;
+    let agentEvent = null;
     adapterB.agentive.subscribe(function(evt) {
       agentEvent = evt;
     });

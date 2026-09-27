@@ -1,7 +1,7 @@
 describe('UndoManager', function() {
-  var UndoManager = firepad.UndoManager;
-  var TextOperation = firepad.TextOperation;
-  var h = helpers;
+  const UndoManager = firepad.UndoManager;
+  const TextOperation = firepad.TextOperation;
+  const h = helpers;
 
   function Editor (doc) {
     this.doc = doc;
@@ -10,7 +10,7 @@ describe('UndoManager', function() {
 
   Editor.prototype.doEdit = function (operation, dontCompose) {
     function last (arr) { return arr[arr.length - 1]; }
-    var compose = !dontCompose && this.undoManager.undoStack.length > 0 &&
+    const compose = !dontCompose && this.undoManager.undoStack.length > 0 &&
       last(this.undoManager.undoStack).invert(this.doc).shouldBeComposedWith(operation);
     this.undoManager.add(operation.invert(this.doc), compose);
     this.doc = operation.apply(this.doc);
@@ -22,8 +22,8 @@ describe('UndoManager', function() {
   };
 
   it('UndoManager', function() {
-    var editor = new Editor("Looremipsum");
-    var undoManager = editor.undoManager;
+    const editor = new Editor("Looremipsum");
+    const undoManager = editor.undoManager;
     editor.undo = function () {
       expect(undoManager.isUndoing()).toBe(false);
       undoManager.performUndo(function (operation) {
@@ -89,10 +89,10 @@ describe('UndoManager', function() {
   });
 
   it('UndoManagerMaxItems', function() {
-    var doc = h.randomString(50);
-    var undoManager = new UndoManager(42);
-    var operation;
-    for (var i = 0; i < 100; i++) {
+    let doc = h.randomString(50);
+    const undoManager = new UndoManager(42);
+    let operation;
+    for (let i = 0; i < 100; i++) {
       operation = h.randomOperation(doc);
       doc = operation.apply(doc);
       undoManager.add(operation);

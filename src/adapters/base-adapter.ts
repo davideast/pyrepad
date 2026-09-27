@@ -1,6 +1,6 @@
 /**
  * Abstract synchronization adapter implementing common SyncSeam boilerplate.
- * Coordinates modular stream handlers well within all complexity guardrails.
+ * Wires the history, presence, and agentive stream handlers to one document ref.
  */
 import { TextOperation } from "../core/index.ts";
 import {

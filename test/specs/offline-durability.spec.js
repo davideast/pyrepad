@@ -13,49 +13,49 @@ import { TextOperation } from "../../src/core/index.ts";
 describe("Implement Offline IndexedDB Revision Queue Durability (Issue #7)", function () {
   beforeEach(function () {
     // Setup simulated browser IndexedDB runtime for test verification
-    var storeData = {};
+    let storeData = {};
     globalThis.indexedDB = {
       open: function (dbName, version) {
-        var req = { onsuccess: null, onerror: null, onupgradeneeded: null };
+        const req = { onsuccess: null, onerror: null, onupgradeneeded: null };
         queueMicrotask(function () {
-          var mockDB = {
+          const mockDB = {
             objectStoreNames: { contains: function () { return true; } },
             createObjectStore: function () {},
             transaction: function (stores, mode) {
-              var tx = {
+              const tx = {
                 objectStore: function (name) {
                   return {
                     get: function (key) {
-                      var r = { result: storeData[key] || null, onsuccess: null };
+                      const r = { result: storeData[key] || null, onsuccess: null };
                       queueMicrotask(function () { if (r.onsuccess) r.onsuccess({ target: r }); });
                       return r;
                     },
                     put: function (val, key) {
                       storeData[key] = val;
-                      var r = { onsuccess: null };
+                      const r = { onsuccess: null };
                       queueMicrotask(function () { if (r.onsuccess) r.onsuccess({ target: r }); });
                       return r;
                     },
                     delete: function (key) {
                       delete storeData[key];
-                      var r = { onsuccess: null };
+                      const r = { onsuccess: null };
                       queueMicrotask(function () { if (r.onsuccess) r.onsuccess({ target: r }); });
                       return r;
                     },
                     clear: function () {
                       storeData = {};
-                      var r = { onsuccess: null };
+                      const r = { onsuccess: null };
                       queueMicrotask(function () { if (r.onsuccess) r.onsuccess({ target: r }); });
                       return r;
                     },
                     getAllKeys: function () {
-                      var r = { result: Object.keys(storeData), onsuccess: null };
+                      const r = { result: Object.keys(storeData), onsuccess: null };
                       queueMicrotask(function () { if (r.onsuccess) r.onsuccess({ target: r }); });
                       return r;
                     },
                     getAll: function () {
-                      var vals = Object.keys(storeData).map(function (k) { return storeData[k]; });
-                      var r = { result: vals, onsuccess: null };
+                      const vals = Object.keys(storeData).map(function (k) { return storeData[k]; });
+                      const r = { result: vals, onsuccess: null };
                       queueMicrotask(function () { if (r.onsuccess) r.onsuccess({ target: r }); });
                       return r;
                     },
@@ -87,21 +87,21 @@ describe("Implement Offline IndexedDB Revision Queue Durability (Issue #7)", fun
   });
 
   it("Backs pending operation typing queues with an asynchronous IndexedDB key-value storage layer", async function () {
-    var engine = new IndexedDBStorageEngine("test_idb", "revisions");
-    var queue = new OfflineRevisionQueue("doc-idb-test", engine);
+    const engine = new IndexedDBStorageEngine("test_idb", "revisions");
+    const queue = new OfflineRevisionQueue("doc-idb-test", engine);
 
-    var op1 = new TextOperation().insert("Hello offline IDB world");
-    var op2 = new TextOperation().retain(23).insert("!");
+    const op1 = new TextOperation().insert("Hello offline IDB world");
+    const op2 = new TextOperation().retain(23).insert("!");
 
-    var id1 = await queue.enqueue(1, op1, "Alice");
-    var id2 = await queue.enqueue(2, op2, "Alice");
+    const id1 = await queue.enqueue(1, op1, "Alice");
+    const id2 = await queue.enqueue(2, op2, "Alice");
     expect(typeof id1).toBe("string");
     expect(typeof id2).toBe("string");
 
-    var count = await queue.count();
+    const count = await queue.count();
     expect(count).toBe(2);
 
-    var pending = await queue.getPendingRevisions();
+    const pending = await queue.getPendingRevisions();
     expect(pending[0].author).toBe("Alice");
     expect(pending[0].operationJSON).toEqual(op1.toJSON());
     expect(pending[1].operationJSON).toEqual(op2.toJSON());
@@ -115,12 +115,12 @@ describe("Implement Offline IndexedDB Revision Queue Durability (Issue #7)", fun
   });
 
   it("Confirms edits typed while disconnected survive accidental browser refreshes and commit cleanly upon automatic reconnection triggers", async function () {
-    var committedToServer = [];
-    var isOnline = false;
-    var currentServerRev = 100;
-    var listeners = {};
+    const committedToServer = [];
+    let isOnline = false;
+    let currentServerRev = 100;
+    const listeners = {};
 
-    var mockNetwork = {
+    const mockNetwork = {
       operations: {
         [Symbol.asyncIterator]: async function* () {},
         subscribe: function () { return function () {}; },
@@ -147,12 +147,12 @@ describe("Implement Offline IndexedDB Revision Queue Durability (Issue #7)", fun
       dispose: async function () {},
     };
 
-    var persistentIDB = new IndexedDBStorageEngine("persist_db", "store");
+    const persistentIDB = new IndexedDBStorageEngine("persist_db", "store");
 
     // Session 1: Client types edits while network connection is dropped/offline
-    var adapterSession1 = new OfflineDurableAdapter(mockNetwork, persistentIDB, "shared-doc");
-    var offlineOp = new TextOperation().insert("Offline typed text");
-    var ack1 = await adapterSession1.commitOperation(offlineOp, "Bob");
+    const adapterSession1 = new OfflineDurableAdapter(mockNetwork, persistentIDB, "shared-doc");
+    const offlineOp = new TextOperation().insert("Offline typed text");
+    const ack1 = await adapterSession1.commitOperation(offlineOp, "Bob");
 
     expect(ack1.committed).toBe(false);
     expect(committedToServer.length).toBe(0);
@@ -161,7 +161,7 @@ describe("Implement Offline IndexedDB Revision Queue Durability (Issue #7)", fun
     // Simulate accidental browser refresh by disposing Session 1 and rebooting Session 2 against persistent IDB
     await adapterSession1.dispose();
 
-    var adapterSession2 = new IndexedDBAdapter(mockNetwork, persistentIDB, "shared-doc");
+    const adapterSession2 = new IndexedDBAdapter(mockNetwork, persistentIDB, "shared-doc");
     expect(await adapterSession2.queue.count()).toBe(1);
 
     // Network resolves: trigger automatic "ready" event from underlying network adapter without calling reconcile() manually!
@@ -179,16 +179,16 @@ describe("Implement Offline IndexedDB Revision Queue Durability (Issue #7)", fun
   });
 
   it("Verifies automatic rollback and multi-revision OT rebase resolution against canonical Pyric SharedWorker tree state upon recovery", async function () {
-    var committedOps = [];
-    var currentServerRev = 200;
+    let committedOps = [];
+    let currentServerRev = 200;
 
-    var mockPort = {
+    const mockPort = {
       postMessage: function () {},
       addEventListener: function () {},
       removeEventListener: function () {},
       close: function () {},
     };
-    var workerAdapter = new SharedWorkerAdapter(null, "shared-worker-client", "#3b82f6", mockPort);
+    const workerAdapter = new SharedWorkerAdapter(null, "shared-worker-client", "#3b82f6", mockPort);
 
     // Override commitOperation to record actual canonical tree commits
     workerAdapter.commitOperation = async function (op, author) {
@@ -197,36 +197,36 @@ describe("Implement Offline IndexedDB Revision Queue Durability (Issue #7)", fun
       return { revision: currentServerRev, committed: true };
     };
 
-    var persistentStorage = new IndexedDBStorageEngine("worker_idb", "store");
-    var durableAdapter = new OfflineDurableAdapter(workerAdapter, persistentStorage, "worker-rebase-doc");
+    const persistentStorage = new IndexedDBStorageEngine("worker_idb", "store");
+    const durableAdapter = new OfflineDurableAdapter(workerAdapter, persistentStorage, "worker-rebase-doc");
 
     // Allow any startup initialization events from SharedWorkerAdapter to settle before enqueuing offline edits
     await new Promise((resolve) => setTimeout(resolve, 20));
     committedOps = [];
 
     // Local offline edit: insert 'local ' at index 0 of canonical string (length 13) -> length 19
-    var localOp = new TextOperation().insert("local ").retain(13);
+    const localOp = new TextOperation().insert("local ").retain(13);
     await durableAdapter.queue.enqueue(200, localOp, "Alice");
 
     // Concurrent canonical remote edit received over SharedWorker during disconnect: insert 'remote ' at index 0
-    var canonicalRemoteOp = new TextOperation().insert("remote ").retain(13);
+    const canonicalRemoteOp = new TextOperation().insert("remote ").retain(13);
 
     // Automatically trigger recovery by reconciling against canonical SharedWorker remote edits
-    var reconciledCount = await durableAdapter.reconcile([canonicalRemoteOp]);
+    const reconciledCount = await durableAdapter.reconcile([canonicalRemoteOp]);
     expect(reconciledCount).toBe(1);
     expect(committedOps.length).toBe(1);
 
     // Proof of multi-revision OT rebase: local edit is transformed across 'remote ' insertion (insert 'local ', retain 20)
-    var committedOp = committedOps[0];
+    const committedOp = committedOps[0];
     expect(committedOp.ops[0].text).toBe("local "); // Preserves local insertion
     expect(committedOp.ops[1].chars || committedOp.ops[1]).toBe(20); // Rebased retain tail expanded from 13 to 20 to cover the 7 canonical chars inserted by remote
 
     // Unresolvable conflict: the dropped op is surfaced through a "conflict" event, never silently discarded
-    var conflicts = [];
+    const conflicts = [];
     durableAdapter.on("conflict", function (evt) { conflicts.push(evt); });
     committedOps = [];
-    var corruptedOp = { invalid_op: true };
-    var conflictId = await durableAdapter.queue.enqueue(202, corruptedOp, "Alice");
+    const corruptedOp = { invalid_op: true };
+    const conflictId = await durableAdapter.queue.enqueue(202, corruptedOp, "Alice");
     expect(await durableAdapter.queue.count()).toBe(1);
 
     await durableAdapter.reconcile([canonicalRemoteOp]);
@@ -244,7 +244,7 @@ describe("Implement Offline IndexedDB Revision Queue Durability (Issue #7)", fun
 
 function makeFakeRef(opts) {
   opts = opts || {};
-  var ref = {
+  const ref = {
     root: null,
     child: function () { return ref; },
     on: function () {},
@@ -261,7 +261,7 @@ function makeFakeRef(opts) {
 }
 
 function settledState(promise) {
-  var state = "pending";
+  let state = "pending";
   promise.then(
     function () { state = "resolved"; },
     function () { state = "rejected"; },
@@ -270,13 +270,13 @@ function settledState(promise) {
 }
 
 async function flush() {
-  for (var i = 0; i < 20; i++) await Promise.resolve();
+  for (let i = 0; i < 20; i++) await Promise.resolve();
 }
 
 function makeMockNetwork(opts) {
   opts = opts || {};
-  var listeners = {};
-  var net = {
+  const listeners = {};
+  const net = {
     online: Boolean(opts.online),
     commits: [],
     operations: { [Symbol.asyncIterator]: async function* () {} },
@@ -286,7 +286,7 @@ function makeMockNetwork(opts) {
       (listeners[evt] = listeners[evt] || []).push(cb);
     },
     once: function (evt, cb) {
-      var wrap = function () {
+      const wrap = function () {
         listeners[evt] = listeners[evt].filter(function (c) { return c !== wrap; });
         cb.apply(null, arguments);
       };
@@ -294,14 +294,14 @@ function makeMockNetwork(opts) {
     },
     off: function () {},
     trigger: function (evt) {
-      var args = Array.prototype.slice.call(arguments, 1);
+      const args = Array.prototype.slice.call(arguments, 1);
       (listeners[evt] || []).slice().forEach(function (cb) { cb.apply(null, args); });
     },
     // Mirrors AbstractSyncAdapter: while offline the commit waits for "ready" instead of failing.
     commitOperation: function (op, author) {
       return new Promise(function (resolve) {
-        var doCommit = function () {
-          var go = function () {
+        const doCommit = function () {
+          const go = function () {
             net.commits.push({ op: op, author: author });
             resolve({ revision: net.commits.length, committed: true });
           };
@@ -319,9 +319,9 @@ function makeMockNetwork(opts) {
 
 describe("AbstractSyncAdapter.commitOperation always settles (C5a, A6)", function () {
   it("rejects a commit that is waiting for readiness when the adapter is disposed", async function () {
-    var adapter = new PyricSandboxAdapter(makeFakeRef(), "u1");
-    var p = adapter.commitOperation(new TextOperation().insert("x"), "u1");
-    var state = settledState(p);
+    const adapter = new PyricSandboxAdapter(makeFakeRef(), "u1");
+    const p = adapter.commitOperation(new TextOperation().insert("x"), "u1");
+    const state = settledState(p);
     await flush();
     expect(state()).toBe("pending");
 
@@ -332,14 +332,14 @@ describe("AbstractSyncAdapter.commitOperation always settles (C5a, A6)", functio
   });
 
   it("rejects a commit parked on 'retry' when the adapter is disposed and drops its listeners", async function () {
-    var completions = [];
-    var adapter = new PyricSandboxAdapter(
+    const completions = [];
+    const adapter = new PyricSandboxAdapter(
       makeFakeRef({ onTransaction: function (_u, done) { completions.push(done); } }),
       "u1",
     );
     adapter.ready = true;
-    var p = adapter.commitOperation(new TextOperation().insert("x"), "u1");
-    var state = settledState(p);
+    const p = adapter.commitOperation(new TextOperation().insert("x"), "u1");
+    const state = settledState(p);
     completions[0](null, false);
     await flush();
     expect(state()).toBe("pending");
@@ -351,13 +351,13 @@ describe("AbstractSyncAdapter.commitOperation always settles (C5a, A6)", functio
   });
 
   it("re-attempts on 'retry' with exponential backoff and rejects after maxRetries", async function () {
-    var completions = [];
-    var adapter = new PyricSandboxAdapter(
+    const completions = [];
+    const adapter = new PyricSandboxAdapter(
       makeFakeRef({ onTransaction: function (_u, done) { completions.push(done); } }),
       "u1",
     );
     adapter.ready = true;
-    var scheduled = [];
+    const scheduled = [];
     adapter.retryPolicy = {
       maxRetries: 3,
       baseDelayMs: 50,
@@ -366,10 +366,10 @@ describe("AbstractSyncAdapter.commitOperation always settles (C5a, A6)", functio
       },
     };
 
-    var p = adapter.commitOperation(new TextOperation().insert("x"), "u1");
-    var state = settledState(p);
+    const p = adapter.commitOperation(new TextOperation().insert("x"), "u1");
+    const state = settledState(p);
 
-    for (var attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < 3; attempt++) {
       completions[attempt](null, false);
       adapter.trigger("retry");
       expect(scheduled.length).toBe(attempt + 1);
@@ -388,24 +388,24 @@ describe("AbstractSyncAdapter.commitOperation always settles (C5a, A6)", functio
   });
 
   it("resolves when a backed-off retry commits", async function () {
-    var completions = [];
-    var adapter = new PyricSandboxAdapter(
+    const completions = [];
+    const adapter = new PyricSandboxAdapter(
       makeFakeRef({ onTransaction: function (_u, done) { completions.push(done); } }),
       "u1",
     );
     adapter.ready = true;
-    var scheduled = [];
+    const scheduled = [];
     adapter.retryPolicy = {
       maxRetries: 3,
       baseDelayMs: 10,
       schedule: function (fn, ms) { scheduled.push({ fn: fn, ms: ms }); },
     };
-    var p = adapter.commitOperation(new TextOperation().insert("x"), "u1");
+    const p = adapter.commitOperation(new TextOperation().insert("x"), "u1");
     completions[0](null, false);
     adapter.trigger("retry");
     scheduled[0].fn();
     completions[1](null, true);
-    var ack = await p;
+    const ack = await p;
     expect(ack.committed).toBe(true);
     await adapter.dispose();
   });
@@ -413,17 +413,17 @@ describe("AbstractSyncAdapter.commitOperation always settles (C5a, A6)", functio
 
 describe("OfflineDurableAdapter commits each op exactly once (C5a, C5b)", function () {
   it("does not double-commit an op typed offline when the network becomes ready", async function () {
-    var net = makeMockNetwork({ online: false });
-    var durable = new OfflineDurableAdapter(net, new InMemoryStorageEngine(), "dbl-doc");
-    var op = new TextOperation().insert("typed offline");
+    const net = makeMockNetwork({ online: false });
+    const durable = new OfflineDurableAdapter(net, new InMemoryStorageEngine(), "dbl-doc");
+    const op = new TextOperation().insert("typed offline");
 
-    var p = durable.commitOperation(op, "Bob");
+    const p = durable.commitOperation(op, "Bob");
     await flush();
     expect(await durable.queue.count()).toBe(1);
 
     net.online = true;
     net.trigger("ready");
-    var ack = await p;
+    const ack = await p;
     await flush();
 
     expect(ack.committed).toBe(true);
@@ -433,19 +433,19 @@ describe("OfflineDurableAdapter commits each op exactly once (C5a, C5b)", functi
   });
 
   it("serialises concurrent reconcile() calls into a single flight", async function () {
-    var release;
-    var gate = new Promise(function (r) { release = r; });
-    var net = makeMockNetwork({ online: true, gate: gate });
-    var durable = new OfflineDurableAdapter(net, new InMemoryStorageEngine(), "reentrant-doc");
+    let release;
+    const gate = new Promise(function (r) { release = r; });
+    const net = makeMockNetwork({ online: true, gate: gate });
+    const durable = new OfflineDurableAdapter(net, new InMemoryStorageEngine(), "reentrant-doc");
     await durable.queue.enqueue(0, new TextOperation().insert("queued"), "Alice");
 
-    var a = durable.reconcile();
+    const a = durable.reconcile();
     net.trigger("ready");
     net.trigger("worker_sync", { author: "other" });
-    var b = durable.reconcile();
+    const b = durable.reconcile();
     await flush();
     release();
-    var results = await Promise.all([a, b]);
+    const results = await Promise.all([a, b]);
     await flush();
 
     expect(net.commits.length).toBe(1);
@@ -457,16 +457,16 @@ describe("OfflineDurableAdapter commits each op exactly once (C5a, C5b)", functi
 
 describe("OfflineDurableAdapter surfaces reconcile conflicts (C5c)", function () {
   it("emits a 'conflict' event carrying the dropped op when OT transform fails", async function () {
-    var net = makeMockNetwork({ online: true });
-    var durable = new OfflineDurableAdapter(net, new InMemoryStorageEngine(), "conflict-doc");
-    var conflicts = [];
+    const net = makeMockNetwork({ online: true });
+    const durable = new OfflineDurableAdapter(net, new InMemoryStorageEngine(), "conflict-doc");
+    const conflicts = [];
     durable.on("conflict", function (evt) { conflicts.push(evt); });
 
-    var localOp = new TextOperation().retain(5).insert("!");
-    var recordId = await durable.queue.enqueue(0, localOp, "Alice");
-    var remote = new TextOperation().insert("remote ").retain(13);
+    const localOp = new TextOperation().retain(5).insert("!");
+    const recordId = await durable.queue.enqueue(0, localOp, "Alice");
+    const remote = new TextOperation().insert("remote ").retain(13);
 
-    var count = await durable.reconcile([remote]);
+    const count = await durable.reconcile([remote]);
 
     expect(count).toBe(0);
     expect(net.commits.length).toBe(0);
@@ -482,8 +482,8 @@ describe("OfflineDurableAdapter surfaces reconcile conflicts (C5c)", function ()
 
 describe("OfflineDurableAdapter rejects malformed canonical history", function () {
   it("rejects reconcile() instead of rebasing on a silently skipped remote op", async function () {
-    var net = makeMockNetwork({ online: true });
-    var durable = new OfflineDurableAdapter(net, new InMemoryStorageEngine(), "bad-remote-doc");
+    const net = makeMockNetwork({ online: true });
+    const durable = new OfflineDurableAdapter(net, new InMemoryStorageEngine(), "bad-remote-doc");
     await durable.queue.enqueue(0, new TextOperation().insert("local"), "Alice");
 
     await expect(durable.reconcile([{ not: "an op" }])).rejects.toThrow();

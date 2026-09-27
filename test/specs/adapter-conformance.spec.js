@@ -13,31 +13,31 @@ import { TextOperation, Cursor } from "../../src/core/index.ts";
 
 function verifySyncAdapterContract(adapterName, createAdapter) {
   describe("Tier B Pluggable Seam Contract (" + adapterName + ")", function () {
-    var PyricSandbox = globalThis.firepad && globalThis.firepad.PyricSandbox;
+    const PyricSandbox = globalThis.firepad && globalThis.firepad.PyricSandbox;
 
     it("Enforces deterministic start-up synchronization by atomically composing existing history snapshots before emitting ready events", async function () {
-      var db = PyricSandbox.createDatabase();
-      var ref = db.ref("/test-atomic-startup");
+      const db = PyricSandbox.createDatabase();
+      const ref = db.ref("/test-atomic-startup");
 
-      var initialOp = new TextOperation().insert("Initial text");
+      const initialOp = new TextOperation().insert("Initial text");
       ref.child("history/A0").set({
         a: "seed",
         o: initialOp.toJSON(),
         t: Date.now() - 1000,
       });
-      var secondOp = new TextOperation().retain(12).insert(" from seed");
+      const secondOp = new TextOperation().retain(12).insert(" from seed");
       ref.child("history/A1").set({
         a: "seed",
         o: secondOp.toJSON(),
         t: Date.now() - 500,
       });
 
-      var callbackOperationsReceived = 0;
-      var streamOperationsReceived = 0;
-      var readyEmitted = false;
+      let callbackOperationsReceived = 0;
+      let streamOperationsReceived = 0;
+      let readyEmitted = false;
 
-      var adapter = createAdapter(ref, "client-latecomer", "#00ff00");
-      var unsubStream = adapter.operations.subscribe(function (evt) {
+      const adapter = createAdapter(ref, "client-latecomer", "#00ff00");
+      const unsubStream = adapter.operations.subscribe(function (evt) {
         streamOperationsReceived++;
         expect(evt.operation.toString()).toBe("insert 'Initial text from seed'");
       });
@@ -62,41 +62,41 @@ function verifySyncAdapterContract(adapterName, createAdapter) {
     });
 
     it("Confirms bidirectional burst typing without buffer lockups or duplication across live sandbox connections", async function () {
-      var db = PyricSandbox.createDatabase();
-      var ref = db.ref("/test-bidirectional-burst");
+      const db = PyricSandbox.createDatabase();
+      const ref = db.ref("/test-bidirectional-burst");
 
-      var adapterA = createAdapter(ref, "author-A", "#ff0000");
-      var adapterB = createAdapter(ref, "author-B", "#0000ff");
+      const adapterA = createAdapter(ref, "author-A", "#ff0000");
+      const adapterB = createAdapter(ref, "author-B", "#0000ff");
 
       await new Promise((r) => setTimeout(r, 20));
 
-      var bReceivedFromA = [];
-      var aReceivedFromB = [];
+      const bReceivedFromA = [];
+      const aReceivedFromB = [];
 
-      var unsubB = adapterB.operations.subscribe((evt) => {
+      const unsubB = adapterB.operations.subscribe((evt) => {
         if (evt.author === "author-A") bReceivedFromA.push(evt.operation);
       });
-      var unsubA = adapterA.operations.subscribe((evt) => {
+      const unsubA = adapterA.operations.subscribe((evt) => {
         if (evt.author === "author-B") aReceivedFromB.push(evt.operation);
       });
 
-      var startTime = performance.now();
-      var numOpsPerPeer = 15;
+      const startTime = performance.now();
+      const numOpsPerPeer = 15;
 
       // Execute interleaved bidirectional high-speed editing burst
-      var docLength = 0;
-      for (var i = 0; i < numOpsPerPeer; i++) {
-        var opA = new TextOperation().retain(docLength).insert("A" + i);
+      let docLength = 0;
+      for (let i = 0; i < numOpsPerPeer; i++) {
+        const opA = new TextOperation().retain(docLength).insert("A" + i);
         docLength += (("A" + i).length);
         await adapterA.commitOperation(opA, "author-A");
 
-        var opB = new TextOperation().retain(docLength).insert("B" + i);
+        const opB = new TextOperation().retain(docLength).insert("B" + i);
         docLength += (("B" + i).length);
         await adapterB.commitOperation(opB, "author-B");
       }
 
       await new Promise((resolve) => {
-        var interval = setInterval(() => {
+        const interval = setInterval(() => {
           if (
             bReceivedFromA.length >= numOpsPerPeer &&
             aReceivedFromB.length >= numOpsPerPeer
@@ -106,7 +106,7 @@ function verifySyncAdapterContract(adapterName, createAdapter) {
           }
         }, 5);
       });
-      var duration = performance.now() - startTime;
+      const duration = performance.now() - startTime;
 
       expect(bReceivedFromA.length).toBe(numOpsPerPeer);
       expect(aReceivedFromB.length).toBe(numOpsPerPeer);
@@ -119,20 +119,20 @@ function verifySyncAdapterContract(adapterName, createAdapter) {
     });
 
     it("Segregates protocol streams for document history, user presence, and AI tentative ghost diffs across peer connections", async function () {
-      var db = PyricSandbox.createDatabase();
-      var ref = db.ref("/test-peer-stream-segregation");
+      const db = PyricSandbox.createDatabase();
+      const ref = db.ref("/test-peer-stream-segregation");
 
-      var adapterA = createAdapter(ref, "peer-Alice", "#ff0000");
-      var adapterB = createAdapter(ref, "peer-Bob", "#0000ff");
+      const adapterA = createAdapter(ref, "peer-Alice", "#ff0000");
+      const adapterB = createAdapter(ref, "peer-Bob", "#0000ff");
 
       await new Promise((r) => setTimeout(r, 20));
 
-      var streamEventsB = { ops: 0, presence: 0, agentive: 0 };
-      var unsubOps = adapterB.operations.subscribe(() => streamEventsB.ops++);
-      var unsubPres = adapterB.presence.subscribe(
+      const streamEventsB = { ops: 0, presence: 0, agentive: 0 };
+      const unsubOps = adapterB.operations.subscribe(() => streamEventsB.ops++);
+      const unsubPres = adapterB.presence.subscribe(
         () => streamEventsB.presence++,
       );
-      var unsubAgent = adapterB.agentive.subscribe(
+      const unsubAgent = adapterB.agentive.subscribe(
         () => streamEventsB.agentive++,
       );
 
@@ -145,7 +145,7 @@ function verifySyncAdapterContract(adapterName, createAdapter) {
       );
 
       await new Promise((resolve) => {
-        var interval = setInterval(() => {
+        const interval = setInterval(() => {
           if (streamEventsB.presence > 0 && streamEventsB.agentive > 0) {
             clearInterval(interval);
             resolve();
@@ -225,7 +225,7 @@ verifySyncAdapterContract("FirebaseAdapter (modular config)", function (ref, use
 
 // Execute Tier B Pluggable Conformance Suite against SharedWorker multi-tab environment driver (Issue #12)
 verifySyncAdapterContract("SharedWorkerAdapter", function (ref, userId, color) {
-  var mockPort = {
+  const mockPort = {
     postMessage: function () {},
     addEventListener: function () {},
     removeEventListener: function () {},
@@ -236,12 +236,12 @@ verifySyncAdapterContract("SharedWorkerAdapter", function (ref, userId, color) {
 
 // Execute Tier B Pluggable Conformance Suite against Offline Durable IndexedDB implementations (Issue #7)
 verifySyncAdapterContract("OfflineDurableAdapter", function (ref, userId, color) {
-  var base = new PyricSandboxAdapter(ref, userId, color);
+  const base = new PyricSandboxAdapter(ref, userId, color);
   return new OfflineDurableAdapter(base, new IndexedDBStorageEngine("conf_db_1", "conf_store"), "doc-conformance");
 });
 
 verifySyncAdapterContract("IndexedDBAdapter (Alias)", function (ref, userId, color) {
-  var base = new PyricSandboxAdapter(ref, userId, color);
+  const base = new PyricSandboxAdapter(ref, userId, color);
   return new IndexedDBAdapter(base, new IndexedDBStorageEngine("conf_db_2", "conf_store"), "doc-conformance");
 });
 
@@ -253,7 +253,7 @@ describe("Modular Tree-Shakable Firebase Bindings (Issue #12)", function () {
   // A modular fake that records each registered listener per free function, keyed by
   // target path, and returns an unsubscribe that records its invocation.
   function createRecordingConfig() {
-    var rec = {
+    const rec = {
       onValue: {},
       onChildAdded: {},
       onChildChanged: {},
@@ -267,7 +267,7 @@ describe("Modular Tree-Shakable Firebase Bindings (Issue #12)", function () {
         return function () { rec.unsubscribed.push(name + ":" + target.path); };
       };
     }
-    var config = {
+    const config = {
       ref: { path: "/doc" },
       child: function (parent, path) { return { path: parent.path + "/" + path }; },
       onValue: listen("onValue"),
@@ -285,18 +285,18 @@ describe("Modular Tree-Shakable Firebase Bindings (Issue #12)", function () {
   }
 
   function proxyFor(config) {
-    var adapter = new FirebaseAdapter(config, "modular-client", "#eab308");
+    const adapter = new FirebaseAdapter(config, "modular-client", "#eab308");
     return { adapter: adapter, ref: adapter.ref };
   }
 
   it("Routes child_added/changed/removed to the matching modular listener and delivers child snapshots with their keys", async function () {
-    var fake = createRecordingConfig();
-    var h = proxyFor(fake.config);
-    var history = h.ref.child("history-probe");
+    const fake = createRecordingConfig();
+    const h = proxyFor(fake.config);
+    const history = h.ref.child("history-probe");
 
-    var added = [];
-    var changed = [];
-    var removed = [];
+    const added = [];
+    const changed = [];
+    const removed = [];
     history.on("child_added", function (s) { added.push([s.key, s.val()]); });
     history.on("child_changed", function (s) { changed.push([s.key, s.val()]); });
     history.on("child_removed", function (s) { removed.push([s.key, s.val()]); });
@@ -313,11 +313,11 @@ describe("Modular Tree-Shakable Firebase Bindings (Issue #12)", function () {
   });
 
   it("off() invokes the unsubscribe functions returned by modular listeners, including from a fresh child proxy", async function () {
-    var fake = createRecordingConfig();
-    var h = proxyFor(fake.config);
+    const fake = createRecordingConfig();
+    const h = proxyFor(fake.config);
 
-    var received = [];
-    var cb = function (s) { received.push(s.key); };
+    const received = [];
+    const cb = function (s) { received.push(s.key); };
     h.ref.child("probe").on("child_added", cb);
     h.ref.child("probe").on("value", cb);
 
@@ -333,10 +333,10 @@ describe("Modular Tree-Shakable Firebase Bindings (Issue #12)", function () {
   });
 
   it("once('value') maps to modular get() and delivers its snapshot", async function () {
-    var fake = createRecordingConfig();
-    var h = proxyFor(fake.config);
+    const fake = createRecordingConfig();
+    const h = proxyFor(fake.config);
 
-    var delivered = await new Promise(function (resolve) {
+    const delivered = await new Promise(function (resolve) {
       h.ref.child("probe-once").once("value", resolve);
     });
 
@@ -348,23 +348,23 @@ describe("Modular Tree-Shakable Firebase Bindings (Issue #12)", function () {
   });
 
   it("Delivers seeded history through modular child listeners so the adapter reaches ready with the document", async function () {
-    var db = globalThis.firepad.PyricSandbox.createDatabase();
-    var ref = db.ref("/test-modular-seeded");
+    const db = globalThis.firepad.PyricSandbox.createDatabase();
+    const ref = db.ref("/test-modular-seeded");
     ref.child("history/A0").set({
       a: "seed",
       o: new TextOperation().insert("hello").toJSON(),
       t: Date.now(),
     });
 
-    var adapter = new FirebaseAdapter(createModularConfig(ref), "late", "#00ff00");
-    var doc = await new Promise(function (resolve) {
-      var seen = null;
+    const adapter = new FirebaseAdapter(createModularConfig(ref), "late", "#00ff00");
+    const doc = await new Promise(function (resolve) {
+      let seen = null;
       adapter.on("operation", function (op) { seen = op; });
       adapter.on("ready", function () { resolve(seen); });
     });
     expect(doc.toString()).toBe("insert 'hello'");
 
-    var live = new Promise(function (resolve) {
+    const live = new Promise(function (resolve) {
       adapter.on("operation", function (op) { resolve(op.toString()); });
     });
     ref.child("history/A1").set({

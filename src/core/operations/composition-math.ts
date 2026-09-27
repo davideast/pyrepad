@@ -1,5 +1,5 @@
 /**
- * Composition mathematics for merging sequential Operational Transformations.
+ * Composes two sequential TextOperations into one.
  */
 import { TextOp } from "./text-op.ts";
 

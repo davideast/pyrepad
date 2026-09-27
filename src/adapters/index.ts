@@ -1,5 +1,5 @@
 /**
- * @pyric/pad/adapters - Stream-Partitioned Modular Database Adapters and SyncSeam interface.
+ * @pyric/pad/adapters - database adapters and the SyncSeam interface.
  */
 export * from "./types.ts";
 export * from "./reactive-stream.ts";

@@ -1,16 +1,16 @@
 describe('PureHeadless & DocumentEngine Speed (PR 3.2 & 3.3)', function() {
-  var PyricSandbox = firepad.PyricSandbox;
-  var PureHeadless = firepad.PureHeadless || firepad.Firepad.Headless;
-  var DocumentEngine = firepad.DocumentEngine;
+  const PyricSandbox = firepad.PyricSandbox;
+  const PureHeadless = firepad.PureHeadless || firepad.Firepad.Headless;
+  const DocumentEngine = firepad.DocumentEngine;
 
   it('Processes Headless markdown and AST documents in <10ms without JSDOM', async function() {
-    var db = PyricSandbox.createDatabase();
-    var ref = db.ref('/headless-speed-test');
+    const db = PyricSandbox.createDatabase();
+    const ref = db.ref('/headless-speed-test');
     
-    var start = performance.now();
-    var headless = new PureHeadless(ref);
+    const start = performance.now();
+    const headless = new PureHeadless(ref);
 
-    var mdText = '**Header 1**\n- Item 1\n- Item 2';
+    const mdText = '**Header 1**\n- Item 1\n- Item 2';
 
     await new Promise(resolve => {
       headless.setMarkdown(mdText, function(err, committed) {
@@ -37,12 +37,12 @@ describe('PureHeadless & DocumentEngine Speed (PR 3.2 & 3.3)', function() {
     });
 
     headless.dispose();
-    var elapsed = performance.now() - start;
+    const elapsed = performance.now() - start;
     expect(elapsed).toBeLessThan(50); // Total turnaround in milliseconds
   });
 
   it('Universal DocumentEngine seam wraps engines cleanly', function() {
-    var pureEngine = DocumentEngine.create();
+    const pureEngine = DocumentEngine.create();
     expect(pureEngine.getValue()).toBe('');
     pureEngine.setValue('Test Engine Seam');
     expect(pureEngine.getValue()).toBe('Test Engine Seam');

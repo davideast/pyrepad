@@ -43,7 +43,7 @@ global.CodeMirror = require('codemirror');
 const root = path.resolve(__dirname, '..');
 function AceEditSession() {
   this._val = '';
-  var self = this;
+  const self = this;
   this.doc = {
     setNewLineMode: () => {},
     getAllLines: () => self._val.split('\n'),
@@ -124,7 +124,7 @@ global.window.firebase = global.firebase;
 
 const helpersPath = path.join(root, 'test/specs/helpers.js');
 if (fs.existsSync(helpersPath)) {
-  let helpersCode = fs.readFileSync(helpersPath, 'utf8');
+  const helpersCode = fs.readFileSync(helpersPath, 'utf8');
   try {
     vm.runInThisContext(helpersCode, { filename: helpersPath });
   } catch (e) {
