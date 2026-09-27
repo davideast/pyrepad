@@ -39,17 +39,17 @@ export class OldAnnotatedSpan {
   pos: number;
   length: number;
   annotation: any;
-  attachedObject_: any;
+  private attachedObject: any;
 
   constructor(pos: number, node: Node) {
     this.pos = pos;
     this.length = node.length;
     this.annotation = node.annotation;
-    this.attachedObject_ = node.attachedObject;
+    this.attachedObject = node.attachedObject;
   }
 
   getAttachedObject(): any {
-    return this.attachedObject_;
+    return this.attachedObject;
   }
 }
 
@@ -57,17 +57,17 @@ export class NewAnnotatedSpan {
   pos: number;
   length: number;
   annotation: any;
-  node_: Node;
+  private node: Node;
 
   constructor(pos: number, node: Node) {
     this.pos = pos;
     this.length = node.length;
     this.annotation = node.annotation;
-    this.node_ = node;
+    this.node = node;
   }
 
   attachObject(object: any): void {
-    this.node_.attachedObject = object;
+    this.node.attachedObject = object;
   }
 }
 

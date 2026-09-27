@@ -1,7 +1,7 @@
 /**
  * Offline durable collaborative adapter decorator implementing SyncSeam.
- * Protects un-transmitted edits with IndexedDB buffering, automatic recovery triggers,
- * and multi-revision Operational Transform rebase and rollback resolution.
+ * Queues unsent edits in an OfflineRevisionQueue, replays them on reconnect after rebasing
+ * onto remote history, and reports ops that cannot be rebased via a "conflict" event.
  */
 import { TextOperation } from "../../core/index.ts";
 import {

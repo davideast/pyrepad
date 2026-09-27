@@ -8,8 +8,8 @@ import { TextOperation } from "../../src/core/index.ts";
 // Minimal fake ref: supports child('history'), on/off('child_added'),
 // child(key).transaction (commits then emits child_added), once('value').
 function createFakeRef() {
-  var store = {};
-  var listeners = [];
+  const store = {};
+  let listeners = [];
 
   function snap(key, val) {
     return { key: key, val: function () { return val; } };
@@ -19,7 +19,7 @@ function createFakeRef() {
     listeners.slice().forEach(function (fn) { fn(snap(key, store[key])); });
   }
 
-  var historyRef = {
+  const historyRef = {
     on: function (event, fn) {
       if (event === "child_added") listeners.push(fn);
     },
@@ -30,7 +30,7 @@ function createFakeRef() {
     child: function (key) {
       return {
         transaction: function (update, onComplete) {
-          var next = update(store[key] === undefined ? null : store[key]);
+          const next = update(store[key] === undefined ? null : store[key]);
           if (next === undefined) {
             onComplete(null, false);
             return;
@@ -56,8 +56,8 @@ function createFakeRef() {
 }
 
 function createHarness(ref, userId) {
-  var calls = { operation: [], ack: 0, retry: 0 };
-  var handler = new HistoryStreamHandler(ref, {
+  const calls = { operation: [], ack: 0, retry: 0 };
+  const handler = new HistoryStreamHandler(ref, {
     onOperation: function (op) { calls.operation.push(op); },
     onAck: function () { calls.ack++; },
     onRetry: function () { calls.retry++; },
@@ -69,11 +69,11 @@ function createHarness(ref, userId) {
 
 describe("HistoryStreamHandler ack (C2)", function () {
   it("acks the client's own committed operation instead of echoing it as remote", function () {
-    var ref = createFakeRef();
-    var h = createHarness(ref, "me");
+    const ref = createFakeRef();
+    const h = createHarness(ref, "me");
     h.handler.startMonitoring();
 
-    var committed = null;
+    let committed = null;
     h.handler.sendOperation(new TextOperation().insert("hello"), "me", function (err, ok) {
       committed = ok;
     });
@@ -86,8 +86,8 @@ describe("HistoryStreamHandler ack (C2)", function () {
   });
 
   it("acks consecutive own operations at successive revisions", function () {
-    var ref = createFakeRef();
-    var h = createHarness(ref, "me");
+    const ref = createFakeRef();
+    const h = createHarness(ref, "me");
     h.handler.startMonitoring();
 
     h.handler.sendOperation(new TextOperation().insert("a"), "me");
@@ -99,14 +99,14 @@ describe("HistoryStreamHandler ack (C2)", function () {
   });
 
   it("does not ack a remote operation that wins the same revision", function () {
-    var ref = createFakeRef();
-    var h = createHarness(ref, "me");
+    const ref = createFakeRef();
+    const h = createHarness(ref, "me");
     h.handler.startMonitoring();
 
-    var remoteOp = new TextOperation().insert("remote");
+    const remoteOp = new TextOperation().insert("remote");
     ref.seedSilently(revisionToId(0), { a: "other", o: remoteOp.toJSON(), t: 1 });
 
-    var committed = null;
+    let committed = null;
     h.handler.sendOperation(new TextOperation().insert("mine"), "me", function (err, ok) {
       committed = ok;
     });
@@ -122,14 +122,14 @@ describe("HistoryStreamHandler ack (C2)", function () {
   });
 
   it("composes startup history once, then acks the next own operation", function () {
-    var ref = createFakeRef();
-    var h = createHarness(ref, "me");
-    var first = new TextOperation().insert("seed");
-    var second = new TextOperation().retain(4).insert("!");
+    const ref = createFakeRef();
+    const h = createHarness(ref, "me");
+    const first = new TextOperation().insert("seed");
+    const second = new TextOperation().retain(4).insert("!");
     ref.seedSilently(revisionToId(0), { a: "seed", o: first.toJSON(), t: 1 });
     ref.seedSilently(revisionToId(1), { a: "seed", o: second.toJSON(), t: 2 });
 
-    var pushes = [];
+    const pushes = [];
     h.handler.stream.subscribe(function (ev) { pushes.push(ev); });
 
     ref.child("history").once("value", function (snap) {
@@ -137,7 +137,7 @@ describe("HistoryStreamHandler ack (C2)", function () {
     });
     h.handler.startMonitoring();
 
-    var startupPushes = pushes.filter(function (ev) {
+    const startupPushes = pushes.filter(function (ev) {
       return ev.author === "atomic-startup";
     });
     expect(startupPushes.length).toBe(1);

@@ -1,6 +1,6 @@
 /**
- * Modern tree-shakable Firebase modular network adapter implementing SyncSeam.
- * Supports evolving ES Module database bindings and modular reference structures.
+ * Firebase Realtime Database adapter implementing SyncSeam.
+ * Accepts namespaced refs, or modular refs plus the v9+ functions in `FirebaseModularConfig`.
  */
 import { RefLike, SnapLike, isValidRef } from "./types.ts";
 import { AbstractSyncAdapter } from "./base-adapter.ts";

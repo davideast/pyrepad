@@ -1,7 +1,7 @@
 /** Monaco Adapter Unit Tests */
 describe('Monaco Operations Test', function () {
     /** Editor Content */
-    var editorContent =
+    const editorContent =
 `module Conway {
 
     export class Cell {
@@ -19,24 +19,24 @@ describe('Monaco Operations Test', function () {
 `;
 
     /** Editor Changes */
-    var operations = [
+    const operations = [
         { rangeLength: 0, text: '/* ', rangeOffset: 21, forceMoveMarkers: false },
         { rangeLength: 0, text: ' */', rangeOffset: 299, forceMoveMarkers: false }
     ];
 
     /** Expected Text Operations */
-    var textOperations = [
+    const textOperations = [
         new firepad.TextOperation().retain(21).insert('/* ').retain(281),
         new firepad.TextOperation().retain(299).insert(' */').retain(6)
     ];
 
     it('should convert Monaco Editor changes to Text Operation', function () {
-        var MonacoAdapter = firepad.MonacoAdapter;
-        var operationFromMonacoChange = MonacoAdapter.prototype.operationFromMonacoChanges;
+        const MonacoAdapter = firepad.MonacoAdapter;
+        const operationFromMonacoChange = MonacoAdapter.prototype.operationFromMonacoChanges;
 
         let offset = 0;
         operations.forEach((operation, index) => {
-            var pair = operationFromMonacoChange.call(null, operation, editorContent, offset);
+            const pair = operationFromMonacoChange.call(null, operation, editorContent, offset);
 
             /** Base Length of First Operation must be Target Length of Second Operation */
             expect(pair[1].targetLength).toEqual(pair[0].baseLength);

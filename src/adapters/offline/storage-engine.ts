@@ -1,6 +1,6 @@
 /**
- * Asynchronous key-value storage engine interface and IndexedDB / in-memory implementations
- * for offline revision durability with dry transactional execution.
+ * Asynchronous key-value storage engine interface with IndexedDB and in-memory
+ * implementations, used to persist queued offline revisions.
  */
 
 export interface StorageEngineSeam {

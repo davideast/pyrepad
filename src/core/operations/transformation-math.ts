@@ -1,5 +1,5 @@
 /**
- * Transformation mathematics for concurrent Operational Transformations.
+ * Transforms two concurrent TextOperations against each other.
  */
 import { TextOp } from "./text-op.ts";
 

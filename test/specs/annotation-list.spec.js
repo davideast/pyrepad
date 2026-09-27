@@ -1,9 +1,9 @@
 describe('AnnotationList', function() {
-  var AnnotationList = firepad.AnnotationList;
-  var Span = firepad.Span;
-  var h = helpers;
+  const AnnotationList = firepad.AnnotationList;
+  const Span = firepad.Span;
+  const h = helpers;
 
-  var n = 500;
+  const n = 500;
 
   function TestAnnotation(a) {
     this.a = a;
@@ -13,7 +13,7 @@ describe('AnnotationList', function() {
     return this.a === other.a;
   };
 
-  var oldSpans, newSpans;
+  let oldSpans, newSpans;
   function changeHandler(oldS, newS) {
     oldSpans = oldS;
     newSpans = newS;
@@ -29,7 +29,7 @@ describe('AnnotationList', function() {
   }
 
   it('Insert1', function() {
-    var list = new AnnotationList(changeHandler);
+    const list = new AnnotationList(changeHandler);
 
     // Insert into empty list.
     list.insertAnnotatedSpan(new Span(0, 5), new TestAnnotation('a'));
@@ -64,7 +64,7 @@ describe('AnnotationList', function() {
   });
 
   it('Insert2', function() {
-    var list = new AnnotationList(changeHandler);
+    const list = new AnnotationList(changeHandler);
 
     // Insert into empty list.
     list.insertAnnotatedSpan(new Span(0, 5), new TestAnnotation('a'));
@@ -119,7 +119,7 @@ describe('AnnotationList', function() {
   });
 
   it('BadInserts', function() {
-    var list = new AnnotationList(changeHandler);
+    const list = new AnnotationList(changeHandler);
 
     expect(function() {
       list.insertAnnotatedSpan(new Span(1, 1), new TestAnnotation('a'));
@@ -134,7 +134,7 @@ describe('AnnotationList', function() {
   });
 
   it('Remove1', function() {
-    var list = new AnnotationList(changeHandler);
+    const list = new AnnotationList(changeHandler);
 
     // Insert into empty list.
     list.insertAnnotatedSpan(new Span(0, 20), new TestAnnotation('a'));
@@ -175,7 +175,7 @@ describe('AnnotationList', function() {
   });
 
   it('Remove2', function() {
-    var list = new AnnotationList(changeHandler);
+    const list = new AnnotationList(changeHandler);
 
     // Insert into empty list.
     list.insertAnnotatedSpan(new Span(0, 10), new TestAnnotation('a'));
@@ -214,7 +214,7 @@ describe('AnnotationList', function() {
   });
 
   it('Remove3', function() {
-    var list = new AnnotationList(changeHandler);
+    const list = new AnnotationList(changeHandler);
 
     // Insert into empty list.
     list.insertAnnotatedSpan(new Span(0, 10), new TestAnnotation('a'));
@@ -253,7 +253,7 @@ describe('AnnotationList', function() {
   });
 
   it('Remove4', function() {
-    var list = new AnnotationList(changeHandler);
+    const list = new AnnotationList(changeHandler);
 
     // Insert into empty list.
     list.insertAnnotatedSpan(new Span(0, 10), new TestAnnotation('a'));
@@ -287,15 +287,15 @@ describe('AnnotationList', function() {
 
 
   it('Remove5', function() {
-    var removes = [
+    const removes = [
       {span: new Span(8, 12), resultLength: 18},  // part of first, all of 2nd
       {span: new Span(8, 14), resultLength: 16},  // part of first, all of 2nd, part of 3rd
       {span: new Span(10, 10), resultLength: 20}, // all of 2nd
       {span: new Span(10, 12), resultLength: 18}  // all of 2nd, part of 3rd
     ];
 
-    for(var i = 0; i < removes.length; i++) {
-      var list = new AnnotationList(changeHandler);
+    for(let i = 0; i < removes.length; i++) {
+      const list = new AnnotationList(changeHandler);
       list.insertAnnotatedSpan(new Span(0, 10), new TestAnnotation('a'));
       list.insertAnnotatedSpan(new Span(10, 10), new TestAnnotation('b'));
       list.insertAnnotatedSpan(new Span(20, 10), new TestAnnotation('a'));
@@ -318,7 +318,7 @@ describe('AnnotationList', function() {
 
   it('Remove6', function() {
     function verify(opts) {
-      var list = new AnnotationList(changeHandler);
+      const list = new AnnotationList(changeHandler);
       list.insertAnnotatedSpan(new Span(0, 10), new TestAnnotation('a'));
       list.insertAnnotatedSpan(new Span(10, 10), new TestAnnotation('b'));
       list.insertAnnotatedSpan(new Span(20, 10), new TestAnnotation('c'));
@@ -327,11 +327,11 @@ describe('AnnotationList', function() {
       list.removeSpan(opts.span);
 
       expect(oldSpans.length).toBe(opts.oldSpans.length);
-      for(var i = 0; i < opts.oldSpans.length; i++) {
+      for(let i = 0; i < opts.oldSpans.length; i++) {
         testSpan(opts.oldSpans[i], oldSpans[i]);
       }
       expect(newSpans.length).toBe(opts.newSpans.length);
-      for(i = 0; i < opts.newSpans.length; i++) {
+      for(let i = 0; i < opts.newSpans.length; i++) {
         testSpan(opts.newSpans[i], newSpans[i]);
       }
 
@@ -390,7 +390,7 @@ describe('AnnotationList', function() {
   });
 
   it('Remove7', function() {
-    var list = new AnnotationList(changeHandler);
+    const list = new AnnotationList(changeHandler);
 
     list.insertAnnotatedSpan(new Span(0, 10), new TestAnnotation('a'));
     list.insertAnnotatedSpan(new Span(10, 10), new TestAnnotation('b'));
@@ -412,7 +412,7 @@ describe('AnnotationList', function() {
   });
 
   it('Remove8', function() {
-    var list = new AnnotationList(changeHandler);
+    const list = new AnnotationList(changeHandler);
 
     list.insertAnnotatedSpan(new Span(0, 3), new TestAnnotation('a'));
     list.insertAnnotatedSpan(new Span(3, 1), new TestAnnotation('b'));
@@ -427,7 +427,7 @@ describe('AnnotationList', function() {
   });
 
   it('BadRemove1', function() {
-    var list = new AnnotationList(changeHandler);
+    const list = new AnnotationList(changeHandler);
     list.insertAnnotatedSpan(new Span(0, 10), new TestAnnotation('a'));
     list.insertAnnotatedSpan(new Span(10, 10), new TestAnnotation('b'));
     list.insertAnnotatedSpan(new Span(20, 10), new TestAnnotation('c'));
@@ -444,7 +444,7 @@ describe('AnnotationList', function() {
   });
 
   it('Update1', function() {
-    var list = new AnnotationList(changeHandler);
+    const list = new AnnotationList(changeHandler);
     list.insertAnnotatedSpan(new Span(0, 10), new TestAnnotation('a'));
     list.insertAnnotatedSpan(new Span(10, 10), new TestAnnotation('b'));
     list.insertAnnotatedSpan(new Span(20, 10), new TestAnnotation('c'));
@@ -469,7 +469,7 @@ describe('AnnotationList', function() {
   });
 
   it('Update2', function() {
-    var list = new AnnotationList(changeHandler);
+    const list = new AnnotationList(changeHandler);
     list.insertAnnotatedSpan(new Span(0, 10), new TestAnnotation('a'));
     list.insertAnnotatedSpan(new Span(10, 10), new TestAnnotation('b'));
     list.insertAnnotatedSpan(new Span(20, 10), new TestAnnotation('c'));
@@ -499,7 +499,7 @@ describe('AnnotationList', function() {
   });
 
   it('Update3', function() {
-    var list = new AnnotationList(changeHandler);
+    const list = new AnnotationList(changeHandler);
     list.insertAnnotatedSpan(new Span(0, 10), new TestAnnotation('a'));
     list.insertAnnotatedSpan(new Span(10, 10), new TestAnnotation('b'));
     list.insertAnnotatedSpan(new Span(20, 10), new TestAnnotation('c'));
@@ -519,7 +519,7 @@ describe('AnnotationList', function() {
   });
 
   it('Update4', function() {
-    var list = new AnnotationList(changeHandler);
+    const list = new AnnotationList(changeHandler);
     list.insertAnnotatedSpan(new Span(0, 10), new TestAnnotation('a'));
     list.insertAnnotatedSpan(new Span(10, 10), new TestAnnotation('b'));
     list.insertAnnotatedSpan(new Span(20, 10), new TestAnnotation('c'));
@@ -545,7 +545,7 @@ describe('AnnotationList', function() {
     if (!(other instanceof AttributesAnnotation)) {
       return false;
     }
-    var attr;
+    let attr;
     for(attr in this.attrs) {
       if (other.attrs[attr] !== this.attrs[attr]) {
         return false;
@@ -562,38 +562,39 @@ describe('AnnotationList', function() {
   };
 
   it('RandomOperations', helpers.randomTest(n, function() {
-    var str = h.randomString(50);
-    var attributes = h.randomAttributesArray(50);
-    var o = h.randomOperation(str, /*useAttributes=*/true);
-    var attributesFromApply = [ ];
+    const str = h.randomString(50);
+    const attributes = h.randomAttributesArray(50);
+    const o = h.randomOperation(str, /*useAttributes=*/true);
+    const attributesFromApply = [ ];
     o.apply(str, attributes, attributesFromApply);
 
     // Apply operation to an annotation list.
-    var attributesFromEvents = [ ];
-    var list = new AnnotationList(function(oldNodes, newNodes) {
-      var deletedChars = 0;
-      for(var i = 0; i < oldNodes.length; i++) {
+    const attributesFromEvents = [ ];
+    const list = new AnnotationList(function(oldNodes, newNodes) {
+      let deletedChars = 0;
+      for(let i = 0; i < oldNodes.length; i++) {
         expect(oldNodes[i].pos + oldNodes[i].length <= attributesFromEvents.length + deletedChars).toBe(true);
         attributesFromEvents.splice(oldNodes[i].pos - deletedChars, oldNodes[i].length);
         deletedChars += oldNodes[i].length;
       }
-      for(i = 0; i < newNodes.length; i++) {
+      for(let i = 0; i < newNodes.length; i++) {
         // HACK: Is there a better way to insert an array into another array?
-        var args = [newNodes[i].pos, 0];
-        for(var j = 0; j < newNodes[i].length; j++) {
+        const args = [newNodes[i].pos, 0];
+        for(let j = 0; j < newNodes[i].length; j++) {
           args.push(newNodes[i].annotation.attrs);
         }
         attributesFromEvents.splice.apply(attributesFromEvents, args);
       }
     });
 
-    for(var i = 0; i < attributes.length; i++) {
+    for(let i = 0; i < attributes.length; i++) {
       list.insertAnnotatedSpan(new Span(i, 1), new AttributesAnnotation(attributes[i]));
     }
 
-    var makeUpdateCallback = function(newAttributes) {
+    const makeUpdateCallback = function(newAttributes) {
       return function(annotation) {
-        var newAttrs = { }, attr;
+        const newAttrs = { };
+        let attr;
         for(attr in annotation.attrs) {
           newAttrs[attr] = annotation.attrs[attr];
         }
@@ -609,9 +610,9 @@ describe('AnnotationList', function() {
       };
     };
 
-    var pos = 0;
-    for(i = 0; i < o.ops.length; i++) {
-      var op = o.ops[i];
+    let pos = 0;
+    for(let i = 0; i < o.ops.length; i++) {
+      const op = o.ops[i];
       if (op.isInsert()) {
         list.insertAnnotatedSpan(new Span(pos, op.text.length), new AttributesAnnotation(op.attributes));
         pos += op.text.length;
@@ -623,9 +624,9 @@ describe('AnnotationList', function() {
       }
     }
 
-    var attributesFromAnnotationList = [ ];
+    const attributesFromAnnotationList = [ ];
     list.forEach(function(length, annotation) {
-      for(var i = 0; i < length; i++) {
+      for(let i = 0; i < length; i++) {
         attributesFromAnnotationList.push(annotation.attrs);
       }
     });

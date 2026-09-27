@@ -1,6 +1,6 @@
 /**
  * Persistent offline revision queue backed by asynchronous storage engines.
- * Buffers local collaborative typing edits during network drops and across browser session reboots.
+ * Buffers local edits while offline; with IndexedDB storage they survive a page reload.
  */
 import { StorageEngineSeam } from "./storage-engine.ts";
 import { toSafeJSON } from "../types.ts";

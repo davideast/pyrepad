@@ -7,29 +7,29 @@ import { TextOperation, WrappedOperation, UndoManager } from "../../src/core/ind
 function mulberry32(seed) {
   return function () {
     seed = (seed + 0x6d2b79f5) | 0;
-    var t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
 
 function makeGen(seed) {
-  var rand = mulberry32(seed);
-  var int = function (n) {
+  const rand = mulberry32(seed);
+  const int = function (n) {
     return Math.floor(rand() * n);
   };
-  var str = function (n) {
-    var s = "";
+  const str = function (n) {
+    let s = "";
     while (n--) s += rand() < 0.15 ? "\n" : String.fromCharCode(97 + int(26));
     return s;
   };
-  var op = function (doc) {
-    var o = new TextOperation();
+  const op = function (doc) {
+    const o = new TextOperation();
     while (true) {
-      var left = doc.length - o.baseLength;
+      const left = doc.length - o.baseLength;
       if (left === 0) break;
-      var r = rand();
-      var l = 1 + int(Math.min(left - 1, 20));
+      const r = rand();
+      const l = 1 + int(Math.min(left - 1, 20));
       if (r < 0.2) o.insert(str(l));
       else if (r < 0.4) o.delete(l);
       else o.retain(l);
@@ -47,9 +47,9 @@ function Editor(doc, maxItems) {
   this.undoManager = new UndoManager(maxItems);
 }
 Editor.prototype.localEdit = function (operation, forbidCompose) {
-  var stack = this.undoManager.undoStack;
-  var inverse = operation.invert(this.doc);
-  var compose =
+  const stack = this.undoManager.undoStack;
+  const inverse = operation.invert(this.doc);
+  const compose =
     !forbidCompose &&
     stack.length > 0 &&
     inverse.shouldBeComposedWithInverted(stack[stack.length - 1]);
@@ -61,13 +61,13 @@ Editor.prototype.remoteEdit = function (operation) {
   this.undoManager.transform(operation);
 };
 Editor.prototype.undo = function () {
-  var self = this;
+  const self = this;
   this.undoManager.performUndo(function (op) {
     self.localEdit(op);
   });
 };
 Editor.prototype.redo = function () {
-  var self = this;
+  const self = this;
   this.undoManager.performRedo(function (op) {
     self.localEdit(op);
   });
@@ -80,7 +80,7 @@ function del(pos, n, docLen) {
   return new TextOperation().retain(pos).delete(n).retain(docLen - pos - n);
 }
 
-var ITERATIONS = 150;
+const ITERATIONS = 150;
 
 describe("core UndoManager: stack behaviour", function () {
   it("rejects a non-positive capacity", function () {
@@ -93,8 +93,8 @@ describe("core UndoManager: stack behaviour", function () {
   });
 
   it("undo then redo restores each state", function () {
-    var e = new Editor("Looremipsum");
-    var um = e.undoManager;
+    const e = new Editor("Looremipsum");
+    const um = e.undoManager;
     expect(um.canUndo()).toBe(false);
     expect(um.canRedo()).toBe(false);
     e.localEdit(del(2, 1, 11));
@@ -117,7 +117,7 @@ describe("core UndoManager: stack behaviour", function () {
   });
 
   it("composes consecutive typing into one undo step", function () {
-    var e = new Editor("ab");
+    const e = new Editor("ab");
     e.localEdit(ins(1, "x", 2));
     e.localEdit(ins(2, "y", 3));
     e.localEdit(ins(3, "z", 4));
@@ -128,7 +128,7 @@ describe("core UndoManager: stack behaviour", function () {
   });
 
   it("composes consecutive backspaces into one undo step", function () {
-    var e = new Editor("abcdef");
+    const e = new Editor("abcdef");
     e.localEdit(del(4, 1, 6));
     e.localEdit(del(3, 1, 5));
     e.localEdit(del(2, 1, 4));
@@ -139,14 +139,14 @@ describe("core UndoManager: stack behaviour", function () {
   });
 
   it("does not compose non-adjacent edits", function () {
-    var e = new Editor("abcdef");
+    const e = new Editor("abcdef");
     e.localEdit(ins(1, "x", 6));
     e.localEdit(ins(5, "y", 7));
     expect(e.undoManager.undoStack.length).toBe(2);
   });
 
   it("a new local edit clears the redo stack", function () {
-    var e = new Editor("abc");
+    const e = new Editor("abc");
     e.localEdit(ins(0, "x", 3));
     e.undo();
     expect(e.undoManager.canRedo()).toBe(true);
@@ -155,9 +155,9 @@ describe("core UndoManager: stack behaviour", function () {
   });
 
   it("does not compose the edit following an undo/redo onto the undo/redo op", function () {
-    var um = new UndoManager();
-    var a = new TextOperation().retain(1).delete(1);
-    var b = new TextOperation().retain(1).insert("x");
+    const um = new UndoManager();
+    const a = new TextOperation().retain(1).delete(1);
+    const b = new TextOperation().retain(1).insert("x");
     um.add(a);
     um.performUndo(function (op) {
       um.add(op);
@@ -172,10 +172,10 @@ describe("core UndoManager: stack behaviour", function () {
   });
 
   it("drops the oldest entry beyond maxItems", function () {
-    var um = new UndoManager(3);
-    var ops = [];
-    for (var k = 0; k < 5; k++) {
-      var o = new TextOperation().insert(String(k));
+    const um = new UndoManager(3);
+    const ops = [];
+    for (let k = 0; k < 5; k++) {
+      const o = new TextOperation().insert(String(k));
       ops.push(o);
       um.add(o);
     }
@@ -183,7 +183,7 @@ describe("core UndoManager: stack behaviour", function () {
   });
 
   it("performUndo/performRedo throw on an empty stack", function () {
-    var um = new UndoManager();
+    const um = new UndoManager();
     expect(function () {
       um.performUndo(function () {});
     }).toThrow("undo not possible");
@@ -193,9 +193,9 @@ describe("core UndoManager: stack behaviour", function () {
   });
 
   it("reports undoing/redoing state only inside the callback, and resets on throw", function () {
-    var um = new UndoManager();
+    const um = new UndoManager();
     um.add(new TextOperation().insert("a"));
-    var seen = null;
+    let seen = null;
     um.performUndo(function (op) {
       seen = [um.isUndoing(), um.isRedoing()];
       um.add(op);
@@ -220,7 +220,7 @@ describe("core UndoManager: stack behaviour", function () {
 
 describe("core UndoManager: transform on remote op", function () {
   it("deterministic: undo after a concurrent remote edit", function () {
-    var e = new Editor("Looremipsum");
+    const e = new Editor("Looremipsum");
     e.localEdit(del(2, 1, 11));
     e.localEdit(ins(5, " ", 10), true);
     expect(e.doc).toBe("Lorem ipsum");
@@ -236,7 +236,7 @@ describe("core UndoManager: transform on remote op", function () {
   });
 
   it("drops undo entries that the remote op turns into noops", function () {
-    var e = new Editor("abc");
+    const e = new Editor("abc");
     e.localEdit(ins(1, "X", 3));
     expect(e.doc).toBe("aXbc");
     // Remote deletes the text that the undo entry would delete.
@@ -246,12 +246,12 @@ describe("core UndoManager: transform on remote op", function () {
   });
 
   it("transforms WrappedOperation entries too", function () {
-    var um = new UndoManager();
-    var doc = "abc";
-    var local = new TextOperation().retain(3).insert("!");
+    const um = new UndoManager();
+    let doc = "abc";
+    const local = new TextOperation().retain(3).insert("!");
     um.add(new WrappedOperation(local.invert(doc), null));
     doc = local.apply(doc); // "abc!"
-    var remote = new WrappedOperation(new TextOperation().insert(">").retain(4), null);
+    const remote = new WrappedOperation(new TextOperation().insert(">").retain(4), null);
     doc = remote.apply(doc); // ">abc!"
     um.transform(remote);
     um.performUndo(function (op) {
@@ -261,30 +261,30 @@ describe("core UndoManager: transform on remote op", function () {
   });
 
   it("random: with local edits only, undoing everything restores the original", function () {
-    var g = makeGen(0x0dd001);
-    for (var n = 0; n < ITERATIONS; n++) {
-      var original = g.str(g.int(30));
-      var e = new Editor(original, 1000);
-      var steps = 1 + g.int(8);
-      for (var k = 0; k < steps; k++) e.localEdit(g.op(e.doc), g.rand() < 0.5);
+    const g = makeGen(0x0dd001);
+    for (let n = 0; n < ITERATIONS; n++) {
+      const original = g.str(g.int(30));
+      const e = new Editor(original, 1000);
+      const steps = 1 + g.int(8);
+      for (let k = 0; k < steps; k++) e.localEdit(g.op(e.doc), g.rand() < 0.5);
       while (e.undoManager.canUndo()) e.undo();
       expect(e.doc).toBe(original);
     }
   });
 
   it("random: interleaved local/remote edits — every undo applies, and redo-all restores the pre-undo doc", function () {
-    var g = makeGen(0x0dd002);
-    for (var n = 0; n < ITERATIONS; n++) {
-      var e = new Editor(g.str(g.int(30)), 1000);
-      var steps = 1 + g.int(10);
-      for (var k = 0; k < steps; k++) {
+    const g = makeGen(0x0dd002);
+    for (let n = 0; n < ITERATIONS; n++) {
+      const e = new Editor(g.str(g.int(30)), 1000);
+      const steps = 1 + g.int(10);
+      for (let k = 0; k < steps; k++) {
         if (g.rand() < 0.4) e.remoteEdit(g.op(e.doc));
         else e.localEdit(g.op(e.doc), g.rand() < 0.5);
       }
-      var beforeUndo = e.doc;
-      var undone = 0;
+      const beforeUndo = e.doc;
+      let undone = 0;
       while (e.undoManager.canUndo()) {
-        var top = e.undoManager.undoStack[e.undoManager.undoStack.length - 1];
+        const top = e.undoManager.undoStack[e.undoManager.undoStack.length - 1];
         expect(top.baseLength).toBe(e.doc.length);
         e.undo();
         undone++;
@@ -296,14 +296,14 @@ describe("core UndoManager: transform on remote op", function () {
   });
 
   it("random: remote edit between undo and redo — redo still applies after transform", function () {
-    var g = makeGen(0x0dd003);
-    for (var n = 0; n < ITERATIONS; n++) {
-      var e = new Editor(g.str(1 + g.int(30)), 1000);
-      var steps = 1 + g.int(6);
-      for (var k = 0; k < steps; k++) e.localEdit(g.op(e.doc), true);
+    const g = makeGen(0x0dd003);
+    for (let n = 0; n < ITERATIONS; n++) {
+      const e = new Editor(g.str(1 + g.int(30)), 1000);
+      const steps = 1 + g.int(6);
+      for (let k = 0; k < steps; k++) e.localEdit(g.op(e.doc), true);
       e.undo();
       e.remoteEdit(g.op(e.doc));
-      var um = e.undoManager;
+      const um = e.undoManager;
       while (um.canRedo()) {
         expect(um.redoStack[um.redoStack.length - 1].baseLength).toBe(e.doc.length);
         e.redo();

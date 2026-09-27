@@ -1,6 +1,6 @@
 /**
  * @pyric/pad/core
- * Zero-DOM Operational Transformation Math & Document Engine
+ * Zero-DOM Operational Transformation primitives, annotations, and undo history.
  */
 export { VERSION } from "../version.ts";
 export { TextOp } from "./operations/text-op.ts";

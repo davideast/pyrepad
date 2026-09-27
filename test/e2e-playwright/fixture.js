@@ -1,7 +1,7 @@
 import { CodeMirror5Adapter } from "/src/editors/index.ts";
 
 function createDisconnectableRef(baseRef) {
-  var state = {
+  const state = {
     offline: false,
     queuedOps: [],
     connListeners: [],
@@ -30,15 +30,15 @@ DisconnectableRef.prototype.child = function (relPath) {
 };
 
 DisconnectableRef.prototype.parent = function () {
-  var parentRef = this.realRef.parent();
+  const parentRef = this.realRef.parent();
   const hasParent = Boolean(parentRef);
   if (!hasParent) return null;
   return new DisconnectableRef(parentRef, this.state, this.root);
 };
 
 DisconnectableRef.prototype.push = function (val, cb) {
-  var childRef = this.realRef.push();
-  var wrapped = new DisconnectableRef(childRef, this.state, this.root);
+  const childRef = this.realRef.push();
+  const wrapped = new DisconnectableRef(childRef, this.state, this.root);
   const hasValue = val !== undefined && val !== null;
   if (hasValue) {
     wrapped.set(val, cb);
@@ -50,7 +50,7 @@ DisconnectableRef.prototype.push = function (val, cb) {
 };
 
 DisconnectableRef.prototype.on = function (eventType, callback, ctx, opts) {
-  var refStr = this.toString();
+  const refStr = this.toString();
   const isConnInfo = refStr.indexOf(".info/connected") >= 0;
   if (isConnInfo) {
     this.state.connListeners.push(callback);
@@ -71,7 +71,7 @@ DisconnectableRef.prototype.once = function (eventType, callback, ctx, opts) {
 };
 
 DisconnectableRef.prototype.off = function (eventType, callback, ctx) {
-  var refStr = this.toString();
+  const refStr = this.toString();
   const isConnInfo = refStr.indexOf(".info/connected") >= 0;
   const shouldRemoveConnListener = isConnInfo && Boolean(callback);
   if (shouldRemoveConnListener) {
@@ -157,15 +157,15 @@ DisconnectableRef.prototype.onDisconnect = function () {
 
 DisconnectableRef.prototype.setOfflineState = function (offline) {
   this.state.offline = offline;
-  var listeners = [...this.state.connListeners];
-  for (var i = 0; i < listeners.length; i++) {
+  const listeners = [...this.state.connListeners];
+  for (let i = 0; i < listeners.length; i++) {
     listeners[i]({ val: () => !offline });
   }
   const shouldReplay = !offline && this.state.queuedOps.length > 0;
   if (shouldReplay) {
-    var queue = [...this.state.queuedOps];
+    const queue = [...this.state.queuedOps];
     this.state.queuedOps = [];
-    for (var j = 0; j < queue.length; j++) {
+    for (let j = 0; j < queue.length; j++) {
       executeQueuedOperation(queue[j]);
     }
   }
@@ -194,45 +194,45 @@ function executeQueuedOperation(op) {
 }
 
 function initializeHarness() {
-  var PyricSandbox = window.firepad && window.firepad.PyricSandbox;
+  const PyricSandbox = window.firepad && window.firepad.PyricSandbox;
   const isMissingSandbox = !PyricSandbox;
   if (isMissingSandbox) {
     console.error("PyricSandbox not found on window.firepad");
     return;
   }
-  var db = PyricSandbox.createDatabase();
-  var rootRef = db.ref("/playwright-journey");
+  const db = PyricSandbox.createDatabase();
+  const rootRef = db.ref("/playwright-journey");
 
-  var refA = createDisconnectableRef(rootRef);
-  var refB = createDisconnectableRef(rootRef);
+  const refA = createDisconnectableRef(rootRef);
+  const refB = createDisconnectableRef(rootRef);
 
-  var containerA = document.getElementById("editor-container-a");
-  var containerB = document.getElementById("editor-container-b");
+  const containerA = document.getElementById("editor-container-a");
+  const containerB = document.getElementById("editor-container-b");
 
-  var cmA = window.CodeMirror(containerA, {
+  const cmA = window.CodeMirror(containerA, {
     lineNumbers: true,
     value: "",
   });
-  var cmB = window.CodeMirror(containerB, {
+  const cmB = window.CodeMirror(containerB, {
     lineNumbers: true,
     value: "",
   });
 
-  var padA = (window.Firepad || window.firepad).fromCodeMirror(refA, cmA, {
+  const padA = (window.Firepad || window.firepad).fromCodeMirror(refA, cmA, {
     userId: "Alice",
     userColor: "#ef4444",
     useSyncSeam: true,
     defaultText: "Initial shared collaboration text.\n",
   });
 
-  var padB = (window.Firepad || window.firepad).fromCodeMirror(refB, cmB, {
+  const padB = (window.Firepad || window.firepad).fromCodeMirror(refB, cmB, {
     userId: "Bob",
     userColor: "#3b82f6",
     useSyncSeam: true,
   });
 
-  var driverA = new CodeMirror5Adapter(cmA);
-  var driverB = new CodeMirror5Adapter(cmB);
+  const driverA = new CodeMirror5Adapter(cmA);
+  const driverB = new CodeMirror5Adapter(cmB);
 
   window.testHarness = {
     padA: padA,
@@ -257,9 +257,9 @@ if (isDocumentReady) {
 }
 
 function setupNetworkControls(clientKey, disconnectableRef) {
-  var btnDisconnect = document.getElementById("btn-disconnect-" + clientKey);
-  var btnReconnect = document.getElementById("btn-reconnect-" + clientKey);
-  var statusBadge = document.getElementById("status-" + clientKey);
+  const btnDisconnect = document.getElementById("btn-disconnect-" + clientKey);
+  const btnReconnect = document.getElementById("btn-reconnect-" + clientKey);
+  const statusBadge = document.getElementById("status-" + clientKey);
 
   btnDisconnect.addEventListener("click", function () {
     disconnectableRef.setOfflineState(true);

@@ -1,10 +1,10 @@
 describe('E2E Collaboration in Pyric Sandbox (PR 2.3)', function() {
-  var PyricSandbox = firepad.PyricSandbox;
-  var SyncSeam = firepad.SyncSeam;
-  var Firepad = firepad.Firepad;
-  var TextOperation = firepad.TextOperation;
+  const PyricSandbox = firepad.PyricSandbox;
+  const SyncSeam = firepad.SyncSeam;
+  const Firepad = firepad.Firepad;
+  const TextOperation = firepad.TextOperation;
 
-  var _hiddenDiv;
+  let _hiddenDiv;
   function hiddenDiv() {
     if (!_hiddenDiv) {
       _hiddenDiv = document.createElement('div');
@@ -15,17 +15,17 @@ describe('E2E Collaboration in Pyric Sandbox (PR 2.3)', function() {
   }
 
   it('Syncs edits between two independent EditorClients over PyricSandboxAdapter', async function() {
-    var db = PyricSandbox.createDatabase();
-    var ref = db.ref('/collaborate-pad');
+    const db = PyricSandbox.createDatabase();
+    const ref = db.ref('/collaborate-pad');
 
-    var cmA = CodeMirror(hiddenDiv());
-    var cmB = CodeMirror(hiddenDiv());
+    const cmA = CodeMirror(hiddenDiv());
+    const cmB = CodeMirror(hiddenDiv());
 
-    var adapterA = new SyncSeam.PyricSandboxAdapter(ref, 'client-Alice', '#ff0000');
-    var adapterB = new SyncSeam.PyricSandboxAdapter(ref, 'client-Bob', '#0000ff');
+    const adapterA = new SyncSeam.PyricSandboxAdapter(ref, 'client-Alice', '#ff0000');
+    const adapterB = new SyncSeam.PyricSandboxAdapter(ref, 'client-Bob', '#0000ff');
 
-    var padA = new Firepad(ref, cmA, { syncAdapter: adapterA, userId: 'client-Alice' });
-    var padB = new Firepad(ref, cmB, { syncAdapter: adapterB, userId: 'client-Bob' });
+    const padA = new Firepad(ref, cmA, { syncAdapter: adapterA, userId: 'client-Alice' });
+    const padB = new Firepad(ref, cmB, { syncAdapter: adapterB, userId: 'client-Bob' });
 
     await new Promise(r => setTimeout(r, 50));
 

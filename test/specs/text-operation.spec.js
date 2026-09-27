@@ -1,18 +1,18 @@
 describe('TextOperation', function() {
-  var TextOperation = firepad.TextOperation;
-  var TextOp = firepad.TextOp;
-  var h = helpers;
+  const TextOperation = firepad.TextOperation;
+  const TextOp = firepad.TextOp;
+  const h = helpers;
 
-  var n = 500;
+  const n = 500;
 
   it('Constructor', function() {
     // you should be able to call the constructor without 'new'
-    var o = TextOperation();
+    const o = TextOperation();
     expect(o.constructor).toBe(TextOperation);
   });
 
   it('Lengths', function() {
-    var o = new TextOperation();
+    const o = new TextOperation();
     expect(0).toBe(o.baseLength);
     expect(0).toBe(o.targetLength);
     o.retain(5);
@@ -30,7 +30,7 @@ describe('TextOperation', function() {
   });
 
   it('Chaining', function() {
-    var o = new TextOperation()
+    const o = new TextOperation()
       .retain(5)
       .retain(0)
       .insert("lorem")
@@ -43,7 +43,7 @@ describe('TextOperation', function() {
   });
 
   it('ChainingWithDifferentAttributes', function() {
-    var o = new TextOperation()
+    const o = new TextOperation()
         .retain(5)
         .retain(3, { a: 1 })
         .retain(0, { b: 2 })
@@ -58,34 +58,34 @@ describe('TextOperation', function() {
   });
 
   it('Apply', h.randomTest(n, function() {
-    var str = h.randomString(50);
-    var o = h.randomOperation(str);
+    const str = h.randomString(50);
+    const o = h.randomOperation(str);
     expect(str.length).toBe(o.baseLength);
     expect(o.apply(str).length).toBe(o.targetLength);
   }));
 
   it('ApplyWithAttributes', h.randomTest(n, function() {
-    var str = h.randomString(50);
-    var attributes = h.randomAttributesArray(50);
-    var o = h.randomOperation(str, /*useAttributes=*/true);
+    const str = h.randomString(50);
+    const attributes = h.randomAttributesArray(50);
+    const o = h.randomOperation(str, /*useAttributes=*/true);
     expect(str.length).toBe(o.baseLength);
-    var newAttributes = [ ];
-    var newString = o.apply(str, attributes, newAttributes);
+    const newAttributes = [ ];
+    const newString = o.apply(str, attributes, newAttributes);
     expect(newString.length).toBe(o.targetLength);
     expect(newAttributes.length).toBe(newString.length);
   }));
 
   it('Invert', h.randomTest(n, function() {
-    var str = h.randomString(50);
-    var o = h.randomOperation(str);
-    var p = o.invert(str);
+    const str = h.randomString(50);
+    const o = h.randomOperation(str);
+    const p = o.invert(str);
     expect(o.baseLength).toBe(p.targetLength);
     expect(o.targetLength).toBe(p.baseLength);
     expect(p.apply(o.apply(str))).toBe(str);
   }));
 
   it('EmptyOps', function() {
-    var o = new TextOperation();
+    const o = new TextOperation();
     o.retain(0);
     o.insert('');
     o['delete']('');
@@ -93,8 +93,8 @@ describe('TextOperation', function() {
   });
 
   it('Equals', function() {
-    var op1 = new TextOperation()['delete'](1).insert("lo").retain(2).retain(3);
-    var op2 = new TextOperation()['delete'](1).insert("l").insert("o").retain(5);
+    const op1 = new TextOperation()['delete'](1).insert("lo").retain(2).retain(3);
+    const op2 = new TextOperation()['delete'](1).insert("l").insert("o").retain(5);
     expect(op1.equals(op2)).toBe(true);
     op1['delete'](1);
     op2.retain(1);
@@ -102,7 +102,7 @@ describe('TextOperation', function() {
   });
 
   it('EqualsWithAttributes', function() {
-    var op1 = new TextOperation()
+    const op1 = new TextOperation()
         ['delete'](1)
         .insert("lo", {a: 1})
         .insert("ab", {a: 1})
@@ -110,7 +110,7 @@ describe('TextOperation', function() {
         .retain(2, {b: 2})
         .retain(3, {b: 2})
         .retain(3);
-    var op2 = new TextOperation()
+    const op2 = new TextOperation()
         ['delete'](1)
         .insert("loab", {a: 1})
         .insert("cd")
@@ -122,7 +122,7 @@ describe('TextOperation', function() {
   it('OpsMerging', function() {
     function last (arr) { return arr[arr.length-1]; }
 
-    var o = new TextOperation();
+    const o = new TextOperation();
     expect(0).toBe(o.ops.length);
     o.retain(2);
     expect(1).toBe(o.ops.length);
@@ -147,7 +147,7 @@ describe('TextOperation', function() {
   it('OpsMergingWithAttributes', function() {
     function last (arr) { return arr[arr.length-1]; }
 
-    var o = new TextOperation();
+    const o = new TextOperation();
     expect(0).toBe(o.ops.length);
     o.retain(2);
     expect(1).toBe(o.ops.length);
@@ -185,7 +185,7 @@ describe('TextOperation', function() {
   });
 
   it('IsNoop', function() {
-    var o = new TextOperation();
+    const o = new TextOperation();
     expect(o.isNoop()).toBe(true);
     o.retain(5);
     expect(o.isNoop()).toBe(true);
@@ -196,7 +196,7 @@ describe('TextOperation', function() {
   });
 
   it('IsNoop', function() {
-    var o = new TextOperation();
+    const o = new TextOperation();
     expect(o.isNoop()).toBe(true);
     o.retain(5);
     expect(o.isNoop()).toBe(true);
@@ -205,7 +205,7 @@ describe('TextOperation', function() {
   });
 
   it('ToString', function() {
-    var o = new TextOperation();
+    const o = new TextOperation();
     o.retain(2);
     o.insert('lorem');
     o['delete']('ipsum');
@@ -214,26 +214,26 @@ describe('TextOperation', function() {
   });
 
   it('IdJSON', h.randomTest(n, function() {
-    var doc = h.randomString(50);
-    var operation = h.randomOperation(doc);
+    const doc = h.randomString(50);
+    const operation = h.randomOperation(doc);
     expect(operation.equals(TextOperation.fromJSON(operation.toJSON()))).toBe(true);
   }));
 
   it('IdJSONWithAttributes', h.randomTest(n, function() {
-    var doc = h.randomString(50);
-    var operation = h.randomOperation(doc, /*useAttributes=*/true);
+    const doc = h.randomString(50);
+    const operation = h.randomOperation(doc, /*useAttributes=*/true);
     expect(operation.equals(TextOperation.fromJSON(operation.toJSON()))).toBe(true);
   }));
 
   it('FromJSON', function() {
-    var ops = [2, -1, -1, 'cde'];
-    var o = TextOperation.fromJSON(ops);
+    const ops = [2, -1, -1, 'cde'];
+    const o = TextOperation.fromJSON(ops);
     expect(3).toBe(o.ops.length);
     expect(4).toBe(o.baseLength);
     expect(5).toBe(o.targetLength);
 
     function assertIncorrectAfter (fn) {
-      var ops2 = ops.slice(0);
+      const ops2 = ops.slice(0);
       fn(ops2);
       expect(function () { TextOperation.fromJSON(ops2); }).toThrow();
     }
@@ -243,14 +243,14 @@ describe('TextOperation', function() {
   });
 
   it('FromJSONWithAttributes', function() {
-    var ops = [2, {a: 1}, 3, -1, -1, 'cde', {a: 2}, 'fgh'];
-    var o = TextOperation.fromJSON(ops);
+    const ops = [2, {a: 1}, 3, -1, -1, 'cde', {a: 2}, 'fgh'];
+    const o = TextOperation.fromJSON(ops);
     expect(5).toBe(o.ops.length);
     expect(7).toBe(o.baseLength);
     expect(11).toBe(o.targetLength);
 
     function assertIncorrectAfter (fn) {
-      var ops2 = ops.slice(0);
+      const ops2 = ops.slice(0);
       fn(ops2);
       expect(function () { TextOperation.fromJSON(ops2); }).toThrow();
     }
@@ -261,7 +261,7 @@ describe('TextOperation', function() {
 
   it('ShouldBeComposedWith', function() {
     function make () { return new TextOperation(); }
-    var a, b;
+    let a, b;
 
     a = make().retain(3);
     b = make().retain(1).insert("tag").retain(2);
@@ -289,48 +289,48 @@ describe('TextOperation', function() {
 
   it('ShouldBeComposedWithInverted', h.randomTest(2*n, function () {
     // invariant: shouldBeComposedWith(a, b) = shouldBeComposedWithInverted(b^{-1}, a^{-1})
-    var str = h.randomString();
-    var a = h.randomOperation(str);
-    var aInv = a.invert(str);
-    var afterA = a.apply(str);
-    var b = h.randomOperation(afterA);
-    var bInv = b.invert(afterA);
+    const str = h.randomString();
+    const a = h.randomOperation(str);
+    const aInv = a.invert(str);
+    const afterA = a.apply(str);
+    const b = h.randomOperation(afterA);
+    const bInv = b.invert(afterA);
     expect(a.shouldBeComposedWith(b)).toBe(bInv.shouldBeComposedWithInverted(aInv));
   }));
 
   it('Compose', h.randomTest(n, function() {
     // invariant: apply(str, compose(a, b)) === apply(apply(str, a), b)
-    var str = h.randomString(20);
-    var a = h.randomOperation(str);
-    var afterA = a.apply(str);
+    const str = h.randomString(20);
+    const a = h.randomOperation(str);
+    const afterA = a.apply(str);
     expect(a.targetLength).toBe(afterA.length);
-    var b = h.randomOperation(afterA);
-    var afterB = b.apply(afterA);
+    const b = h.randomOperation(afterA);
+    const afterB = b.apply(afterA);
     expect(b.targetLength).toBe(afterB.length);
-    var ab = a.compose(b);
+    const ab = a.compose(b);
     expect(ab.meta).toBe(a.meta);
     expect(ab.targetLength).toBe(b.targetLength);
-    var afterAB = ab.apply(str);
+    const afterAB = ab.apply(str);
     expect(afterB).toBe(afterAB);
   }));
 
   it('ComposeWithAttributes', h.randomTest(n, function() {
     // invariant: apply(str, compose(a, b)) === apply(apply(str, a), b)
-    var str = h.randomString(20);
-    var attributes = h.randomAttributesArray(20);
-    var a = h.randomOperation(str, /*useAttributes=*/true);
-    var afterAattributes = [];
-    var afterA = a.apply(str, attributes, afterAattributes);
+    const str = h.randomString(20);
+    const attributes = h.randomAttributesArray(20);
+    const a = h.randomOperation(str, /*useAttributes=*/true);
+    const afterAattributes = [];
+    const afterA = a.apply(str, attributes, afterAattributes);
     expect(a.targetLength).toBe(afterA.length);
-    var b = h.randomOperation(afterA, /*useAttributes=*/true);
-    var afterBattributes = [];
-    var afterB = b.apply(afterA, afterAattributes, afterBattributes);
+    const b = h.randomOperation(afterA, /*useAttributes=*/true);
+    const afterBattributes = [];
+    const afterB = b.apply(afterA, afterAattributes, afterBattributes);
     expect(b.targetLength).toBe(afterB.length);
-    var ab = a.compose(b);
+    const ab = a.compose(b);
     expect(ab.meta).toBe(a.meta);
     expect(ab.targetLength).toBe(b.targetLength);
-    var afterABattributes = [];
-    var afterAB = ab.apply(str, attributes, afterABattributes);
+    const afterABattributes = [];
+    const afterAB = ab.apply(str, attributes, afterABattributes);
     expect(afterB).toBe(afterAB);
     expect(afterBattributes).toEqual(afterABattributes);
   }));
@@ -338,16 +338,16 @@ describe('TextOperation', function() {
   it('Transform', h.randomTest(n, function() {
     // invariant: compose(a, b') = compose(b, a')
     // where (a', b') = transform(a, b)
-    var str = h.randomString(20);
-    var a = h.randomOperation(str);
-    var b = h.randomOperation(str);
-    var primes = a.transform(b);
-    var aPrime = primes[0];
-    var bPrime = primes[1];
-    var abPrime = a.compose(bPrime);
-    var baPrime = b.compose(aPrime);
-    var afterAbPrime = abPrime.apply(str);
-    var afterBaPrime = baPrime.apply(str);
+    const str = h.randomString(20);
+    const a = h.randomOperation(str);
+    const b = h.randomOperation(str);
+    const primes = a.transform(b);
+    const aPrime = primes[0];
+    const bPrime = primes[1];
+    const abPrime = a.compose(bPrime);
+    const baPrime = b.compose(aPrime);
+    const afterAbPrime = abPrime.apply(str);
+    const afterBaPrime = baPrime.apply(str);
     expect(abPrime.equals(baPrime)).toBe(true);
     expect(afterAbPrime).toBe(afterBaPrime);
   }));
@@ -355,19 +355,19 @@ describe('TextOperation', function() {
   it('TransformWithAttributes', h.randomTest(n, function() {
     // invariant: compose(a, b') = compose(b, a')
     // where (a', b') = transform(a, b)
-    var str = h.randomString(20);
-    var attributes = h.randomAttributesArray(20);
-    var a = h.randomOperation(str, /*useAttributes=*/true);
-    var b = h.randomOperation(str, /*useAttributes=*/true);
-    var primes = a.transform(b);
-    var aPrime = primes[0];
-    var bPrime = primes[1];
-    var abPrime = a.compose(bPrime);
-    var baPrime = b.compose(aPrime);
-    var afterABPrimeAttributes = [];
-    var afterAbPrime = abPrime.apply(str, attributes, afterABPrimeAttributes);
-    var afterBaPrimeAttributes = [];
-    var afterBaPrime = baPrime.apply(str, attributes, afterBaPrimeAttributes);
+    const str = h.randomString(20);
+    const attributes = h.randomAttributesArray(20);
+    const a = h.randomOperation(str, /*useAttributes=*/true);
+    const b = h.randomOperation(str, /*useAttributes=*/true);
+    const primes = a.transform(b);
+    const aPrime = primes[0];
+    const bPrime = primes[1];
+    const abPrime = a.compose(bPrime);
+    const baPrime = b.compose(aPrime);
+    const afterABPrimeAttributes = [];
+    const afterAbPrime = abPrime.apply(str, attributes, afterABPrimeAttributes);
+    const afterBaPrimeAttributes = [];
+    const afterBaPrime = baPrime.apply(str, attributes, afterBaPrimeAttributes);
     expect(abPrime.equals(baPrime)).toBe(true);
     expect(afterAbPrime).toBe(afterBaPrime);
     expect(afterABPrimeAttributes).toEqual(afterBaPrimeAttributes);

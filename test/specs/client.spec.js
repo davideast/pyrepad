@@ -1,14 +1,14 @@
 describe('Client', function() {
-  var TextOperation = firepad.TextOperation;
-  var Client = firepad.Client;
+  const TextOperation = firepad.TextOperation;
+  const Client = firepad.Client;
 
   it('Client', function() {
-    var client = new Client();
+    const client = new Client();
     expect(client.state instanceof Client.Synchronized).toBe(true);
 
-    var sentOperation = null;
+    let sentOperation = null;
     function getSentOperation () {
-      var a = sentOperation;
+      const a = sentOperation;
       if (!a) { throw new Error("sendOperation wasn't called"); }
       sentOperation = null;
       return a;
@@ -17,10 +17,10 @@ describe('Client', function() {
       sentOperation = operation;
     };
 
-    var doc = "lorem dolor";
-    var appliedOperation = null;
+    let doc = "lorem dolor";
+    let appliedOperation = null;
     function getAppliedOperation () {
-      var a = appliedOperation;
+      const a = appliedOperation;
       if (!a) { throw new Error("applyOperation wasn't called"); }
       appliedOperation = null;
       return a;

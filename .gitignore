@@ -1,7 +1,6 @@
 .idea
 *.iml
 build/
-bower_components/
 *.sw?
 .DS_Store
 test/coverage/

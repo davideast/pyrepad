@@ -1,4 +1,4 @@
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, spyOn } from "bun:test";
 import { PresenceStreamHandler } from "../../src/adapters/streams/presence-stream.ts";
 
 function createFakeRef(options = {}) {
@@ -51,12 +51,15 @@ function createHandler(ref) {
 async function captureUnhandled(fn) {
   const unhandled = [];
   const onUnhandled = (reason) => unhandled.push(reason);
+  // The handler logs the expected "Presence write failed" warnings; keep them out of the run output.
+  const warn = spyOn(console, "warn").mockImplementation(() => {});
   process.on("unhandledRejection", onUnhandled);
   try {
     await fn();
     await new Promise((resolve) => setTimeout(resolve, 20));
   } finally {
     process.off("unhandledRejection", onUnhandled);
+    warn.mockRestore();
   }
   return unhandled;
 }

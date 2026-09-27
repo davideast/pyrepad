@@ -1,5 +1,5 @@
 /**
- * Application mathematics for applying Operational Transformations to strings and rich attributes.
+ * Applies a TextOperation to a string and its per-character attributes.
  */
 import { TextOp } from "./text-op.ts";
 
