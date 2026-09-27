@@ -1,6 +1,6 @@
 /**
- * Drop-in declarative React collaborative editor component: <CollaborativeEditor />.
- * Features premium glassmorphic dark-mode styling with vibrant teammate badges and zero Virtual DOM render lag.
+ * <CollaborativeEditor />: binds `editor` to the SyncSeam via usePyrepadEditor
+ * and shows a status bar of peers and AI agents above the editor mount point.
  */
 import React from "react";
 import { SyncSeam } from "../adapters/types.ts";
@@ -11,7 +11,7 @@ import { useAgentiveDiffs, AgentiveDiffState } from "./use-agentive-diffs.ts";
 export interface CollaborativeEditorProps {
   adapter?: SyncSeam | null;
   editor?: unknown | null;
-  dbRef?: unknown | null;
+  /* `dbRef` was removed: the SyncSeam adapter already owns the database ref. */
   defaultText?: string;
   type?: "cm5" | "cm6";
   userId?: string;
@@ -132,7 +132,6 @@ export function CollaborativeEditor(
   const {
     adapter,
     editor,
-    dbRef,
     defaultText,
     type = "cm6",
     userId = "react-client",
@@ -146,7 +145,6 @@ export function CollaborativeEditor(
   const editorState = usePyrepadEditor({
     adapter: adapter || null,
     editor: editor || null,
-    dbRef: dbRef,
     defaultText: defaultText,
     type: type,
     userId: userId,

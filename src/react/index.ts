@@ -1,6 +1,5 @@
 /**
- * @pyric/pad/react - Declarative React Component Library & Custom Hooks
- * Empowers collaborative text editing and presence overlays without Virtual DOM render lag.
+ * @pyric/pad/react - React components and hooks for SyncSeam adapters.
  */
 export { VERSION } from "../version.ts";
 

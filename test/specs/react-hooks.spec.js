@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, afterEach } from "bun:test";
 import React from "react";
+import { renderHook, render, act, cleanup } from "@testing-library/react";
 import {
   PyrepadProvider,
   usePyrepadEditor,
@@ -8,140 +9,392 @@ import {
   CollaborativeEditor,
   VERSION,
 } from "../../src/react/index.ts";
-import { PyricSandboxAdapter } from "../../src/adapters/index.ts";
-import { TextOperation } from "../../src/core/index.ts";
+import {
+  PyricSandboxAdapter,
+  ReactiveStream,
+} from "../../src/adapters/index.ts";
+import { TextOperation, Cursor } from "../../src/core/index.ts";
 
-describe("Build Declarative React Component Library & Hooks (Issue #5)", function () {
-  var testState = [];
-  var stateIdx = 0;
-  var cleanups = [];
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-  var testDispatcher = {
-    useState: function (initial) {
-      var idx = stateIdx++;
-      if (testState[idx] === undefined) {
-        testState[idx] = typeof initial === "function" ? initial() : initial;
-      }
-      var setState = function (val) {
-        testState[idx] = typeof val === "function" ? val(testState[idx]) : val;
-      };
-      return [testState[idx], setState];
+// Lets the async-iterator pumps inside the hooks drain their queues.
+async function flush() {
+  await act(async () => {
+    for (var i = 0; i < 5; i++) await Promise.resolve();
+  });
+}
+
+// A SyncSeam built only from the interface: three streams + methods. No `.on`.
+function createFakeSeam(opts) {
+  var options = opts || {};
+  var readyListeners = [];
+  var seam = {
+    operations: new ReactiveStream(),
+    presence: new ReactiveStream(),
+    agentive: new ReactiveStream(),
+    commits: [],
+    broadcasts: [],
+    commitOperation: function (op, author) {
+      seam.commits.push({ op: op, author: author });
+      return Promise.resolve({ revision: seam.commits.length, committed: true });
     },
-    useRef: function (initial) {
-      var idx = stateIdx++;
-      if (testState[idx] === undefined) {
-        testState[idx] = { current: initial };
-      }
-      return testState[idx];
+    broadcastPresence: function (cursor) {
+      seam.broadcasts.push(cursor);
+      return Promise.resolve();
     },
-    useEffect: function (cb) {
-      var cleanup = cb();
-      if (typeof cleanup === "function") {
-        cleanups.push(cleanup);
-      }
+    broadcastAgentive: function () {
+      return Promise.resolve();
     },
-    useMemo: function (factory) {
-      var idx = stateIdx++;
-      if (testState[idx] === undefined) {
-        testState[idx] = factory();
-      }
-      return testState[idx];
-    },
-    useContext: function () {
-      return { adapter: null };
-    },
-    useTransition: function () {
-      return [false, function (fn) { fn(); }];
+    dispose: function () {
+      return Promise.resolve();
     },
   };
+  if (options.readiness) {
+    seam.isReady = false;
+    seam.historyEmpty = true;
+    seam.once = function (event, cb) {
+      if (event === "ready") readyListeners.push(cb);
+    };
+    seam.isHistoryEmpty = function () {
+      if (!seam.isReady) throw new Error("not ready");
+      return seam.historyEmpty;
+    };
+    seam.becomeReady = function (historyEmpty) {
+      seam.isReady = true;
+      seam.historyEmpty = historyEmpty;
+      var listeners = readyListeners;
+      readyListeners = [];
+      listeners.forEach(function (cb) {
+        cb();
+      });
+    };
+  }
+  return seam;
+}
 
-  beforeEach(function () {
-    testState = [];
-    stateIdx = 0;
-    cleanups = [];
-    var internals = React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE || {};
-    internals.H = testDispatcher;
-  });
+// A minimal EditorSeam: records what the hook drives into it and lets the
+// spec fire local "change"/"cursor" events the way the real adapters do.
+function createFakeEditor(text) {
+  var handlers = {};
+  var editor = {
+    text: text || "",
+    applied: [],
+    otherCursors: [],
+    cleared: [],
+    disposed: false,
+    on: function (event, fn) {
+      (handlers[event] = handlers[event] || []).push(fn);
+    },
+    fire: function (event) {
+      var args = Array.prototype.slice.call(arguments, 1);
+      (handlers[event] || []).forEach(function (fn) {
+        fn.apply(null, args);
+      });
+    },
+    listenerCount: function (event) {
+      return (handlers[event] || []).length;
+    },
+    getValue: function () {
+      return editor.text;
+    },
+    applyOperation: function (op) {
+      editor.applied.push(op);
+      editor.text = op.apply(editor.text);
+    },
+    setOtherCursor: function (data) {
+      editor.otherCursors.push(data);
+    },
+    clearCursor: function (clientId) {
+      editor.cleared.push(clientId);
+    },
+    onChange: function () {},
+    onCursorActivity: function () {},
+    onFocus: function () {},
+    onBlur: function () {},
+    detach: function () {},
+    dispose: function () {
+      editor.disposed = true;
+      handlers = {};
+    },
+  };
+  return editor;
+}
 
+function opEvent(op, author) {
+  return { revision: 1, operation: op, author: author, timestamp: Date.now() };
+}
+
+describe("React hooks drive the SyncSeam (C3, A2)", function () {
   afterEach(function () {
-    cleanups.forEach(function (fn) {
-      try {
-        fn();
-      } catch (err) {
-        console.warn("Teardown diagnostic warning in react-hooks.spec.js:", err);
-      }
-    });
-    var internals = React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE || {};
-    internals.H = null;
+    cleanup();
   });
 
-  it("Exposes single-file custom reactive hooks: usePyrepadEditor, useCollaborators, and useAgentiveDiffs", function () {
+  it("exports the hooks, provider, component and VERSION", function () {
     expect(typeof usePyrepadEditor).toBe("function");
     expect(typeof useCollaborators).toBe("function");
     expect(typeof useAgentiveDiffs).toBe("function");
+    expect(typeof PyrepadProvider).toBe("function");
+    expect(typeof CollaborativeEditor).toBe("function");
     expect(VERSION).toBe("2.0.0");
   });
 
-  it("Implements <PyrepadProvider /> context binder and <CollaborativeEditor /> wrapper component", function () {
-    expect(typeof PyrepadProvider).toBe("function");
-    expect(typeof CollaborativeEditor).toBe("function");
-
-    var adapter = new PyricSandboxAdapter(null, "provider-test", "#3b82f6");
-    var providerElement = PyrepadProvider({ adapter: adapter, children: React.createElement("div", null, "child") });
-
-    expect(providerElement).toBeDefined();
-    expect(providerElement.props.value.adapter).toBe(adapter);
-
-    var editorWrapper = CollaborativeEditor({
-      adapter: adapter,
-      editor: { getWrapperElement: function () { return { style: {} }; } },
-      type: "cm6",
-      userId: "alice",
-      userColor: "#10b981",
-      showCollaboratorBar: true,
+  it("usePyrepadEditor applies remote `operations` events to the editor", async function () {
+    var seam = createFakeSeam();
+    var editor = createFakeEditor("abc");
+    renderHook(function () {
+      return usePyrepadEditor({ adapter: seam, editor: editor, userId: "me" });
     });
-    expect(editorWrapper).toBeDefined();
+    await flush();
 
-    adapter.dispose();
+    var remote = new TextOperation().retain(3).insert("d");
+    seam.operations.push(opEvent(remote, "peer"));
+    await flush();
+
+    expect(editor.applied).toEqual([remote]);
+    expect(editor.text).toBe("abcd");
   });
 
-  it("Confirms rapid keyboard input updates author text at 60fps without triggering re-renders of parent React DOM structures", async function () {
-    var adapter = new PyricSandboxAdapter(null, "speed-client", "#3b82f6");
-    var emittedOps = [];
-    adapter.on("operation", function (op) {
-      emittedOps.push(op);
+  it("usePyrepadEditor does not re-apply the echo of its own committed operation", async function () {
+    var seam = createFakeSeam();
+    var editor = createFakeEditor("abc");
+    renderHook(function () {
+      return usePyrepadEditor({ adapter: seam, editor: editor, userId: "me" });
     });
+    await flush();
 
-    var mockCM6 = {
-      state: { doc: { toString: function () { return "initial"; }, length: 7 }, selection: { main: { head: 7, anchor: 7 } } },
-      dispatch: function () {},
-      getWrapperElement: function () { return { style: {} }; },
-    };
+    seam.operations.push(opEvent(new TextOperation().retain(3).insert("x"), "me"));
+    await flush();
 
-    var editorResult = usePyrepadEditor({
-      adapter: adapter,
-      editor: mockCM6,
-      type: "cm6",
-      userId: "speed-user",
-      userColor: "#3b82f6",
+    expect(editor.applied.length).toBe(0);
+  });
+
+  it("usePyrepadEditor commits local editor changes via adapter.commitOperation", async function () {
+    var seam = createFakeSeam();
+    var editor = createFakeEditor("abc");
+    renderHook(function () {
+      return usePyrepadEditor({ adapter: seam, editor: editor, userId: "me" });
     });
+    await flush();
 
-    expect(editorResult.renderCount).toBe(1);
+    var local = new TextOperation().retain(3).insert("!");
+    editor.fire("change", local, local);
 
-    var startTime = performance.now();
+    expect(seam.commits.length).toBe(1);
+    expect(seam.commits[0].op).toBe(local);
+    expect(seam.commits[0].author).toBe("me");
+  });
+
+  it("usePyrepadEditor broadcasts local cursor activity via adapter.broadcastPresence", async function () {
+    var seam = createFakeSeam();
+    var editor = createFakeEditor("abc");
+    renderHook(function () {
+      return usePyrepadEditor({ adapter: seam, editor: editor, userId: "me" });
+    });
+    await flush();
+
+    editor.fire("cursor", { position: 2, selectionEnd: 2 });
+
+    expect(seam.broadcasts).toEqual([{ position: 2, selectionEnd: 2 }]);
+  });
+
+  it("usePyrepadEditor routes `presence` events to setOtherCursor / clearCursor", async function () {
+    var seam = createFakeSeam();
+    var editor = createFakeEditor("abc");
+    renderHook(function () {
+      return usePyrepadEditor({ adapter: seam, editor: editor, userId: "me" });
+    });
+    await flush();
+
+    seam.presence.push({ userId: "bob", cursor: new Cursor(1, 2), color: "#f00", state: "active" });
+    seam.presence.push({ userId: "bob", cursor: null, color: "#f00", state: "disconnected" });
+    await flush();
+
+    expect(editor.otherCursors.length).toBe(1);
+    expect(editor.otherCursors[0].clientId).toBe("bob");
+    expect(editor.otherCursors[0].color).toBe("#f00");
+    expect(editor.otherCursors[0].cursor.position).toBe(1);
+    expect(editor.otherCursors[0].cursor.selectionEnd).toBe(2);
+    expect(editor.cleared).toEqual(["bob"]);
+  });
+
+  it("usePyrepadEditor applies defaultText once when the adapter becomes ready with an empty document", async function () {
+    var seam = createFakeSeam({ readiness: true });
+    var editor = createFakeEditor("");
+    var hook = renderHook(function () {
+      return usePyrepadEditor({
+        adapter: seam,
+        editor: editor,
+        userId: "me",
+        defaultText: "hello",
+      });
+    });
+    await flush();
+    expect(editor.text).toBe("");
+
+    await act(async function () {
+      seam.becomeReady(true);
+    });
+    hook.rerender();
+    await flush();
+
+    expect(editor.text).toBe("hello");
+    expect(seam.commits.length).toBe(1);
+    expect(seam.commits[0].op.apply("")).toBe("hello");
+    expect(seam.commits[0].author).toBe("me");
+  });
+
+  it("usePyrepadEditor ignores defaultText when the shared document already has history", async function () {
+    var seam = createFakeSeam({ readiness: true });
+    var editor = createFakeEditor("");
+    renderHook(function () {
+      return usePyrepadEditor({
+        adapter: seam,
+        editor: editor,
+        userId: "me",
+        defaultText: "hello",
+      });
+    });
+    await flush();
+    await act(async function () {
+      seam.becomeReady(false);
+    });
+    await flush();
+
+    expect(editor.text).toBe("");
+    expect(seam.commits.length).toBe(0);
+  });
+
+  it("usePyrepadEditor stops syncing after unmount and leaves a caller-owned EditorSeam undisposed", async function () {
+    var seam = createFakeSeam();
+    var editor = createFakeEditor("abc");
+    var hook = renderHook(function () {
+      return usePyrepadEditor({ adapter: seam, editor: editor, userId: "me" });
+    });
+    await flush();
+    hook.unmount();
+
+    seam.operations.push(opEvent(new TextOperation().retain(3).insert("z"), "peer"));
+    await flush();
+
+    expect(editor.applied.length).toBe(0);
+    expect(editor.disposed).toBe(false);
+  });
+
+  it("usePyrepadEditor does not re-render on a burst of remote operations", async function () {
+    var seam = createFakeSeam();
+    var editor = createFakeEditor("");
+    var hook = renderHook(function () {
+      return usePyrepadEditor({ adapter: seam, editor: editor, userId: "me" });
+    });
+    await flush();
+    var before = hook.result.current.renderCount;
 
     for (var i = 0; i < 100; i++) {
-      var op = new TextOperation().retain(7 + i).insert("a");
-      adapter.trigger("operation", op);
+      seam.operations.push(opEvent(new TextOperation().retain(i).insert("a"), "peer"));
     }
+    await flush();
 
-    var duration = performance.now() - startTime;
-    await new Promise((resolve) => queueMicrotask(resolve));
+    expect(editor.text.length).toBe(100);
+    expect(hook.result.current.renderCount).toBe(before);
+  });
 
-    expect(duration).toBeLessThan(150);
-    expect(emittedOps.length).toBe(100);
-    expect(editorResult.renderCount).toBe(1);
+  it("useCollaborators tracks peers from the `presence` stream (no adapter.on)", async function () {
+    var seam = createFakeSeam();
+    var hook = renderHook(function () {
+      return useCollaborators(seam);
+    });
+    await flush();
 
-    adapter.dispose();
+    await act(async function () {
+      seam.presence.push({ userId: "bob", cursor: new Cursor(3, 3), color: "#0f0", state: "active" });
+      await Promise.resolve();
+    });
+    await flush();
+    expect(hook.result.current.length).toBe(1);
+    expect(hook.result.current[0].userId).toBe("bob");
+    expect(hook.result.current[0].color).toBe("#0f0");
+
+    await act(async function () {
+      seam.presence.push({ userId: "bob", cursor: null, color: "#0f0", state: "disconnected" });
+      await Promise.resolve();
+    });
+    await flush();
+    expect(hook.result.current.length).toBe(0);
+  });
+
+  it("useAgentiveDiffs tracks agents from the `agentive` stream (no adapter.on)", async function () {
+    var seam = createFakeSeam();
+    var hook = renderHook(function () {
+      return useAgentiveDiffs(seam);
+    });
+    await flush();
+
+    await act(async function () {
+      seam.agentive.push({ agentId: "copilot", status: "thinking", ghostDiff: null, explanation: "hm" });
+      await Promise.resolve();
+    });
+    await flush();
+
+    expect(hook.result.current.length).toBe(1);
+    expect(hook.result.current[0].agentId).toBe("copilot");
+    expect(hook.result.current[0].status).toBe("thinking");
+    expect(hook.result.current[0].explanation).toBe("hm");
+  });
+
+  it("<CollaborativeEditor /> inside <PyrepadProvider /> renders peers from the context adapter", async function () {
+    var seam = createFakeSeam();
+    var view = render(
+      React.createElement(
+        PyrepadProvider,
+        { adapter: seam },
+        React.createElement(CollaborativeEditor, { userId: "me" }),
+      ),
+    );
+    await flush();
+    await act(async function () {
+      seam.presence.push({ userId: "carol", cursor: new Cursor(0, 0), color: "#00f", state: "active" });
+      await Promise.resolve();
+    });
+    await flush();
+
+    expect(view.container.textContent).toContain("carol");
+  });
+
+  it("syncs two real CodeMirror 5 editors through the Pyric sandbox", async function () {
+    var db = firepad.PyricSandbox.createDatabase();
+    var ref = db.ref("/react-hooks-integration");
+    var host = document.createElement("div");
+    document.body.appendChild(host);
+    var cmA = CodeMirror(host);
+    var cmB = CodeMirror(host);
+    var adapterA = new PyricSandboxAdapter(ref, "alice", "#f00");
+    var adapterB = new PyricSandboxAdapter(ref, "bob", "#00f");
+
+    renderHook(function () {
+      return usePyrepadEditor({ adapter: adapterA, editor: cmA, type: "cm5", userId: "alice" });
+    });
+    renderHook(function () {
+      return usePyrepadEditor({ adapter: adapterB, editor: cmB, type: "cm5", userId: "bob" });
+    });
+    await act(async function () {
+      await new Promise(function (r) {
+        setTimeout(r, 30);
+      });
+    });
+
+    await act(async function () {
+      cmA.replaceRange("hi from alice", { line: 0, ch: 0 });
+      await new Promise(function (r) {
+        setTimeout(r, 50);
+      });
+    });
+
+    expect(cmA.getValue()).toBe("hi from alice");
+    expect(cmB.getValue()).toBe("hi from alice");
+
+    cleanup();
+    await adapterA.dispose();
+    await adapterB.dispose();
+    host.remove();
   });
 });

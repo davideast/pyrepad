@@ -1,6 +1,6 @@
 /**
- * @pyric/pad/react - Declarative React Context & Provider Binder.
- * Manages collaborative SyncSeam connections across component hierarchies without render lag or update depth loops.
+ * @pyric/pad/react context: <PyrepadProvider /> makes a SyncSeam adapter
+ * available to the hooks below it.
  */
 import React, { createContext, useContext, useState, useMemo } from "react";
 import { SyncSeam } from "../adapters/types.ts";
