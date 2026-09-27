@@ -13,12 +13,13 @@
         "@babel/core": "^7.9.0",
         "@babel/preset-env": "^7.9.0",
         "@playwright/test": "^1.62.0",
-        "@pyric/cli": "^0.1.0-alpha.17",
+        "@pyric/cli": "./.pyric-local/pyric-cli-0.1.0-alpha.24.tgz",
         "@types/react": "^19.2.17",
         "@types/react-dom": "^19.2.3",
         "@typescript-eslint/eslint-plugin": "^8.65.0",
         "@typescript-eslint/parser": "^8.65.0",
         "codemirror": "^5.58.2",
+        "create-pyric": "./.pyric-local/create-pyric-0.1.0-alpha.24.tgz",
         "eslint": "^10.8.0",
         "eslint-plugin-react-hooks": "^7.1.1",
         "husky": "^9.1.7",
@@ -28,10 +29,17 @@
         "monaco-editor": "^0.20.0",
         "playwright": "^1.62.0",
         "prettier": "^3.9.6",
+        "pyric": "./.pyric-local/pyric-0.1.0-alpha.24.tgz",
+        "pyric-admin": "./.pyric-local/pyric-admin-0.1.0-alpha.24.tgz",
         "typescript": "^5.5.0",
         "vite": "^5.3.0",
       },
     },
+  },
+  "overrides": {
+    "create-pyric": "./.pyric-local/create-pyric-0.1.0-alpha.24.tgz",
+    "pyric": "./.pyric-local/pyric-0.1.0-alpha.24.tgz",
+    "pyric-admin": "./.pyric-local/pyric-admin-0.1.0-alpha.24.tgz",
   },
   "packages": {
     "@asamuzakjp/css-color": ["@asamuzakjp/css-color@5.1.11", "", { "dependencies": { "@asamuzakjp/generational-cache": "^1.0.1", "@csstools/css-calc": "^3.2.0", "@csstools/css-color-parser": "^4.1.0", "@csstools/css-parser-algorithms": "^4.0.0", "@csstools/css-tokenizer": "^4.0.0" } }, "sha512-KVw6qIiCTUQhByfTd78h2yD1/00waTmm9uy/R7Ck/ctUyAPj+AEDLkQIdJW0T8+qGgj3j5bpNKK7Q3G+LedJWg=="],
@@ -512,7 +520,7 @@
 
     "@protobufjs/utf8": ["@protobufjs/utf8@1.1.2", "", {}, "sha512-b1UQwcEZ4yCnMCD8DAL1VlbvBJE9/IX4FTIp7BG1xYpf29SLazLSrqUkj4w7Y5y7cCVP6E5tcqqcI0xemPkHug=="],
 
-    "@pyric/cli": ["@pyric/cli@0.1.0-alpha.17", "", { "dependencies": { "@inbrowser/agent": "0.4.2", "@modelcontextprotocol/sdk": "^1.0.0", "create-pyric": "^0.1.0-alpha.17", "esbuild": "^0.28.0", "fake-indexeddb": "^6.0.0", "pyric": "^0.1.0-alpha.17", "pyric-admin": "^0.1.0-alpha.17", "ws": "^8.18.0", "zod": "^3.23.0" }, "peerDependencies": { "vite": "^5.0.0 || ^6.0.0 || ^7.0.0" }, "optionalPeers": ["vite"], "bin": { "pyric": "dist/cli/index.js" } }, "sha512-YKJVfStbRzObzQLfbAz85RZ9L9eGDXegNQY75vMwW/FfClmkMmlvWMk1ayBr8jdq/SdVAxtNwqQVyFuSX5urSw=="],
+    "@pyric/cli": ["@pyric/cli@./.pyric-local/pyric-cli-0.1.0-alpha.24.tgz", { "dependencies": { "@inbrowser/agent": "0.4.2", "@modelcontextprotocol/sdk": "^1.0.0", "create-pyric": "^0.1.0-alpha.24", "esbuild": "^0.28.0", "fake-indexeddb": "^6.0.0", "jsonc-parser": "^3.3.1", "pyric": "^0.1.0-alpha.24", "pyric-admin": "^0.1.0-alpha.24", "ws": "^8.18.0", "zod": "^3.23.0" }, "peerDependencies": { "vite": "^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0" }, "optionalPeers": ["vite"], "bin": { "pyric": "./dist/cli/index.js" } }],
 
     "@rollup/rollup-android-arm-eabi": ["@rollup/rollup-android-arm-eabi@4.62.2", "", { "os": "android", "cpu": "arm" }, "sha512-6o7ZLZK+BeenkZCFNDXqpbjw9bD6nuWonvS/lwQJp7NoVVxm6p3qE7qQ5jGuBjiFsgvqjD8mZAU5oWxTmbOeOg=="],
 
@@ -700,7 +708,7 @@
 
     "cors": ["cors@2.8.6", "", { "dependencies": { "object-assign": "^4", "vary": "^1" } }, "sha512-tJtZBBHA6vjIAaF6EnIaq6laBBP9aq/Y3ouVJjEfoHbRBcHBAHYcMh/w8LDrk2PvIMMq8gmopa5D4V8RmbrxGw=="],
 
-    "create-pyric": ["create-pyric@0.1.0-alpha.17", "", { "bin": { "create-pyric": "dist/bin.js" } }, "sha512-DkkXRV40TUTysY2cB3xq9NKUPMhBglWOvh8tNqaz+h8nC16fRD07bRi+lku1J/SosRp0gIl3X4Crmb7qAr63lQ=="],
+    "create-pyric": ["create-pyric@./.pyric-local/create-pyric-0.1.0-alpha.24.tgz", { "bin": { "create-pyric": "./dist/bin.js" } }],
 
     "cross-spawn": ["cross-spawn@7.0.6", "", { "dependencies": { "path-key": "^3.1.0", "shebang-command": "^2.0.0", "which": "^2.0.1" } }, "sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA=="],
 
@@ -916,10 +924,6 @@
 
     "jpeg-js": ["jpeg-js@0.4.4", "", {}, "sha512-WZzeDOEtTOBK4Mdsar0IqEU5sMr3vSV2RqkAIzUEV2BHnUfKGyswWFPFwK5EeDo93K3FohSHbLAjj0s1Wzd+dg=="],
 
-    "js-md5": ["js-md5@0.8.3", "", {}, "sha512-qR0HB5uP6wCuRMrWPTrkMaev7MJZwJuuw4fnwAzRgP4J4/F8RwtodOKpGp4XpqsLBFzzgqIO42efFAyz2Et6KQ=="],
-
-    "js-sha256": ["js-sha256@0.11.1", "", {}, "sha512-o6WSo/LUvY2uC4j7mO50a2ms7E/EAdbP0swigLV+nzHKTTaYnaLIWJ02VdXrsJX0vGedDESQnLsOekr94ryfjg=="],
-
     "js-tokens": ["js-tokens@4.0.0", "", {}, "sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ=="],
 
     "jsdom": ["jsdom@29.1.1", "", { "dependencies": { "@asamuzakjp/css-color": "^5.1.11", "@asamuzakjp/dom-selector": "^7.1.1", "@bramus/specificity": "^2.4.2", "@csstools/css-syntax-patches-for-csstree": "^1.1.3", "@exodus/bytes": "^1.15.0", "css-tree": "^3.2.1", "data-urls": "^7.0.0", "decimal.js": "^10.6.0", "html-encoding-sniffer": "^6.0.0", "is-potential-custom-element-name": "^1.0.1", "lru-cache": "^11.3.5", "parse5": "^8.0.1", "saxes": "^6.0.0", "symbol-tree": "^3.2.4", "tough-cookie": "^6.0.1", "undici": "^7.25.0", "w3c-xmlserializer": "^5.0.0", "webidl-conversions": "^8.0.1", "whatwg-mimetype": "^5.0.0", "whatwg-url": "^16.0.1", "xml-name-validator": "^5.0.0" }, "peerDependencies": { "canvas": "^3.0.0" }, "optionalPeers": ["canvas"] }, "sha512-ECi4Fi2f7BdJtUKTflYRTiaMxIB0O6zfR1fX0GXpUrf6flp8QIYn1UT20YQqdSOfk2dfkCwS8LAFoJDEppNK5Q=="],
@@ -935,6 +939,8 @@
     "json-stable-stringify-without-jsonify": ["json-stable-stringify-without-jsonify@1.0.1", "", {}, "sha512-Bdboy+l7tA3OGW6FjyFHWkP5LuByj1Tk33Ljyq0axyzdk9//JSi2u3fP1QSmd1KNwq6VOKYGlAu87CisVir6Pw=="],
 
     "json5": ["json5@2.2.3", "", { "bin": { "json5": "lib/cli.js" } }, "sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg=="],
+
+    "jsonc-parser": ["jsonc-parser@3.3.1", "", {}, "sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ=="],
 
     "just-bash": ["just-bash@3.1.0", "", { "dependencies": { "diff": "^8.0.2", "fast-xml-parser": "^5.7.3", "file-type": "^21.2.0", "ini": "^6.0.0", "minimatch": "^10.1.1", "modern-tar": "^0.7.3", "papaparse": "^5.5.3", "quickjs-emscripten": "^0.32.0", "re2js": "^1.2.1", "seek-bzip": "^2.0.0", "smol-toml": "^1.6.0", "sprintf-js": "^1.1.3", "sql.js": "^1.13.0", "turndown": "^7.2.2", "yaml": "^2.8.2" }, "optionalDependencies": { "@mongodb-js/zstd": "^7.0.0", "node-liblzma": "^2.0.3" }, "bin": { "just-bash": "dist/bin/just-bash.js", "just-bash-shell": "dist/bin/shell/shell.js" } }, "sha512-/t28X8EH3+j/zvELGkNhlFV2g6hc3oHBzy6zPBnNq2nqUN0DGS9PsD889JfQ7F6ll08gqFoutiS+VJHK30wZpg=="],
 
@@ -1084,9 +1090,9 @@
 
     "punycode": ["punycode@2.3.1", "", {}, "sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg=="],
 
-    "pyric": ["pyric@0.1.0-alpha.17", "", { "dependencies": { "@inbrowser/agent": "0.4.2", "fake-indexeddb": "^6.0.0", "js-md5": "^0.8.3", "js-sha256": "^0.11.0", "ohm-js": "^17.1.0", "zod": "^3.23.0" } }, "sha512-oLihdH1g6cvTJTYElkaWg9h9+OjwEdG8NKMn9cZGaoi9yAUUGMLcpHkm6ceeANqq2JJREXzLoLFo89eiPY2e0A=="],
+    "pyric": ["pyric@./.pyric-local/pyric-0.1.0-alpha.24.tgz", { "dependencies": { "@inbrowser/agent": "0.4.2", "fake-indexeddb": "^6.0.0", "ohm-js": "^17.1.0", "zod": "^3.23.0" } }],
 
-    "pyric-admin": ["pyric-admin@0.1.0-alpha.17", "", { "dependencies": { "pyric": "^0.1.0-alpha.17" } }, "sha512-wiHhPXK99MF40gh//0hkcMMmWGlINdpTHhSStwH3BSWWi4a5dKpXBwx49CoEufzRo7mGhLjJnEa8VuJxDwSxLA=="],
+    "pyric-admin": ["pyric-admin@./.pyric-local/pyric-admin-0.1.0-alpha.24.tgz", { "dependencies": { "pyric": "^0.1.0-alpha.24" } }],
 
     "qs": ["qs@6.15.3", "", { "dependencies": { "es-define-property": "^1.0.1", "side-channel": "^1.1.1" } }, "sha512-O9gl3zCl5h5blw1KGUzQKhA5oUXSl8rwUIM5o0S3nCXMliSvy5Dzx7/DJcI+SwgICv+IneSZwhBh1oSyEHA71A=="],
 

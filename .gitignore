@@ -17,3 +17,4 @@ _site/
 .pyric/
 test-results/
 playwright-report/
+.pyric-local/
