@@ -88,7 +88,7 @@
     "test:ot:ghost": "PYRIC_SANDBOX=1 bun test test/specs/ot-ghost.spec.js",
     "verify:agentive:harness": "PYRIC_SANDBOX=1 bun test test/specs/agentive-harness.spec.js",
     "test:e2e:playwright": "playwright test",
-    "lint": "eslint src/",
+    "lint": "eslint .",
     "prepare": "husky || true"
   },
   "exports": {
