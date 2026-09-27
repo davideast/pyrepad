@@ -59,6 +59,7 @@
     "@typescript-eslint/parser": "^8.65.0",
     "codemirror": "^5.58.2",
     "create-pyric": "./.pyric-local/create-pyric-0.1.0-alpha.24.tgz",
+    "esbuild": "^0.28.1",
     "eslint": "^10.8.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "firebase": "^7.13.2",
