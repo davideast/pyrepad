@@ -1,29 +1,48 @@
 /**
- * CodeMirror 6 transactional collaborative editor driver module.
- * Maps immutable CM6 StateField modifications (Transaction.changes) directly to Pyrepad TextOperations.
+ * CodeMirror 6 editor adapter. Maps local CM6 transactions to TextOperations
+ * (via an installed EditorView.updateListener) and applies remote
+ * TextOperations as transactions tagged with the `remoteOrigin` annotation,
+ * which the listener skips so remote edits are not echoed back.
  */
 import {
-  EditorSeam,
-  CM6ViewLike,
-  CM6TransactionLike,
-  PresenceState,
-  CursorLike,
-} from "./types.ts";
+  Annotation,
+  Compartment,
+  StateEffect,
+  Transaction,
+  type AnnotationType,
+  type Text,
+} from "@codemirror/state";
+import { EditorView, type ViewUpdate } from "@codemirror/view";
+import { EditorSeam, PresenceState, CursorLike } from "./types.ts";
 import { CM6PresencePlugin } from "./cm6-decoration-plugin.ts";
 import { TextOperation } from "../core/index.ts";
 
 type Callback = (...args: any[]) => void;
 
 export class CodeMirror6Adapter implements EditorSeam {
-  private view: CM6ViewLike | null;
+  private view: EditorView | null;
   readonly presencePlugin: CM6PresencePlugin;
-  readonly remoteOrigin: symbol = Symbol("pyrepad.remote.cm6");
+  readonly remoteOrigin: AnnotationType<boolean> = Annotation.define<boolean>();
+  private readonly compartment = new Compartment();
   private callbacks: Record<string, Callback[]> = {};
   private disposed = false;
+  private wired = false;
 
-  constructor(view: CM6ViewLike) {
+  constructor(view: EditorView) {
     this.view = view;
     this.presencePlugin = new CM6PresencePlugin();
+    const listener = EditorView.updateListener.of((update: ViewUpdate) => {
+      for (const tr of update.transactions) this.onTransaction(tr);
+    });
+    // Tolerates a non-view (e.g. a stub editor in react-hooks.spec.js): nothing
+    // is wired and the adapter stays inert.
+    if (typeof view?.dispatch !== "function") return;
+    view.dispatch({
+      effects: StateEffect.appendConfig.of(
+        this.compartment.of([listener, this.presencePlugin.extension]),
+      ),
+    });
+    this.wired = true;
   }
 
   registerCallbacks(callbacks: Record<string, Callback>): void {
@@ -54,24 +73,16 @@ export class CodeMirror6Adapter implements EditorSeam {
     }
   }
 
-  onTransaction(tr: CM6TransactionLike): void {
+  onTransaction(tr: Transaction): void {
     const isAlreadyDisposed = this.disposed || !this.view;
     if (isAlreadyDisposed) return;
 
-    const annotation =
-      typeof tr.annotation === "function"
-        ? tr.annotation(this.remoteOrigin)
-        : null;
-    const isRemoteOrigin = Boolean(annotation) || annotation === "remote";
+    const isRemoteOrigin = tr.annotation(this.remoteOrigin) === true;
     if (isRemoteOrigin) return;
 
-    const isDocChanged = Boolean(tr.docChanged && tr.changes);
-    if (isDocChanged) {
+    if (tr.docChanged) {
       const op = this.convertTransactionToOperation(tr);
-      const hasOp = Boolean(op);
-      if (hasOp) {
-        this.trigger("change", op!, op!);
-      }
+      this.trigger("change", op, op);
     }
 
     const isSelectionChanged = Boolean(tr.selection);
@@ -83,69 +94,28 @@ export class CodeMirror6Adapter implements EditorSeam {
   onChange(_editor: unknown, changes: unknown): void {
     const isAlreadyDisposed = this.disposed;
     if (isAlreadyDisposed) return;
-    const isTrLike = Boolean(
-      changes &&
-      typeof (changes as CM6TransactionLike).annotation === "function",
-    );
-    if (isTrLike) {
-      this.onTransaction(changes as CM6TransactionLike);
+    if (changes instanceof Transaction) {
+      this.onTransaction(changes);
     }
   }
 
-  convertTransactionToOperation(tr: CM6TransactionLike): TextOperation | null {
-    const docA = tr.startState?.doc ? tr.startState.doc.toString() : "";
+  convertTransactionToOperation(tr: Transaction): TextOperation {
     const op = new TextOperation();
     let currentIdx = 0;
 
-    const hasIterChanges = Boolean(
-      tr.changes && typeof tr.changes.iterChanges === "function",
+    tr.changes.iterChanges(
+      (fromA: number, toA: number, ...rest: [number, number, Text]) => {
+        const inserted = rest[2];
+        if (fromA > currentIdx) op.retain(fromA - currentIdx);
+        if (toA > fromA) op.delete(toA - fromA);
+        const insertStr = inserted.toString();
+        if (insertStr.length > 0) op.insert(insertStr);
+        currentIdx = toA;
+      },
     );
-    if (!hasIterChanges) {
-      const fallbackLen = docA.length || (this.view?.state?.doc?.length ?? 0);
-      return new TextOperation().retain(fallbackLen);
-    }
 
-    tr.changes.iterChanges((fromA: number, toA: number, ...rest: any[]) => {
-      const inserted = rest.length >= 3 ? rest[2] : rest[rest.length - 1];
-      const retainLen = fromA - currentIdx;
-      const hasPrefixRetain = retainLen > 0;
-      if (hasPrefixRetain) {
-        op.retain(retainLen);
-      }
-
-      const deleteLen = toA - fromA;
-      const hasDeletedChars = deleteLen > 0;
-      if (hasDeletedChars) {
-        op.delete(deleteLen);
-      }
-
-      let insertStr = "";
-      const isStringInserted = typeof inserted === "string";
-      if (isStringInserted) {
-        insertStr = inserted;
-      } else {
-        const hasToString = Boolean(
-          inserted && typeof inserted.toString === "function",
-        );
-        if (hasToString) {
-          insertStr = inserted.toString();
-        }
-      }
-      const hasInsertedText = insertStr.length > 0;
-      if (hasInsertedText) {
-        op.insert(insertStr);
-      }
-
-      currentIdx = toA;
-    });
-
-    const docLen =
-      docA.length || (tr.state?.doc ? tr.state.doc.toString().length : 0);
-    const trailingLen = docLen - currentIdx;
-    const hasTrailingRetain = trailingLen > 0;
-    if (hasTrailingRetain) {
-      op.retain(trailingLen);
-    }
+    const trailingLen = tr.startState.doc.length - currentIdx;
+    if (trailingLen > 0) op.retain(trailingLen);
 
     return op;
   }
@@ -191,13 +161,11 @@ export class CodeMirror6Adapter implements EditorSeam {
       }
     }
 
-    const hasChangesToDispatch =
-      changes.length > 0 && typeof this.view.dispatch === "function";
-    if (hasChangesToDispatch) {
+    if (changes.length > 0) {
       try {
         this.view.dispatch({
           changes: changes,
-          annotations: [this.remoteOrigin],
+          annotations: this.remoteOrigin.of(true),
         });
       } catch (err) {
         console.warn("Unexpected error dispatching CM6 changes:", err);
@@ -265,6 +233,13 @@ export class CodeMirror6Adapter implements EditorSeam {
     const isAlreadyDisposed = this.disposed;
     if (isAlreadyDisposed) return;
     this.disposed = true;
+    if (this.wired) {
+      try {
+        this.view?.dispatch({ effects: this.compartment.reconfigure([]) });
+      } catch (err) {
+        console.warn("Unexpected error removing CM6 adapter extensions:", err);
+      }
+    }
     this.presencePlugin.dispose();
     this.callbacks = {};
     this.view = null;
