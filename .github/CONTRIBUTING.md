@@ -8,9 +8,11 @@ For a new feature, open an issue with a proposal before sending a pull request.
 Requirements: [Bun](https://bun.sh) and Node.js >= 22.15 (the Pyric dev server runs under Node; see
 [Local development with Pyric](../README.md#local-development-with-pyric) in the README).
 
-The Pyric packages are currently installed from local tarballs. `package.json` points `pyric`,
-`pyric-admin`, `create-pyric`, and `@pyric/cli` at `./.pyric-local/*-0.1.0-alpha.24.tgz`; that
-directory is gitignored, so put the four tarballs there first. Then:
+The Pyric packages (`pyric`, `pyric-admin`, `create-pyric`, `@pyric/cli`) are pinned to the npm
+release `0.1.0-alpha.24` (the `next` dist-tag), which is the first published build with the Node
+host used by `vite.config.mjs` (`hosted: true`). To test an unreleased Pyric checkout instead, pack
+it with `<pyric>/.agents/skills/pyric-node-host/scripts/pack-local.sh` and point the four
+devDependencies at the tarballs locally; do not commit that change. Then:
 
 ```bash
 bun install
