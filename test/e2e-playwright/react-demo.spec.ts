@@ -41,7 +41,7 @@ async function typeAtEnd(
   }, index);
   // One keystroke per acked commit: until the src OT client lands (T15), a
   // second local op sent before the first is acked races it and is lost.
-  await page.keyboard.type(text, { delay: 150 });
+  await page.keyboard.type(text);
 }
 
 function occurrences(text: string, needle: string): number {

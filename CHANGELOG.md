@@ -65,3 +65,11 @@ Remediation of the whole-repo review of `main` @ 80d42ac. Finding ids refer to
   node16-ESM and bundler for all four subpaths); fresh clone of `remediation/main` with
   `.pyric-local/` copied in → `bun install --frozen-lockfile`, build, typecheck (`strict: true`)
   and 267/267 specs all clean. `main` untouched.
+- 2026-09-27 — Wave 4 close: T15 added `OTClient` + `ClientSyncAdapter` (`src/adapters`) so the
+  `src`/React path converges under concurrent edits and drops a losing `defaultText` seed; T16
+  rebuilt the React demo on real `FirebaseAdapter`s over the hosted sandbox with a Playwright
+  spec (`test/e2e-playwright/react-demo.spec.ts`). The demo spec's 150 ms typing delay (a
+  workaround for dropped keystrokes) was removed after T15 landed: 6/6 at full speed, full e2e
+  3/3 twice. Gate: typecheck clean (`strict`), `eslint .` 0 errors, 277 specs / 33 files,
+  `check:package` exit 0. `firebase` peer range widened to `>=7.13.2` (v7 legacy bundle and v9+
+  modular adapter both supported).
