@@ -1,17 +1,22 @@
 /**
  * Interactive declarative React multiplayer demo application utilizing 100% pure ES Module subpaths.
- * Highlights 60fps burst typing without Virtual DOM render lag and live teammate presence over SharedWorkerAdapter seam.
+ * Two editors, each with its own FirebaseAdapter on one shared Realtime Database path. Under
+ * `bun run dev`, @pyric/cli/vite maps the `firebase/*` imports to the hosted Pyric sandbox, so no
+ * Firebase project is needed. `?room=<name>` picks the database path (default "default").
  */
 import React, { useEffect, useRef, useState, useTransition } from "react";
 import { createRoot } from "react-dom/client";
+import { initializeApp } from "firebase/app";
+import { getDatabase, ref, child, onValue, onChildAdded, onChildChanged, onChildRemoved, off, get, set, remove, runTransaction } from "firebase/database";
 import { PyrepadProvider, CollaborativeEditor, VERSION } from "../src/react/index.ts";
-import { SharedWorkerAdapter, type AgentivePresenceEvent } from "../src/adapters/index.ts";
+import { FirebaseAdapter, type FirebaseModularConfig, type AgentivePresenceEvent } from "../src/adapters/index.ts";
 
-const channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("pyric_esm_react_studio") : null;
-const workerPort = channel || { postMessage: () => {}, addEventListener: () => {}, removeEventListener: () => {} };
+const db = getDatabase(initializeApp({ projectId: "demo-react-pad" }));
+const room = new URLSearchParams(window.location.search).get("room") || "default";
+const modularConfig = { ref: ref(db, `pyrepad-react-demo/${room}`), child, onValue, onChildAdded, onChildChanged, onChildRemoved, off, get, set, remove, runTransaction } as FirebaseModularConfig;
 
-const adapterA = new SharedWorkerAdapter(null, "React-Dev-A", "#3b82f6", workerPort);
-const adapterB = new SharedWorkerAdapter(null, "Teammate-B", "#10b981", workerPort);
+const adapterA = new FirebaseAdapter(modularConfig, "React-Dev-A", "#3b82f6");
+const adapterB = new FirebaseAdapter(modularConfig, "Teammate-B", "#10b981");
 
 const sampleText = `// Welcome to the @pyric/pad/react pure ES Module developer studio!
 // Notice how rapid typing directly updates the editor mount point
@@ -65,13 +70,13 @@ function StudioHeader({ renderCount, onBurst, onSpawnAgent, onForceRender }: Hea
 function StudioFooter(): React.ReactElement {
   return (
     <footer style={{ padding: "1rem 2.5rem", background: "rgba(3, 7, 18, 0.9)", borderTop: "1px solid rgba(255, 255, 255, 0.08)", display: "flex", justifyContent: "space-between", fontSize: "0.85rem", color: "#94a3b8" }}>
-      <div>⚡ Powered by @pyric/pad/react Hooks & Pure ESM SharedWorker Architecture</div>
+      <div>⚡ Powered by @pyric/pad/react Hooks over the Pyric Realtime Database sandbox</div>
       <div>Zero Virtual DOM Render Lag · Sub-Pixel Collaborative Carets · 60fps Convergence</div>
     </footer>
   );
 }
 
-function EditorPane({ title, adapter, userColor, userId, initialDoc, peerCM, onCMCreated }: { title: string; adapter: any; userColor: string; userId: string; initialDoc?: string; peerCM?: any; onCMCreated?: (cm: any) => void }) {
+function EditorPane({ title, adapter, userColor, userId, initialDoc, onCMCreated }: { title: string; adapter: any; userColor: string; userId: string; initialDoc?: string; onCMCreated?: (cm: any) => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [cmInstance, setCmInstance] = useState<any>(null);
 
@@ -79,15 +84,11 @@ function EditorPane({ title, adapter, userColor, userId, initialDoc, peerCM, onC
     const isReady = Boolean(containerRef.current && !cmInstance && typeof (window as any).CodeMirror === "function");
     if (isReady) {
       const cm = (window as any).CodeMirror(containerRef.current!, { lineNumbers: true, mode: "javascript", theme: "dracula", value: "" }); // defaultText seeds the shared document; pre-filling the editor would skip it
-      cm.on("change", (_i: any, ch: any) => {
-        const isSelf = ch.origin !== "peer" && Boolean(peerCM);
-        if (isSelf) peerCM.setValue(cm.getValue());
-      });
       setCmInstance(cm);
       const hasCB = typeof onCMCreated === "function";
       if (hasCB) onCMCreated!(cm);
     }
-  }, [containerRef, cmInstance, initialDoc, peerCM, onCMCreated]);
+  }, [containerRef, cmInstance, initialDoc, onCMCreated]);
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
@@ -100,32 +101,8 @@ function EditorPane({ title, adapter, userColor, userId, initialDoc, peerCM, onC
 
 function App(): React.ReactElement {
   const [cmA, setCmA] = useState<any>(null);
-  const [cmB, setCmB] = useState<any>(null);
   const [parentRenderCount, setParentRenderCount] = useState(1);
   const [_, startTransition] = useTransition();
-
-  useEffect(() => {
-    const isBothMounted = Boolean(cmA && cmB);
-    if (!isBothMounted) return;
-
-    const currentTextA = cmA.getValue();
-    const isPeerUnsynchronized = cmB.getValue() !== currentTextA;
-    if (isPeerUnsynchronized) {
-      cmB.setValue(currentTextA);
-    }
-
-    const canTriggerA = typeof (adapterA as any).trigger === "function";
-    if (canTriggerA) {
-      (adapterA as any).trigger("cursor", "React-Dev-A", { line: 0, ch: 0 }, "#3b82f6");
-      (adapterA as any).trigger("cursor", "Teammate-B", { line: 0, ch: 0 }, "#10b981");
-    }
-
-    const canTriggerB = typeof (adapterB as any).trigger === "function";
-    if (canTriggerB) {
-      (adapterB as any).trigger("cursor", "React-Dev-A", { line: 0, ch: 0 }, "#3b82f6");
-      (adapterB as any).trigger("cursor", "Teammate-B", { line: 0, ch: 0 }, "#10b981");
-    }
-  }, [cmA, cmB]);
 
   const handleBurstTyping = () => {
     const canBurst = Boolean(cmA && typeof cmA.getCursor === "function");
@@ -140,15 +117,12 @@ function App(): React.ReactElement {
       count++;
       const cursor = cmA.getCursor();
       cmA.replaceRange("⚡", cursor, cursor, "user-burst");
-      const hasPeer = Boolean(cmB);
-      if (hasPeer) cmB.setValue(cmA.getValue());
     }, 16);
   };
 
   const handleSpawnAgent = () => {
     const event: AgentivePresenceEvent = { agentId: "Jules-AI", status: "Refactoring AST for deep seam boundaries", ghostDiff: { diff: "+ const leverage = true;" }, explanation: "Enhancing modular depth" };
-    void adapterA.broadcastAgentive(event);
-    void adapterB.broadcastAgentive(event);
+    adapterA.broadcastAgentive(event).catch((err) => console.warn("broadcastAgentive failed:", err));
   };
 
   return (
@@ -156,8 +130,9 @@ function App(): React.ReactElement {
       <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
         <StudioHeader renderCount={parentRenderCount} onBurst={handleBurstTyping} onSpawnAgent={handleSpawnAgent} onForceRender={() => startTransition(() => setParentRenderCount((p) => p + 1))} />
         <main style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2rem", padding: "2.5rem" }}>
-          <EditorPane title="Editor A" adapter={adapterA} userId="React-Dev-A" userColor="#3b82f6" initialDoc={sampleText} peerCM={cmB} onCMCreated={(cm) => setCmA(cm)} />
-          <EditorPane title="Editor B" adapter={adapterB} userId="Teammate-B" userColor="#10b981" initialDoc={sampleText} peerCM={cmA} onCMCreated={(cm) => setCmB(cm)} />
+          <EditorPane title="Editor A" adapter={adapterA} userId="React-Dev-A" userColor="#3b82f6" initialDoc={sampleText} onCMCreated={setCmA} />
+          {/* Only one pane seeds: two clients seeding an empty document at once both commit it. */}
+          <EditorPane title="Editor B" adapter={adapterB} userId="Teammate-B" userColor="#10b981" />
         </main>
         <StudioFooter />
       </div>
