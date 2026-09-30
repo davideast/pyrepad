@@ -42,6 +42,10 @@ export abstract class AbstractSyncAdapter
     baseDelayMs: 100,
     schedule: (fn, delayMs) => void setTimeout(fn, delayMs),
   };
+  /** Local edits made within this many ms are composed into one history write (0 = one per edit). */
+  public commitDelayMs = 0;
+  /** Cursor writes are spaced at least this many ms apart; the latest cursor wins (0 = every move). */
+  public presenceThrottleMs = 0;
   private pendingCommits = new Set<CommitSettle>();
   private readyWaiters = new Set<(err: Error) => void>();
 
@@ -76,6 +80,7 @@ export abstract class AbstractSyncAdapter
       () => this.userColor,
       (id, cursor, c) => this.trigger("cursor", id, cursor, c),
     );
+    this.presenceHandler.getThrottleMs = () => this.presenceThrottleMs;
 
     this.agentiveHandler = new AgentiveStreamHandler(this.ref, (event) =>
       this.trigger("agentive", event),

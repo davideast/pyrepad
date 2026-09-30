@@ -39,11 +39,17 @@ export class AgentiveStreamHandler {
   }
 
   private handleAgentiveUpdate(snap: SnapLike): void {
-    const agentId = getSnapKey(snap);
+    const key = getSnapKey(snap);
+    const data = (getSnapVal(snap) as Record<string, unknown>) || {};
+    const slot =
+      typeof data.slot === "string" && data.slot ? data.slot : undefined;
+    const agentId =
+      slot && typeof data.agentId === "string" && data.agentId
+        ? data.agentId
+        : key;
     const hasValidAgentId = Boolean(agentId);
     if (!hasValidAgentId) return;
 
-    const data = (getSnapVal(snap) as Record<string, unknown>) || {};
     const hasStatus = typeof data.status === "string";
     if (!hasStatus) return;
 
@@ -56,6 +62,7 @@ export class AgentiveStreamHandler {
           : null,
       explanation: typeof data.explanation === "string" ? data.explanation : "",
     };
+    if (slot) event.slot = slot;
     this.stream.push(event);
     this.onAgentive?.(event);
   }
@@ -84,15 +91,21 @@ export class AgentiveStreamHandler {
     const nextStatus = isEvent ? eventOrAgentId.status : status;
 
     const diffData = ghostDiff ? toSafeJSON(ghostDiff) : null;
-    const agentiveRef = this.ref!.child("agentive/" + agentId);
-    return Promise.resolve(
-      agentiveRef.set({
-        status: nextStatus,
-        ghostDiff: diffData,
-        explanation: explanation || "",
-        timestamp: Date.now(),
-      }),
+    const slot = isEvent ? eventOrAgentId.slot : undefined;
+    const agentiveRef = this.ref!.child(
+      "agentive/" + (slot ? agentId + "~" + slot : agentId),
     );
+    const payload: Record<string, unknown> = {
+      status: nextStatus,
+      ghostDiff: diffData,
+      explanation: explanation || "",
+      timestamp: Date.now(),
+    };
+    if (slot) {
+      payload.agentId = agentId;
+      payload.slot = slot;
+    }
+    return Promise.resolve(agentiveRef.set(payload));
   }
 
   dispose(): void {

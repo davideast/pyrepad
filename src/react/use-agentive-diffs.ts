@@ -9,6 +9,7 @@ import { consumeStream } from "./consume-stream.js";
 
 export interface AgentiveDiffState {
   agentId: string;
+  slot?: string;
   status: string;
   ghostDiff?: unknown;
   explanation?: string;
@@ -29,15 +30,15 @@ export function useAgentiveDiffs(
       if (!isValid) return;
       const updated: AgentiveDiffState = {
         agentId: event.agentId,
+        slot: event.slot,
         status: event.status,
         ghostDiff: event.ghostDiff,
         explanation: event.explanation,
         timestamp: Date.now(),
       };
+      const key = event.slot ? event.agentId + "~" + event.slot : event.agentId;
       startTransition(() =>
-        setAgents((current) =>
-          Object.assign({}, current, { [event.agentId]: updated }),
-        ),
+        setAgents((current) => Object.assign({}, current, { [key]: updated })),
       );
     });
     return () => {

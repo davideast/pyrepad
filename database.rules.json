@@ -1,6 +1,150 @@
 {
   "rules": {
-    ".read": true,
-    ".write": true
+    ".read": false,
+    ".write": false,
+
+    // Profile: private to its owner.
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null && auth.uid == $uid",
+        ".validate": "newData.hasChildren(['name', 'color'])",
+        "name": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60"
+        },
+        "email": {
+          ".validate": "newData.isString() && newData.val().length <= 254"
+        },
+        "color": {
+          ".validate": "newData.isString() && newData.val().matches(/^#[0-9a-fA-F]{6}$/)"
+        },
+        // Lowercased email with dots written as commas. It only counts when the
+        // first-come emails claim points back at this account.
+        "emailKey": { ".validate": "newData.isString()" },
+        "$other": { ".validate": false }
+      }
+    },
+
+    // One account per email, claimed on first sign-in.
+    "emails": {
+      "$key": {
+        ".write": "auth != null && (!data.exists() || data.val() == auth.uid) && newData.val() == auth.uid",
+        ".validate": "newData.isString()"
+      }
+    },
+
+    // Grid summaries: one small node per document, indexed for newest-first.
+    "userDocs": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".indexOn": ["updatedAt"],
+        "$docId": {
+          ".write": "auth != null && auth.uid == $uid",
+          ".validate": "newData.hasChildren(['title', 'updatedAt'])",
+          "title": {
+            ".validate": "newData.isString() && newData.val().length <= 120"
+          },
+          "snippet": {
+            ".validate": "newData.isString() && newData.val().length <= 240"
+          },
+          "updatedAt": { ".validate": "newData.isNumber()" },
+          "$other": { ".validate": false }
+        }
+      }
+    },
+
+    // Documents. Read: the owner, anyone when a link is on, or an invited
+    // email. Write is per part: editors change content and tabs, commenters
+    // only add presence and suggestions, and only the owner changes the
+    // title, link access and deletes. Invites live in `access`, keyed by
+    // email, so an account created later with that email gets the access.
+    "docs": {
+      "$docId": {
+        ".read": "auth != null && (root.child('docs/' + $docId).child('meta/ownerId').val() == auth.uid || root.child('docs/' + $docId).child('meta/link').exists() || (root.child('emails').child(root.child('users').child(auth.uid).child('emailKey').val()).val() == auth.uid && root.child('access/' + $docId + '/members').child(root.child('users/' + auth.uid + '/emailKey').val()).exists()))",
+        ".write": "!newData.exists() && auth != null && root.child('docs/' + $docId).child('meta/ownerId').val() == auth.uid",
+        "tabs": {
+          ".write": "auth != null && (root.child('docs/' + $docId).child('meta/ownerId').val() == auth.uid || (root.child('docs/' + $docId).child('meta/link').val() == 'editor') || (root.child('emails').child(root.child('users').child(auth.uid).child('emailKey').val()).val() == auth.uid && (root.child('access/' + $docId + '/members').child(root.child('users/' + auth.uid + '/emailKey').val()).val() == 'editor')))",
+          "$tabId": {
+            "title": {
+              ".validate": "newData.isString() && newData.val().length <= 60"
+            },
+            "snippet": {
+              ".validate": "newData.isString() && newData.val().length <= 240"
+            },
+            "createdAt": { ".validate": "newData.isNumber()" },
+            "$other": { ".validate": false }
+          }
+        },
+        "content": {
+          ".write": "auth != null && (root.child('docs/' + $docId).child('meta/ownerId').val() == auth.uid || (root.child('docs/' + $docId).child('meta/link').val() == 'editor') || (root.child('emails').child(root.child('users').child(auth.uid).child('emailKey').val()).val() == auth.uid && (root.child('access/' + $docId + '/members').child(root.child('users/' + auth.uid + '/emailKey').val()).val() == 'editor')))",
+          "agentive": {
+            ".write": "auth != null && (root.child('docs/' + $docId).child('meta/ownerId').val() == auth.uid || (root.child('docs/' + $docId).child('meta/link').val() == 'editor' || root.child('docs/' + $docId).child('meta/link').val() == 'commenter') || (root.child('emails').child(root.child('users').child(auth.uid).child('emailKey').val()).val() == auth.uid && (root.child('access/' + $docId + '/members').child(root.child('users/' + auth.uid + '/emailKey').val()).val() == 'editor' || root.child('access/' + $docId + '/members').child(root.child('users/' + auth.uid + '/emailKey').val()).val() == 'commenter')))"
+          },
+          "users": {
+            "$uid": {
+              ".write": "$uid == auth.uid && ((root.child('docs/' + $docId).child('meta/ownerId').val() == auth.uid || (root.child('docs/' + $docId).child('meta/link').val() == 'editor' || root.child('docs/' + $docId).child('meta/link').val() == 'commenter') || (root.child('emails').child(root.child('users').child(auth.uid).child('emailKey').val()).val() == auth.uid && (root.child('access/' + $docId + '/members').child(root.child('users/' + auth.uid + '/emailKey').val()).val() == 'editor' || root.child('access/' + $docId + '/members').child(root.child('users/' + auth.uid + '/emailKey').val()).val() == 'commenter'))))"
+            }
+          }
+        },
+        "tabContent": {
+          "$tabId": {
+            ".write": "auth != null && (root.child('docs/' + $docId).child('meta/ownerId').val() == auth.uid || (root.child('docs/' + $docId).child('meta/link').val() == 'editor') || (root.child('emails').child(root.child('users').child(auth.uid).child('emailKey').val()).val() == auth.uid && (root.child('access/' + $docId + '/members').child(root.child('users/' + auth.uid + '/emailKey').val()).val() == 'editor')))",
+            "agentive": {
+              ".write": "auth != null && (root.child('docs/' + $docId).child('meta/ownerId').val() == auth.uid || (root.child('docs/' + $docId).child('meta/link').val() == 'editor' || root.child('docs/' + $docId).child('meta/link').val() == 'commenter') || (root.child('emails').child(root.child('users').child(auth.uid).child('emailKey').val()).val() == auth.uid && (root.child('access/' + $docId + '/members').child(root.child('users/' + auth.uid + '/emailKey').val()).val() == 'editor' || root.child('access/' + $docId + '/members').child(root.child('users/' + auth.uid + '/emailKey').val()).val() == 'commenter')))"
+            },
+            "users": {
+              "$uid": {
+                ".write": "$uid == auth.uid && ((root.child('docs/' + $docId).child('meta/ownerId').val() == auth.uid || (root.child('docs/' + $docId).child('meta/link').val() == 'editor' || root.child('docs/' + $docId).child('meta/link').val() == 'commenter') || (root.child('emails').child(root.child('users').child(auth.uid).child('emailKey').val()).val() == auth.uid && (root.child('access/' + $docId + '/members').child(root.child('users/' + auth.uid + '/emailKey').val()).val() == 'editor' || root.child('access/' + $docId + '/members').child(root.child('users/' + auth.uid + '/emailKey').val()).val() == 'commenter'))))"
+              }
+            }
+          }
+        },
+        "meta": {
+          ".write": "auth != null && ((!data.exists() && newData.child('ownerId').val() == auth.uid) || root.child('docs/' + $docId).child('meta/ownerId').val() == auth.uid)",
+          ".validate": "newData.hasChildren(['ownerId', 'title', 'createdAt'])",
+          "ownerId": {
+            ".validate": "newData.val() == auth.uid || data.val() == newData.val()"
+          },
+          "title": {
+            ".validate": "newData.isString() && newData.val().length <= 120"
+          },
+          "link": {
+            ".validate": "newData.isString() && (newData.val() == 'viewer' || newData.val() == 'commenter' || newData.val() == 'editor')"
+          },
+          "createdAt": { ".validate": "newData.isNumber()" },
+          "$other": { ".validate": false }
+        }
+      }
+    },
+
+    // Who was invited, by lowercased email with dots written as commas.
+    "access": {
+      "$docId": {
+        ".write": "auth != null && root.child('docs/' + $docId).child('meta/ownerId').val() == auth.uid",
+        "members": {
+          ".read": "auth != null && root.child('docs/' + $docId).child('meta/ownerId').val() == auth.uid",
+          "$key": {
+            ".read": "auth != null && root.child('emails').child(root.child('users').child(auth.uid).child('emailKey').val()).val() == auth.uid && $key == root.child('users/' + auth.uid + '/emailKey').val()",
+            ".validate": "newData.isString() && (newData.val() == 'viewer' || newData.val() == 'commenter' || newData.val() == 'editor')"
+          }
+        }
+      }
+    },
+
+    // Shared with me: one entry per invite, readable only by that email.
+    "shared": {
+      "$key": {
+        ".read": "auth != null && root.child('emails').child(root.child('users').child(auth.uid).child('emailKey').val()).val() == auth.uid && $key == root.child('users/' + auth.uid + '/emailKey').val()",
+        "$docId": {
+          ".write": "auth != null && root.child('docs/' + $docId + '/meta/ownerId').val() == auth.uid",
+          ".validate": "newData.hasChildren(['role', 'sharedAt'])",
+          "role": {
+            ".validate": "newData.isString() && (newData.val() == 'viewer' || newData.val() == 'commenter' || newData.val() == 'editor')"
+          },
+          "sharedAt": { ".validate": "newData.isNumber()" },
+          "$other": { ".validate": false }
+        }
+      }
+    }
   }
 }
