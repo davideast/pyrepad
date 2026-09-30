@@ -19,6 +19,8 @@ export interface PresenceEvent {
 
 export interface AgentivePresenceEvent {
   agentId: string;
+  /** Lets one agent hold several concurrent entries; stored as `agentId~slot`. */
+  slot?: string;
   status: "idle" | "thinking" | "suggesting" | "refactoring" | string;
   ghostDiff: Record<string, unknown> | TextOperation | null;
   explanation?: string;

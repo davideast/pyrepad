@@ -24,6 +24,12 @@ export class PresenceStreamHandler {
     color?: string,
   ) => void;
 
+  getThrottleMs: () => number = () => 0;
+  private lastWrite = 0;
+  private trailing: ReturnType<typeof setTimeout> | null = null;
+  private latest: unknown = null;
+  private hasDisconnectCleanup = false;
+
   constructor(
     ref: RefLike | null,
     getUserId: () => string,
@@ -90,11 +96,28 @@ export class PresenceStreamHandler {
   }
 
   async broadcastPresence(cursor: unknown): Promise<void> {
+    const throttleMs = this.getThrottleMs();
+    const isRemoving = cursor === null || cursor === undefined;
+    if (this.trailing) clearTimeout(this.trailing);
+    this.trailing = null;
+    if (throttleMs <= 0 || isRemoving) return this.writePresence(cursor);
+    const wait = this.lastWrite + throttleMs - Date.now();
+    if (wait <= 0) return this.writePresence(cursor);
+    this.latest = cursor;
+    this.trailing = setTimeout(() => {
+      this.trailing = null;
+      void this.writePresence(this.latest);
+    }, wait);
+  }
+
+  private async writePresence(cursor: unknown): Promise<void> {
+    this.lastWrite = Date.now();
     const refInvalid = !isValidRef(this.ref);
     if (refInvalid) return;
 
     const userRef = this.ref!.child("users/" + this.getUserId());
     const isRemovingCursor = cursor === null || cursor === undefined;
+    if (isRemovingCursor) this.hasDisconnectCleanup = false;
     try {
       if (isRemovingCursor) {
         await userRef.remove();
@@ -112,7 +135,8 @@ export class PresenceStreamHandler {
 
   private registerDisconnectCleanup(userRef: RefLike): void {
     const hasOnDisconnect = typeof userRef.onDisconnect === "function";
-    if (!hasOnDisconnect) return;
+    if (!hasOnDisconnect || this.hasDisconnectCleanup) return;
+    this.hasDisconnectCleanup = true;
     const pending = userRef.onDisconnect!().remove();
     Promise.resolve(pending).catch((err) =>
       console.warn("Presence onDisconnect registration failed:", err),
@@ -120,6 +144,8 @@ export class PresenceStreamHandler {
   }
 
   dispose(): void {
+    if (this.trailing) clearTimeout(this.trailing);
+    this.trailing = null;
     const refValid = isValidRef(this.ref);
     if (refValid) {
       try {
