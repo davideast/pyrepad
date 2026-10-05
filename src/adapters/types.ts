@@ -14,11 +14,15 @@ export interface PresenceEvent {
   userId: string;
   cursor: Cursor | Record<string, unknown> | null;
   color: string;
+  /** Display name the peer published, when it has one. */
+  name?: string;
   state: "active" | "disconnected";
 }
 
 export interface AgentivePresenceEvent {
   agentId: string;
+  /** Lets one agent hold several concurrent entries; stored as `agentId~slot`. */
+  slot?: string;
   status: "idle" | "thinking" | "suggesting" | "refactoring" | string;
   ghostDiff: Record<string, unknown> | TextOperation | null;
   explanation?: string;

@@ -36,6 +36,8 @@ export class ClientSyncAdapter implements SyncSeam {
   private detached = false;
   private seeding = false;
   private readonly stopRaw: () => void;
+  private pending: { op: TextOperation; settles: CommitSettle[] } | null = null;
+  private pendingTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private readonly inner: AbstractSyncAdapter) {
     this.client = this.createClient();
@@ -67,9 +69,38 @@ export class ClientSyncAdapter implements SyncSeam {
       return Promise.reject(new Error("Adapter is disposed"));
     }
     return new Promise<CommitAck>((resolve, reject) => {
-      this.buffered.push({ resolve, reject });
-      this.client.applyClient(operation as TextOperation);
+      const settle = { resolve, reject };
+      const delay = this.inner.commitDelayMs;
+      if (delay <= 0 && !this.pending) {
+        this.buffered.push(settle);
+        this.client.applyClient(operation as TextOperation);
+        return;
+      }
+      this.holdBack(operation as TextOperation, settle, delay);
     });
+  }
+
+  /** Composes `op` into the held-back batch; the batch is sent once `delay` ms after its first edit. */
+  private holdBack(op: TextOperation, settle: CommitSettle, delay: number) {
+    const pending = this.pending;
+    if (pending) {
+      pending.op = pending.op.compose(op);
+      pending.settles.push(settle);
+    } else {
+      this.pending = { op, settles: [settle] };
+    }
+    if (delay <= 0) return this.flush();
+    this.pendingTimer ??= setTimeout(() => this.flush(), delay);
+  }
+
+  private flush(): void {
+    if (this.pendingTimer) clearTimeout(this.pendingTimer);
+    this.pendingTimer = null;
+    const pending = this.pending;
+    this.pending = null;
+    if (!pending || this.detached) return;
+    this.buffered.push(...pending.settles);
+    this.client.applyClient(pending.op);
   }
 
   /**
@@ -88,7 +119,10 @@ export class ClientSyncAdapter implements SyncSeam {
     if (!canSeed) return Promise.resolve({ revision: 0, committed: false });
     applyLocally(seed);
     this.seeding = true;
-    return this.commitOperation(seed);
+    return new Promise<CommitAck>((resolve, reject) => {
+      this.buffered.push({ resolve, reject });
+      this.client.applyClient(seed);
+    });
   }
 
   broadcastPresence(cursor: unknown): Promise<void> {
@@ -124,6 +158,8 @@ export class ClientSyncAdapter implements SyncSeam {
   detach(): void {
     if (this.detached) return;
     this.detached = true;
+    if (this.pendingTimer) clearTimeout(this.pendingTimer);
+    this.pendingTimer = null;
     this.stopRaw();
     this.inner.off("operation", this.onRemote);
     this.inner.off("ack", this.onAck);
@@ -161,13 +197,24 @@ export class ClientSyncAdapter implements SyncSeam {
   }
 
   private rejectAll(err: Error): void {
-    const settles = [...this.inFlight, ...this.buffered];
+    const settles = [
+      ...this.inFlight,
+      ...this.buffered,
+      ...(this.pending?.settles ?? []),
+    ];
     this.inFlight = [];
     this.buffered = [];
+    this.pending = null;
     for (const settle of settles) settle.reject(err);
   }
 
-  private emitRemote(op: TextOperation): void {
+  private emitRemote(remote: TextOperation): void {
+    let op = remote;
+    if (this.pending) {
+      const [held, shifted] = this.pending.op.transform(remote);
+      this.pending.op = held;
+      op = shifted;
+    }
     const source = this.lastEvent;
     this.operations.push({
       revision: source ? source.revision : 0,
