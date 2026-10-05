@@ -167,11 +167,11 @@ describe('Integration tests', function() {
     let startedSyncing = false;
 
     firepad.on('ready', function() {
-      randomOperation(cm);
       firepad.on('synced', function(synced) {
         if (!synced) startedSyncing = true;
         else if (startedSyncing) done();
       });
+      randomOperation(cm);
     });
   });
 
