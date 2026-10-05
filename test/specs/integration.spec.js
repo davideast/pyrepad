@@ -171,7 +171,9 @@ describe('Integration tests', function() {
         if (!synced) startedSyncing = true;
         else if (startedSyncing) done();
       });
-      randomOperation(cm);
+      cm.operation(function() {
+        cm.replaceRange('edit', cm.posFromIndex(0));
+      });
     });
   });
 
