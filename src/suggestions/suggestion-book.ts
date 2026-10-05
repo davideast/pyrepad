@@ -5,7 +5,7 @@
  * Nothing here writes to the document: `accept` only reports the change to apply.
  */
 import { Emitter } from "../core/emitter.js";
-import { locateQuote, type QuoteHint } from "./anchor.js";
+import { locateInsertion, locateQuote, type QuoteHint } from "./anchor.js";
 import { mapRange } from "./range-map.js";
 import type { ProposedEdit, Suggestion, TextChange } from "./types.js";
 
@@ -48,7 +48,8 @@ export class SuggestionBook extends Emitter<BookEvents> {
   private counter = 0;
 
   /**
-   * Places `edit` by locating its quote in `doc`. Returns null when the quote
+   * Places `edit` by locating its quote in `doc`; an empty `find` inserts
+   * `replacement` at `hint` (after `before` when given). Returns null when the quote
    * is gone, when it overlaps a pending suggestion, or when it changes nothing.
    * Re-adding an id that is already pending returns the existing suggestion.
    */
@@ -62,9 +63,18 @@ export class SuggestionBook extends Emitter<BookEvents> {
       if (existing) return existing;
     }
     if (edit.find === edit.replacement) return null;
-    const at = locateQuote(doc, edit.find, hint);
+    const insertion = edit.find === "";
+    if (insertion && !edit.replacement) return null;
+    const at = insertion
+      ? (() => {
+          const pos = locateInsertion(doc, hint);
+          return { from: pos, to: pos };
+        })()
+      : locateQuote(doc, edit.find, hint);
     if (!at) return null;
-    const trimmed = trimToChange(edit.find, edit.replacement);
+    const trimmed = insertion
+      ? null
+      : trimToChange(edit.find, edit.replacement);
     const span = trimmed
       ? { from: at.from + trimmed.head, to: at.to - trimmed.tail }
       : at;

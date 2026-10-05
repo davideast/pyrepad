@@ -6,58 +6,30 @@
 import { Emitter } from "../core/emitter.js";
 import { pickChunk } from "./chunker.js";
 import { Coverage } from "./coverage.js";
+import {
+  askDirect,
+  insertDirect,
+  placeComment,
+  type CommentSink,
+  type DirectContext,
+} from "./direct.js";
 import { mapPos } from "./range-map.js";
 import { reviseSuggestion } from "./revision.js";
-import type { SuggestionBook } from "./suggestion-book.js";
+import type {
+  AnalyzerEvents,
+  AnalyzerOptions,
+  DocumentUpdate,
+  InflightChunk,
+} from "./analyzer-types.js";
+
+export type * from "./analyzer-types.js";
 import type {
   ProposedEdit,
+  ResponseMode,
   Proposer,
   Suggestion,
   TextChange,
 } from "./types.js";
-
-export interface AnalyzerOptions {
-  proposer: Proposer;
-  book: SuggestionBook;
-  agentId?: string;
-  getInstructions: () => string;
-  getKinds: () => readonly string[];
-  minChars?: number;
-  maxChars?: number;
-  maxInFlight?: number;
-  /** Minimum time between two requests. */
-  minGapMs?: number;
-  contextBefore?: number;
-  contextAfter?: number;
-  /** After this many ms without edits the sentence under the cursor is reviewed too. */
-  idleMs?: number;
-  now?: () => number;
-  schedule?: (fn: () => void, ms: number) => () => void;
-}
-
-export interface DocumentUpdate {
-  text: string;
-  /** Changes that produced `text`, in old-document coordinates. */
-  changes: readonly TextChange[];
-  cursor: number;
-  /** The changes were the assistant's own accepted suggestion: don't re-review them. */
-  fromAssistant?: boolean;
-}
-
-export interface InflightChunk {
-  id: string;
-  from: number;
-  to: number;
-}
-
-export type AnalyzerEvents = {
-  change: [];
-  /** A chunk went out for review. */
-  dispatched: [chunk: InflightChunk & { text: string }];
-  /** A suggestion this analyzer produced was placed in the book. */
-  proposed: [suggestion: Suggestion];
-  error: [error: unknown];
-};
 
 interface Running extends InflightChunk {
   controller: AbortController;
@@ -176,6 +148,48 @@ export class SuggestionAnalyzer extends Emitter<AnalyzerEvents> {
     });
   }
 
+  /** Reviews `range` right now because the author asked, whatever was reviewed before. */
+  async ask(
+    range: { from: number; to: number },
+    request: string,
+    kinds: readonly string[],
+    signal?: AbortSignal,
+  ): Promise<Suggestion[]> {
+    const placed = await askDirect(this.direct(), range, {
+      request,
+      kinds,
+      signal,
+    });
+    this.trigger("change");
+    return placed;
+  }
+
+  /** Proposes `text` as a pure insertion at `at`, even in an empty document. */
+  insert(
+    at: number,
+    text: string,
+    reason: string,
+    kind: string,
+  ): Suggestion | null {
+    const suggestion = insertDirect(this.direct(), at, { text, reason, kind });
+    this.trigger("change");
+    return suggestion;
+  }
+
+  private direct(): DirectContext {
+    return {
+      proposer: this.opts.proposer,
+      book: this.opts.book,
+      agentId: this.agentId,
+      text: this.text,
+      instructions: this.opts.getInstructions(),
+      contextBefore: this.opts.contextBefore,
+      contextAfter: this.opts.contextAfter,
+      onComment: this.opts.onComment,
+      proposed: (suggestion) => this.trigger("proposed", suggestion),
+    };
+  }
+
   /** Spans currently out for review, tracked through edits. */
   inflight(): InflightChunk[] {
     return [...this.running.values()].map(({ id, from, to }) => ({
@@ -201,6 +215,12 @@ export class SuggestionAnalyzer extends Emitter<AnalyzerEvents> {
     }
     this.running.clear();
   }
+
+  private readonly schedule = (fn: () => void, ms: number): (() => void) => {
+    if (this.opts.schedule) return this.opts.schedule(fn, ms);
+    const handle = setTimeout(fn, ms);
+    return () => clearTimeout(handle);
+  };
 
   private now(): number {
     return (this.opts.now ?? Date.now)();
@@ -230,13 +250,7 @@ export class SuggestionAnalyzer extends Emitter<AnalyzerEvents> {
   private armIdle(): void {
     this.cancelIdle?.();
     this.settled = false;
-    const schedule =
-      this.opts.schedule ??
-      ((fn, delay) => {
-        const handle = setTimeout(fn, delay);
-        return () => clearTimeout(handle);
-      });
-    this.cancelIdle = schedule(() => {
+    this.cancelIdle = this.schedule(() => {
       this.cancelIdle = null;
       this.settled = true;
       this.pump();
@@ -245,13 +259,7 @@ export class SuggestionAnalyzer extends Emitter<AnalyzerEvents> {
 
   private armTimer(ms: number): void {
     if (this.cancelTimer) return;
-    const schedule =
-      this.opts.schedule ??
-      ((fn, delay) => {
-        const handle = setTimeout(fn, delay);
-        return () => clearTimeout(handle);
-      });
-    this.cancelTimer = schedule(() => {
+    this.cancelTimer = this.schedule(() => {
       this.cancelTimer = null;
       this.pump();
     }, ms);
@@ -284,6 +292,7 @@ export class SuggestionAnalyzer extends Emitter<AnalyzerEvents> {
       after: this.text.slice(to, to + this.opts.contextAfter),
       instructions: this.opts.getInstructions(),
       kinds: this.opts.getKinds(),
+      mode: this.opts.getMode?.() ?? "suggest",
     };
     this.opts.proposer(request, controller.signal).then(
       (edits) => this.settle(running, edits),
@@ -297,6 +306,8 @@ export class SuggestionAnalyzer extends Emitter<AnalyzerEvents> {
     const window = { from: running.from, to: running.to };
     const kinds = this.opts.getKinds();
     for (const edit of edits) {
+      if (placeComment({ ...this.opts, text: this.text }, edit, window))
+        continue;
       if (kinds.length > 0 && !kinds.includes(edit.kind)) continue;
       const placed = this.opts.book.add(
         { ...edit, agentId: this.agentId },

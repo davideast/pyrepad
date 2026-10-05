@@ -7,10 +7,11 @@ export type Command =
   | { type: "new_tab"; title: string }
   | { type: "new_tab_from_suggestions"; title: string }
   | { type: "name_tabs" }
+  | { type: "write"; request: string }
   | { type: "reply"; message: string };
 
 const HELP =
-  "I can accept or reject all suggestions, change the instructions, create a tab (including one from the suggestions), or name your tabs from their content.";
+  "I can write new text as a suggestion, accept or reject all suggestions, change the instructions, create a tab (including one from the suggestions), or name your tabs from their content.";
 
 /** Offline parser: covers the common phrasings so the composer works without a model. */
 export function parseCommand(input: string): Command {
@@ -40,6 +41,12 @@ export function parseCommand(input: string): Command {
   if (/\b(new|create|add|open)\b.*\btab\b/.test(lower)) {
     return { type: "new_tab", title: named ?? "Untitled tab" };
   }
+  if (
+    /^(?:please\s+)?(?:write|draft|compose|continue|add|insert|type|generate)\b/i.test(
+      text,
+    )
+  )
+    return { type: "write", request: text };
   const instr =
     /^(?:change|set|update|switch)\b.*?\binstructions?\b\s*(?:to|:)?\s*(.+)$/i.exec(
       text,
@@ -60,12 +67,14 @@ const SCHEMA = {
         "new_tab",
         "new_tab_from_suggestions",
         "name_tabs",
+        "write",
         "reply",
       ],
     },
     instructions: { type: "string" },
     title: { type: "string" },
     message: { type: "string" },
+    request: { type: "string" },
   },
   required: ["action"],
 };
@@ -77,6 +86,7 @@ const SYSTEM = [
   'new_tab: create an empty tab; put a short name in "title".',
   'new_tab_from_suggestions: create a tab holding the text with all pending suggestions applied; put a short name in "title".',
   "name_tabs: give tabs that still have default names a title based on their content.",
+  'write: the writer wants new text written into the document (even an empty one); put their request in "request". Never ask clarifying questions for a writing request; pick a reasonable angle. ',
   'reply: anything else; answer briefly in "message" and say what you can do.',
 ].join("\n");
 
@@ -120,6 +130,8 @@ export async function interpret(
       case "new_tab":
       case "new_tab_from_suggestions":
         return { type: out.action, title: out.title?.trim() || "Untitled tab" };
+      case "write":
+        return { type: "write", request: out.request?.trim() || input };
       case "reply":
         if (out.message) return { type: "reply", message: out.message };
     }
@@ -200,4 +212,28 @@ export async function nameTabs(
     // model unavailable or malformed: use the offline titles
   }
   return fallback();
+}
+
+/** Drafts new text for a "write ..." request; plain text, no commentary. */
+export async function draftText(
+  request: string,
+  model: GenerativeModelLike | null,
+  context: { instructions: string; before: string; after: string },
+): Promise<string> {
+  if (!model) return `${request.replace(/^(?:please\s+)?\w+\s+/i, "")}.`;
+  const result = await model.generateContent({
+    systemInstruction:
+      "You write text for a document. Reply with only the text to insert, in Markdown if formatting helps. No preamble, no questions, no commentary. Pick a reasonable angle if the request is open-ended. Follow the writer's standing instructions when they concern voice or style.",
+    contents: [
+      {
+        role: "user",
+        parts: [
+          {
+            text: `Standing instructions: ${JSON.stringify(context.instructions)}\nText before the insertion point: ${JSON.stringify(context.before.slice(-800))}\nText after: ${JSON.stringify(context.after.slice(0, 400))}\nRequest: ${JSON.stringify(request)}`,
+          },
+        ],
+      },
+    ],
+  });
+  return result.response.text().trim();
 }

@@ -47,3 +47,20 @@ export function locateQuote(
   }
   return best ? { from: best.from, to: best.from + find.length } : null;
 }
+
+/** Where a pure insertion goes: right after `before` (nearest `hint`), else at `hint`. */
+export function locateInsertion(doc: string, options: QuoteHint = {}): number {
+  const hint = Math.min(Math.max(0, options.hint ?? 0), doc.length);
+  const before = options.before ?? "";
+  if (before.length === 0) return hint;
+  let best = -1;
+  for (
+    let at = doc.indexOf(before);
+    at !== -1;
+    at = doc.indexOf(before, at + 1)
+  ) {
+    const end = at + before.length;
+    if (best === -1 || Math.abs(end - hint) < Math.abs(best - hint)) best = end;
+  }
+  return best === -1 ? hint : best;
+}

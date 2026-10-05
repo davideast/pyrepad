@@ -24,6 +24,7 @@ interface RangeSpec {
   clientId: string;
   isCaret: boolean;
   className?: string;
+  color?: string;
   widget?: CM6PresenceWidget;
 }
 
@@ -98,6 +99,7 @@ export class CM6PresencePlugin implements CM6PluginSeam {
     const { cursor, color, clientId } = data;
     const pos = cursor.position;
     const widget = new CM6PresenceWidget(color, clientId, 21);
+    if (data.name) widget.updateTooltip(data.name);
     this.remoteWidgets[clientId] = widget;
     this.remoteRanges[clientId] = {
       from: pos,
@@ -118,6 +120,7 @@ export class CM6PresencePlugin implements CM6PluginSeam {
       clientId,
       isCaret: false,
       className: "cm-presence-selection",
+      color: data.color,
     };
   }
 
@@ -138,7 +141,12 @@ export class CM6PresencePlugin implements CM6PluginSeam {
             )
           : Decoration.mark({
               class: item.className,
-              attributes: { "data-clientid": item.clientId },
+              attributes: {
+                "data-clientid": item.clientId,
+                ...(item.color && /^#[0-9a-f]{6}$/i.test(item.color)
+                  ? { style: `background-color: ${item.color}40` }
+                  : {}),
+              },
             }).range(item.from, item.to),
       );
     return Decoration.set(ranges, true);

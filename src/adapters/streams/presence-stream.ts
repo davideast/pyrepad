@@ -23,6 +23,7 @@ export class PresenceStreamHandler {
     cursor: unknown,
     color?: string,
   ) => void;
+  getName: () => string = () => "";
 
   getThrottleMs: () => number = () => 0;
   private lastWrite = 0;
@@ -77,7 +78,15 @@ export class PresenceStreamHandler {
         : cursorObj;
     const color = typeof data.color === "string" ? data.color : "#ff0000";
 
-    this.stream.push({ userId: userId!, cursor, color, state });
+    const name =
+      typeof data.name === "string" ? data.name.slice(0, 60) : undefined;
+    this.stream.push({
+      userId: userId!,
+      cursor,
+      color,
+      ...(name ? { name } : {}),
+      state,
+    });
     this.onCursorChange(userId!, cursor, color);
   }
 
@@ -123,9 +132,11 @@ export class PresenceStreamHandler {
         await userRef.remove();
       } else {
         this.registerDisconnectCleanup(userRef);
+        const name = this.getName();
         await userRef.set({
           cursor: toSafeJSON(cursor),
           color: this.getColor(),
+          ...(name ? { name } : {}),
         });
       }
     } catch (err) {

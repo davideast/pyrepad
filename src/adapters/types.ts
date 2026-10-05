@@ -14,6 +14,8 @@ export interface PresenceEvent {
   userId: string;
   cursor: Cursor | Record<string, unknown> | null;
   color: string;
+  /** Display name the peer published, when it has one. */
+  name?: string;
   state: "active" | "disconnected";
 }
 

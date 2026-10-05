@@ -30,7 +30,13 @@ describe("createGeminiProposer", () => {
     const { req } = seen[0];
     expect(req.generationConfig.responseMimeType).toBe("application/json");
     const item = req.generationConfig.responseSchema.items;
-    expect(item.required).toEqual(["find", "replacement", "reason", "kind"]);
+    expect(item.required).toEqual([
+      "type",
+      "find",
+      "replacement",
+      "reason",
+      "kind",
+    ]);
     expect(item.properties.kind.enum).toEqual(["typo", "grammar"]);
     expect(req.systemInstruction).toContain("verbatim");
     const prompt = req.contents[0].parts[0].text;
@@ -188,5 +194,39 @@ describe("createGeminiProposer", () => {
     await expect(createGeminiProposer(failing)(request)).rejects.toThrow(
       "boom",
     );
+  });
+});
+
+describe("parseProposedEdits response modes", () => {
+  const edit = {
+    type: "edit",
+    find: "Teh",
+    replacement: "The",
+    reason: "Typo.",
+    kind: "typo",
+  };
+  const remark = {
+    type: "comment",
+    find: "cat",
+    replacement: "",
+    reason: "Vague.",
+    kind: "clarity",
+  };
+  const raw = JSON.stringify([edit, remark]);
+
+  it("drops comments in suggest mode", () => {
+    const out = parseProposedEdits(raw, request.text, 10, "suggest");
+    expect(out.map((e) => e.type ?? "edit")).toEqual(["edit"]);
+  });
+
+  it("turns every item into a comment in comment mode", () => {
+    const out = parseProposedEdits(raw, request.text, 10, "comment");
+    expect(out.every((e) => e.type === "comment")).toBe(true);
+    expect(out.length).toBe(2);
+  });
+
+  it("honours the type in both mode", () => {
+    const out = parseProposedEdits(raw, request.text, 10, "both");
+    expect(out.map((e) => e.type ?? "edit")).toEqual(["edit", "comment"]);
   });
 });
