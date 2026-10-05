@@ -73,6 +73,8 @@ export interface PresenceState {
   cursor: CursorLike;
   color: string;
   clientId: string;
+  /** Shown in the caret tooltip instead of the client id. */
+  name?: string;
 }
 
 export interface DecorationManagerSeam {

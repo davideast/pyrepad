@@ -96,3 +96,49 @@ describe("AgentiveStreamHandler (P8, A5)", function () {
     expect(writes[0].value.explanation).toBe("Hmm");
   });
 });
+
+describe("AgentiveStreamHandler slots", function () {
+  it("stores a slotted event under agentId~slot and keeps agentId in the payload", async function () {
+    const { ref, writes } = createFakeRef();
+    const handler = new AgentiveStreamHandler(ref);
+    await handler.broadcastAgentive({
+      agentId: "assistant",
+      slot: "s1",
+      status: "suggesting",
+      ghostDiff: { find: "a" },
+    });
+    expect(writes).toHaveLength(1);
+    expect(writes[0].path).toBe("agentive/assistant~s1");
+    expect(writes[0].value.agentId).toBe("assistant");
+    expect(writes[0].value.slot).toBe("s1");
+  });
+
+  it("keeps the unslotted path and payload unchanged", async function () {
+    const { ref, writes } = createFakeRef();
+    const handler = new AgentiveStreamHandler(ref);
+    await handler.broadcastAgentive({
+      agentId: "agent-7",
+      status: "thinking",
+      ghostDiff: null,
+    });
+    expect(writes[0].path).toBe("agentive/agent-7");
+    expect("slot" in writes[0].value).toBe(false);
+    expect("agentId" in writes[0].value).toBe(false);
+  });
+
+  it("reads agentId and slot from the payload of a slotted child", function () {
+    const { ref, fire } = createFakeRef();
+    const handler = new AgentiveStreamHandler(ref);
+    const streamed = [];
+    handler.stream.subscribe((evt) => streamed.push(evt));
+    handler.startMonitoring();
+    fire("agentive", "child_added", "assistant~s1", {
+      agentId: "assistant",
+      slot: "s1",
+      status: "suggesting",
+      ghostDiff: { find: "a" },
+    });
+    expect(streamed[0].agentId).toBe("assistant");
+    expect(streamed[0].slot).toBe("s1");
+  });
+});
