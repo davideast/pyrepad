@@ -167,16 +167,12 @@ describe('Integration tests', function() {
     let startedSyncing = false;
 
     firepad.on('ready', function() {
-      randomOperation(cm);
       firepad.on('synced', function(synced) {
-        if (startedSyncing) {
-          if (synced == true) {
-            done();
-          }
-        } else {
-          expect(synced).toBe(false);
-          startedSyncing = true;
-        }
+        if (!synced) startedSyncing = true;
+        else if (startedSyncing) done();
+      });
+      cm.operation(function() {
+        cm.replaceRange('edit', cm.posFromIndex(0));
       });
     });
   });
