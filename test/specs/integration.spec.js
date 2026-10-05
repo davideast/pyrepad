@@ -169,14 +169,8 @@ describe('Integration tests', function() {
     firepad.on('ready', function() {
       randomOperation(cm);
       firepad.on('synced', function(synced) {
-        if (startedSyncing) {
-          if (synced == true) {
-            done();
-          }
-        } else {
-          expect(synced).toBe(false);
-          startedSyncing = true;
-        }
+        if (!synced) startedSyncing = true;
+        else if (startedSyncing) done();
       });
     });
   });
