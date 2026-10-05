@@ -162,9 +162,15 @@
         // What the assistant looks for: set by the creator or an Owner.
         "settings": {
           ".write": "auth != null && (root.child('docs/' + $docId).child('meta/ownerId').val() == auth.uid || (root.child('emails').child(root.child('users').child(auth.uid).child('emailKey').val()).val() == auth.uid && root.child('access/' + $docId + '/members').child(root.child('users/' + auth.uid + '/emailKey').val()).val() == 'owner'))",
-          "instructions": { ".validate": "newData.isString() && newData.val().length <= 4000" },
-          "kinds": { ".validate": "newData.isString() && newData.val().length <= 100" },
-          "mode": { ".validate": "newData.isString() && (newData.val() == 'suggest' || newData.val() == 'comment' || newData.val() == 'both')" },
+          "instructions": {
+            ".validate": "newData.isString() && newData.val().length <= 4000"
+          },
+          "kinds": {
+            ".validate": "newData.isString() && newData.val().length <= 100"
+          },
+          "mode": {
+            ".validate": "newData.isString() && (newData.val() == 'suggest' || newData.val() == 'comment' || newData.val() == 'both')"
+          },
           "$other": { ".validate": false }
         },
         "meta": {
@@ -213,6 +219,12 @@
           "$other": { ".validate": false }
         }
       }
+    },
+
+    // Everything outside Scribe's own paths stays open for the other demos and e2e specs.
+    "$other": {
+      ".read": true,
+      ".write": true
     }
   }
 }
