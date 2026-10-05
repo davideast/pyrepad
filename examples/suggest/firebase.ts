@@ -30,6 +30,14 @@ export const model = getGenerativeModel(
   { model: "gemini-2.5-flash" },
 ) as unknown as GenerativeModelLike;
 
+/** Gemini speech; audio comes back as 24 kHz 16-bit mono PCM. */
+export const ttsModel = getGenerativeModel(
+  getAI(app, { backend: new GoogleAIBackend() }),
+  { model: "gemini-2.5-flash-preview-tts" },
+) as unknown as {
+  generateContent(request: Record<string, unknown>): Promise<unknown>;
+};
+
 /** Adapter config for one document's collaborative content. */
 export const MAIN_TAB = "main";
 

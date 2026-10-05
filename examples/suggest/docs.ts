@@ -24,12 +24,15 @@ export interface DocMeta {
   title: string;
   createdAt: number;
   /** Anyone with the link gets this role; absent when access is restricted. */
-  link?: Role;
+  link?: LinkRole;
 }
 
-export type Role = "viewer" | "commenter" | "editor";
+/** "owner" also changes the assistant's instructions; only the creator shares or deletes. */
+export type Role = "viewer" | "commenter" | "editor" | "owner";
+/** Roles that anyone with the link can be given. */
+export type LinkRole = Exclude<Role, "owner">;
 /** What the signed-in person can do with a document. */
-export type Access = Role | "owner";
+export type Access = Role;
 
 export const DEFAULT_TITLE = "Untitled document";
 const GRID_LIMIT = 100;
@@ -176,7 +179,10 @@ export function unshare(docId: string, email: string): Promise<void> {
   });
 }
 
-export function setLinkAccess(docId: string, role: Role | null): Promise<void> {
+export function setLinkAccess(
+  docId: string,
+  role: LinkRole | null,
+): Promise<void> {
   return role
     ? update(ref(db), { [`docs/${docId}/meta/link`]: role })
     : remove(ref(db, `docs/${docId}/meta/link`));
@@ -328,6 +334,9 @@ export function deleteTab(docId: string, tabId: string): Promise<void> {
   return update(ref(db), {
     [`docs/${docId}/tabs/${tabId}`]: null,
     [`docs/${docId}/tabContent/${tabId}`]: null,
+    [`docs/${docId}/versions/${tabId}`]: null,
+    [`docs/${docId}/comments/${tabId}`]: null,
+    [`docs/${docId}/replies/${tabId}`]: null,
   });
 }
 
@@ -344,4 +353,228 @@ export function saveTabSnippet(
 /** True when a tab still carries its automatic name. */
 export function isDefaultTabName(tab: DocTab): boolean {
   return /^(Tab \d+|Untitled tab)$/.test(tab.title);
+}
+
+export interface Version {
+  id: string;
+  text: string;
+  at: number;
+  by: string;
+  name?: string;
+}
+
+const AUTO_VERSIONS_KEPT = 60;
+
+/** Newest first. */
+export function watchVersions(
+  docId: string,
+  tabId: string,
+  onData: (versions: Version[]) => void,
+): () => void {
+  return onValue(
+    ref(db, `docs/${docId}/versions/${tabId}`),
+    (snap) => {
+      const found: Version[] = [];
+      snap.forEach((c) => {
+        const v = c.val() as Omit<Version, "id">;
+        found.push({ ...v, id: c.key! });
+      });
+      onData(found.sort((a, b) => b.at - a.at));
+    },
+    () => onData([]),
+  );
+}
+
+/** Appends a snapshot; unnamed ones beyond the newest 60 are dropped. */
+export async function saveVersion(
+  docId: string,
+  tabId: string,
+  version: { text: string; by: string; name?: string },
+  existing: Version[],
+): Promise<void> {
+  const base = `docs/${docId}/versions/${tabId}`;
+  const key = push(ref(db, base)).key!;
+  const stale = existing
+    .filter((v) => !v.name)
+    .slice(version.name ? AUTO_VERSIONS_KEPT : AUTO_VERSIONS_KEPT - 1);
+  await update(ref(db), {
+    [`${base}/${key}`]: {
+      text: version.text,
+      by: version.by,
+      at: serverTimestamp(),
+      ...(version.name ? { name: version.name } : {}),
+    },
+    ...Object.fromEntries(stale.map((v) => [`${base}/${v.id}`, null])),
+  });
+}
+
+export interface Author {
+  by: string;
+  name: string;
+  color: string;
+}
+
+export interface Comment extends Author {
+  id: string;
+  text: string;
+  /** The commented text and where it started, used to find it again after edits. */
+  quote: string;
+  from: number;
+  at: number;
+  resolved?: boolean;
+}
+
+export interface Reply extends Author {
+  id: string;
+  text: string;
+  at: number;
+}
+
+export function watchComments(
+  docId: string,
+  tabId: string,
+  onData: (comments: Comment[]) => void,
+): () => void {
+  return onValue(
+    ref(db, `docs/${docId}/comments/${tabId}`),
+    (snap) => {
+      const found: Comment[] = [];
+      snap.forEach((c) => {
+        found.push({ ...(c.val() as Omit<Comment, "id">), id: c.key! });
+      });
+      onData(found.sort((a, b) => a.from - b.from || a.at - b.at));
+    },
+    () => onData([]),
+  );
+}
+
+export function watchReplies(
+  docId: string,
+  tabId: string,
+  onData: (replies: Record<string, Reply[]>) => void,
+): () => void {
+  return onValue(
+    ref(db, `docs/${docId}/replies/${tabId}`),
+    (snap) => {
+      const found: Record<string, Reply[]> = {};
+      snap.forEach((thread) => {
+        const list: Reply[] = [];
+        thread.forEach((r) => {
+          list.push({ ...(r.val() as Omit<Reply, "id">), id: r.key! });
+        });
+        found[thread.key!] = list.sort((a, b) => a.at - b.at);
+      });
+      onData(found);
+    },
+    () => onData({}),
+  );
+}
+
+export function addComment(
+  docId: string,
+  tabId: string,
+  comment: Author & { text: string; quote: string; from: number },
+  id: string = push(ref(db, `docs/${docId}/comments/${tabId}`)).key!,
+): Promise<string> {
+  const path = `docs/${docId}/comments/${tabId}`;
+  return update(ref(db, path), {
+    [id]: {
+      ...comment,
+      quote: comment.quote.slice(0, 1000),
+      at: serverTimestamp(),
+    },
+  }).then(() => id);
+}
+
+export function addReply(
+  docId: string,
+  tabId: string,
+  commentId: string,
+  reply: Author & { text: string },
+): Promise<void> {
+  const path = `docs/${docId}/replies/${tabId}/${commentId}`;
+  return update(ref(db, path), {
+    [push(ref(db, path)).key!]: { ...reply, at: serverTimestamp() },
+  });
+}
+
+export function setResolved(
+  docId: string,
+  tabId: string,
+  commentId: string,
+  resolved: boolean,
+): Promise<void> {
+  return update(ref(db), {
+    [`docs/${docId}/comments/${tabId}/${commentId}/resolved`]: resolved
+      ? true
+      : null,
+  });
+}
+
+export function deleteComment(
+  docId: string,
+  tabId: string,
+  commentId: string,
+): Promise<void> {
+  return update(ref(db), {
+    [`docs/${docId}/comments/${tabId}/${commentId}`]: null,
+    [`docs/${docId}/replies/${tabId}/${commentId}`]: null,
+  });
+}
+
+export function deleteReply(
+  docId: string,
+  tabId: string,
+  commentId: string,
+  replyId: string,
+): Promise<void> {
+  return remove(
+    ref(db, `docs/${docId}/replies/${tabId}/${commentId}/${replyId}`),
+  );
+}
+
+export interface AssistantSettings {
+  instructions: string;
+  kinds: string[];
+  mode?: "suggest" | "comment" | "both";
+}
+
+/** The instructions the whole document shares; null until an Owner sets them. */
+export function watchSettings(
+  docId: string,
+  onData: (settings: AssistantSettings | null) => void,
+): () => void {
+  return onValue(
+    ref(db, `docs/${docId}/settings`),
+    (snap) => {
+      const v = snap.val() as {
+        instructions?: string;
+        kinds?: string;
+        mode?: string;
+      } | null;
+      onData(
+        v && typeof v.instructions === "string"
+          ? {
+              instructions: v.instructions,
+              kinds: (v.kinds ?? "").split(",").filter(Boolean),
+              mode:
+                v.mode === "comment" || v.mode === "both" ? v.mode : "suggest",
+            }
+          : null,
+      );
+    },
+    () => onData(null),
+  );
+}
+
+/** Creator or Owner only. */
+export function saveSettings(
+  docId: string,
+  settings: AssistantSettings,
+): Promise<void> {
+  return update(ref(db, `docs/${docId}/settings`), {
+    instructions: settings.instructions.slice(0, 4000),
+    kinds: settings.kinds.join(","),
+    mode: settings.mode ?? "suggest",
+  });
 }

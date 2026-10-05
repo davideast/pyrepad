@@ -39,6 +39,10 @@ export class CM6PresenceWidget extends WidgetType implements CM6WidgetLike {
   // CM6PresencePlugin owns disposal via dispose().
   destroy(): void {}
 
+  updateTooltip(text: string): void {
+    this.base.updateTooltip(text);
+  }
+
   showTooltip(durationMs?: number): void {
     this.base.showTooltip(durationMs);
   }

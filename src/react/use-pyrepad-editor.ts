@@ -135,6 +135,7 @@ function applyPresence(seam: EditorSeam, event: PresenceEvent): void {
     cursor: { position: cursor.position, selectionEnd: cursor.selectionEnd },
     color: event.color,
     clientId: event.userId,
+    ...(event.name ? { name: event.name } : {}),
   });
 }
 

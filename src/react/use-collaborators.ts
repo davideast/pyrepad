@@ -10,6 +10,7 @@ import { consumeStream } from "./consume-stream.js";
 export interface CollaboratorPresence {
   userId: string;
   color: string;
+  name?: string;
   cursor: unknown;
   lastSeen: number;
 }
@@ -30,6 +31,7 @@ function reducePresence(
     userId: event.userId,
     cursor: event.cursor,
     color: event.color || "#3b82f6",
+    ...(event.name ? { name: event.name } : {}),
     lastSeen: Date.now(),
   };
   return Object.assign({}, current, { [event.userId]: updated });

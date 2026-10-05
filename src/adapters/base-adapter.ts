@@ -34,6 +34,7 @@ export abstract class AbstractSyncAdapter
   protected ref: RefLike | null = null;
   protected userId: string = "";
   protected userColor: string = "#000000";
+  protected userName = "";
   protected ready = false;
   protected disposed = false;
   public callbacks: AdapterCallbacks = {};
@@ -80,6 +81,7 @@ export abstract class AbstractSyncAdapter
       () => this.userColor,
       (id, cursor, c) => this.trigger("cursor", id, cursor, c),
     );
+    this.presenceHandler.getName = () => this.userName;
     this.presenceHandler.getThrottleMs = () => this.presenceThrottleMs;
 
     this.agentiveHandler = new AgentiveStreamHandler(this.ref, (event) =>
@@ -294,6 +296,11 @@ export abstract class AbstractSyncAdapter
     return this.historyHandler.getRevision() === 0;
   }
 
+  /** Name shown to peers next to this user's cursor. */
+  setName(name: string): void {
+    this.userName = name;
+  }
+
   setColor(color: string): void {
     this.userColor = color;
   }
@@ -320,11 +327,7 @@ export abstract class AbstractSyncAdapter
     const refValid = isValidRef(this.ref);
     if (refValid) {
       try {
-        const hasRoot = Boolean(this.ref!.root);
-        const connRef = hasRoot
-          ? this.ref!.root!.child(".info/connected")
-          : this.ref!.child(".info/connected");
-        connRef.off();
+        (this.ref!.root ?? this.ref!).child(".info/connected").off();
       } catch (err) {
         console.warn(
           "Unexpected error during adapter connection teardown:",

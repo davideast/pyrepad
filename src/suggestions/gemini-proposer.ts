@@ -3,7 +3,12 @@
  * Pyric's passthrough mode, the scripted engine in the sandbox). It asks for
  * structured JSON and reduces whatever comes back to safe, verbatim-quoted edits.
  */
-import type { ProposedEdit, ProposeRequest, Proposer } from "./types.js";
+import type {
+  ProposedEdit,
+  ProposeRequest,
+  Proposer,
+  ResponseMode,
+} from "./types.js";
 
 /** The slice of a Firebase AI Logic `GenerativeModel` the proposer uses. */
 export interface GenerativeModelLike {
@@ -23,8 +28,11 @@ const DEFAULT_MAX_EDITS = 8;
 const SYSTEM_INSTRUCTION = [
   "You are an editing assistant inside a live collaborative document. You never rewrite the document; you propose suggestions that a person accepts or rejects one at a time.",
   "Rules:",
-  '- Reply with a JSON array of edits and nothing else. Each edit is {"find","replacement","reason","kind"}. Return [] when nothing should change.',
-  '- "find" must be a verbatim, character-exact substring of the TEXT TO REVIEW, unique in it. Never quote text from the context sections.',
+  '- Reply with a JSON array and nothing else. Each item is {"type","find","replacement","reason","kind"}. Return [] when there is nothing to say.',
+  '- "type" is "edit" to propose replacing text, or "comment" to leave a remark on the author\'s text without changing it. The RESPONSE MODE section says which are allowed.',
+  '- Use "edit" when the INSTRUCTIONS ask for text to change: fixing mistakes, translating, or rewriting in a voice. Use "comment" when they ask for an opinion, critique, question or explanation, or when the right change is the author\'s call. When unsure, comment. Never use both on the same text.',
+  '- For a "comment": "find" quotes the text you are responding to, "replacement" is "", and "reason" IS the comment itself, addressed to the author and written in whatever voice or persona the INSTRUCTIONS ask for. It may run several sentences. Do not describe what you are doing; say the thing.',
+  '- For an "edit": "find" must be a verbatim, character-exact substring of the TEXT TO REVIEW, unique in it. Never quote text from the context sections.',
   '- "replacement" is the exact text that should replace "find" (an empty string deletes it). Size the edit to the INSTRUCTIONS: for proofreading or fixing mistakes keep edits minimal (just the words that are wrong); for a rewrite, translation, or change of tone, voice or style, replace whole sentences so the result fully reads in the requested voice, and cover every sentence that does not already comply.',
   '- "reason" is one short sentence explaining the change to the author.',
   '- "kind" must be one of the ALLOWED KINDS.',
@@ -41,12 +49,13 @@ function responseSchema(kinds: readonly string[]): Record<string, unknown> {
     items: {
       type: "object",
       properties: {
+        type: { type: "string", enum: ["edit", "comment"] },
         find: { type: "string" },
         replacement: { type: "string" },
         reason: { type: "string" },
         kind,
       },
-      required: ["find", "replacement", "reason", "kind"],
+      required: ["type", "find", "replacement", "reason", "kind"],
     },
   };
 }
@@ -63,9 +72,19 @@ function revisionLines(request: ProposeRequest): string[] {
   ];
 }
 
+function modeLine(mode: ResponseMode): string {
+  if (mode === "comment")
+    return 'comments only. Every item must have type "comment"; never propose an edit.';
+  if (mode === "both")
+    return "edits and comments allowed. Choose per finding as described in the rules.";
+  return 'edits only. Every item must have type "edit"; never comment.';
+}
+
 function userPrompt(request: ProposeRequest): string {
   return [
     ...revisionLines(request),
+    `RESPONSE MODE: ${modeLine(request.mode ?? "suggest")}`,
+    "",
     "INSTRUCTIONS:",
     request.instructions.trim() || "Fix mistakes.",
     "",
@@ -108,6 +127,7 @@ export function parseProposedEdits(
   raw: string,
   text: string,
   maxEdits: number = DEFAULT_MAX_EDITS,
+  mode: ResponseMode = "suggest",
 ): ProposedEdit[] {
   let parsed: unknown;
   try {
@@ -120,24 +140,41 @@ export function parseProposedEdits(
   for (const entry of asEditArray(parsed)) {
     if (edits.length >= maxEdits) break;
     if (typeof entry !== "object" || entry === null) continue;
-    const { find, replacement, reason, kind } = entry as Record<
+    const { find, replacement, reason, kind, type } = entry as Record<
       string,
       unknown
     >;
     if (
       typeof find !== "string" ||
-      typeof replacement !== "string" ||
       typeof reason !== "string" ||
       typeof kind !== "string"
     ) {
       continue;
     }
-    if (find.length === 0 || find === replacement) continue;
-    if (!text.includes(find)) continue;
-    const key = `${find}\u0000${replacement}`;
+    const repl = typeof replacement === "string" ? replacement : "";
+    if (find.length === 0 || !text.includes(find)) continue;
+    const isComment =
+      mode === "comment" || (mode === "both" && type === "comment");
+    if (isComment) {
+      const remark = reason.trim() || repl.trim();
+      if (!remark) continue;
+      const key = `c\u0000${find}\u0000${remark}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      edits.push({
+        find,
+        replacement: "",
+        reason: remark,
+        kind,
+        type: "comment",
+      });
+      continue;
+    }
+    if (type === "comment" || find === repl) continue;
+    const key = `${find}\u0000${repl}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    edits.push({ find, replacement, reason, kind });
+    edits.push({ find, replacement: repl, reason, kind });
   }
   return edits;
 }
@@ -170,7 +207,12 @@ export function createGeminiProposer(
     try {
       const result = await (signal ? Promise.race([call, aborted]) : call);
       call.catch(() => undefined);
-      return parseProposedEdits(result.response.text(), request.text, maxEdits);
+      return parseProposedEdits(
+        result.response.text(),
+        request.text,
+        maxEdits,
+        request.mode ?? "suggest",
+      );
     } finally {
       if (signal && onAbort) signal.removeEventListener("abort", onAbort);
     }

@@ -1,14 +1,15 @@
 import React, { useState } from "react";
 
-const CHIPS = [
+const SUGGESTION_CHIPS = [
   "Accept all",
   "Reject all",
   "New tab from suggestions",
-  "Name all tabs",
 ];
+const ALWAYS_CHIPS = ["Name all tabs"];
 
 export function Composer(props: {
   onSubmit: (text: string) => Promise<string | void>;
+  pending: number;
   note: string;
   onNote: (note: string) => void;
 }): React.ReactElement {
@@ -37,17 +38,19 @@ export function Composer(props: {
         </p>
       ) : null}
       <div className="sg-chips">
-        {CHIPS.map((c) => (
-          <button
-            key={c}
-            type="button"
-            className="sg-chip"
-            disabled={busy}
-            onClick={() => void send(c)}
-          >
-            {c}
-          </button>
-        ))}
+        {[...(props.pending > 0 ? SUGGESTION_CHIPS : []), ...ALWAYS_CHIPS].map(
+          (c) => (
+            <button
+              key={c}
+              type="button"
+              className="sg-chip"
+              disabled={busy}
+              onClick={() => void send(c)}
+            >
+              {c}
+            </button>
+          ),
+        )}
       </div>
       <form
         className={

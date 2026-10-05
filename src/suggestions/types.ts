@@ -27,6 +27,9 @@ export interface Suggestion {
   status: SuggestionStatus;
 }
 
+/** Whether the proposer may suggest edits, leave comments, or pick per finding. */
+export type ResponseMode = "suggest" | "comment" | "both";
+
 /** What the proposer is asked to review. `before`/`after` are read-only context. */
 export interface ProposeRequest {
   text: string;
@@ -36,6 +39,8 @@ export interface ProposeRequest {
   instructions: string;
   /** Kind labels the proposer may use; others are dropped by the caller. */
   kinds: readonly string[];
+  /** Default "suggest". */
+  mode?: ResponseMode;
   /** Set when `text` is the span of an earlier suggestion that a reviewer commented on. */
   revision?: { replacement: string; comment: string };
 }
@@ -46,6 +51,8 @@ export interface ProposedEdit {
   replacement: string;
   reason: string;
   kind: string;
+  /** "comment" leaves `reason` as a remark on the quote and changes nothing. Default "edit". */
+  type?: "edit" | "comment";
 }
 
 export type Proposer = (
