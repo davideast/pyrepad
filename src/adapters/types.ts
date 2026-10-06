@@ -102,10 +102,35 @@ export interface RefLike {
   ): void;
 }
 
+/** What went wrong, so an app can tell "unsaved" from "out of sync". */
+export type SyncErrorKind =
+  /** A local write was refused; the edits were rolled back in `operations`. */
+  | "commit-failed"
+  /** A history entry could not be decoded or did not fit the document. */
+  | "invalid-operation"
+  /** Edits saved offline could not be stored, or not replayed after a reload. */
+  | "reconcile-failed"
+  /** Presence or agentive state could not be written. */
+  | "presence-failed"
+  /** The editor could not apply a remote edit; it no longer matches the document. */
+  | "apply-failed";
+
+export interface SyncError {
+  kind: SyncErrorKind;
+  message: string;
+  cause?: unknown;
+  /** History revision the error relates to, when known. */
+  revision?: number;
+  /** The operation that was dropped or rejected, when there is one. */
+  operation?: unknown;
+}
+
 export interface SyncSeam {
   readonly operations: AsyncIterable<TextOperationEvent>;
   readonly presence: AsyncIterable<PresenceEvent>;
   readonly agentive: AsyncIterable<AgentivePresenceEvent>;
+  /** Failures the seam recovered from or could not; never thrown. */
+  readonly errors: AsyncIterable<SyncError>;
 
   /**
    * Resolves once the initial document is composed; rejects if the adapter is
@@ -138,18 +163,6 @@ export type AdapterEvents = {
   agentive: [event: AgentivePresenceEvent];
   worker_sync: [payload: unknown];
 };
-
-/**
- * "conflict" event raised by OfflineDurableAdapter when a queued offline op cannot be
- * rebased onto the canonical history and is dropped from the queue.
- */
-export interface OfflineConflictEvent {
-  recordId: string;
-  author: string;
-  revision: number;
-  operation: unknown;
-  error: Error;
-}
 
 export interface AdapterCallbacks {
   ack?(): void;
