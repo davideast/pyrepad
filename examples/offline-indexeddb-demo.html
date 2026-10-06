@@ -341,7 +341,7 @@
       // Setup CodeMirror instances
       let cmA = CodeMirror(document.getElementById("editor-a-container"), {
         lineNumbers: true,
-        value: "// Welcome to the Pyrepad Offline Durability Demo!\n// 1. Type while Connected: Both editors synchronize instantly.\n// 2. Click 'Disconnect': Type edits in Editor A to buffer directly into IndexedDB.\n// 3. Click 'Simulate Session Reboot': Watch offline edits survive editor teardown and initialization!\n// 4. Click 'Reconnect': Pending IndexedDB revisions replay with automatic OT rebase.\n\nconst architecture = 'Evergreen & Durable';\n",
+        value: "// Welcome to the Pyrepad Offline Durability Demo!\n// 1. Type while Connected: Both editors synchronize instantly.\n// 2. Click 'Disconnect': Type edits in Editor A to buffer directly into IndexedDB.\n// 3. Click 'Simulate Session Reboot': Watch offline edits survive editor teardown and initialization!\n// 4. Click 'Reconnect': the saved edits are rebased onto the history written since and replayed.\n\nconst architecture = 'Evergreen & Durable';\n",
       });
       let cmB = CodeMirror(document.getElementById("editor-b-container"), {
         lineNumbers: true,
@@ -395,8 +395,8 @@
           btn.textContent = "Disconnect (Simulate Offline)";
           btn.style.background = "#3b82f6";
 
-          // Automatic Reconcile upon Reconnect!
-          const count = await adapterA.reconcile();
+          // Unsaved edits replay on their own once the network is back.
+          await adapterA.whenReady();
           isUpdating = true;
           cmB.setValue(cmA.getValue()); // OT rebased state convergence
           isUpdating = false;
@@ -409,12 +409,14 @@
         // Instantiate a brand new durable adapter connecting to the existing persistent IndexedDB store
         baseAdapterA = new SharedWorkerAdapter(null, "Client-A", "#3b82f6", workerPort);
         adapterA = new IndexedDBAdapter(baseAdapterA, storageEngine, "demo_doc");
-        alert("Session Rebooted! Editor A instance destroyed and reloaded against persistent IndexedDB queue without data loss.");
+        alert("Session Rebooted! Editor A instance destroyed and reloaded against the IndexedDB snapshot without data loss.");
         updateDiagnostics();
       };
 
       async function updateDiagnostics() {
-        const pending = await adapterA.queue.getPendingRevisions();
+        // One snapshot of unsaved edits per document, relative to the revision it was taken at.
+        const snapshot = await storageEngine.get("demo_doc:unsaved");
+        const pending = snapshot ? [snapshot] : [];
         const feed = document.getElementById("queue-feed");
         const countSpan = document.getElementById("queue-count");
         countSpan.textContent = `${pending.length} Pending`;
@@ -435,10 +437,10 @@
           div.className = "queue-item";
           div.innerHTML = `
             <div class="queue-meta">
-              <span>Rev #${item.revision} (${item.author})</span>
-              <span>${new Date(item.timestamp).toLocaleTimeString()}</span>
+              <span>Based on rev #${item.revision}</span>
+              <span>${new Date(item.savedAt).toLocaleTimeString()}</span>
             </div>
-            <div class="queue-op">${JSON.stringify(item.operationJSON)}</div>
+            <div class="queue-op">${JSON.stringify({ sent: item.sent, rest: item.rest })}</div>
           `;
           feed.appendChild(div);
         });

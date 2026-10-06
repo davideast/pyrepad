@@ -163,15 +163,12 @@ export class CodeMirror6Adapter
       }
     }
 
+    // A change that doesn't fit throws: the caller must know the editor diverged.
     if (changes.length > 0) {
-      try {
-        view.dispatch({
-          changes: changes,
-          annotations: this.remoteOrigin.of(true),
-        });
-      } catch (err) {
-        console.warn("Unexpected error dispatching CM6 changes:", err);
-      }
+      view.dispatch({
+        changes: changes,
+        annotations: this.remoteOrigin.of(true),
+      });
     }
   }
 

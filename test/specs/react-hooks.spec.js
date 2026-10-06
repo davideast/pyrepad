@@ -36,7 +36,10 @@ function createFakeSeam(opts) {
     broadcasts: [],
     commitOperation: function (op, author) {
       seam.commits.push({ op: op, author: author });
-      return Promise.resolve({ revision: seam.commits.length, committed: true });
+      return Promise.resolve({
+        revision: seam.commits.length,
+        committed: true,
+      });
     },
     broadcastPresence: function (cursor) {
       seam.broadcasts.push(cursor);
@@ -177,7 +180,9 @@ describe("React hooks drive the SyncSeam (C3, A2)", function () {
     });
     await flush();
 
-    seam.operations.push(opEvent(new TextOperation().retain(3).insert("x"), "me"));
+    seam.operations.push(
+      opEvent(new TextOperation().retain(3).insert("x"), "me"),
+    );
     await flush();
 
     expect(editor.applied.length).toBe(0);
@@ -220,8 +225,18 @@ describe("React hooks drive the SyncSeam (C3, A2)", function () {
     });
     await flush();
 
-    seam.presence.push({ userId: "bob", cursor: new Cursor(1, 2), color: "#f00", state: "active" });
-    seam.presence.push({ userId: "bob", cursor: null, color: "#f00", state: "disconnected" });
+    seam.presence.push({
+      userId: "bob",
+      cursor: new Cursor(1, 2),
+      color: "#f00",
+      state: "active",
+    });
+    seam.presence.push({
+      userId: "bob",
+      cursor: null,
+      color: "#f00",
+      state: "disconnected",
+    });
     await flush();
 
     expect(editor.otherCursors.length).toBe(1);
@@ -288,7 +303,9 @@ describe("React hooks drive the SyncSeam (C3, A2)", function () {
     await flush();
     hook.unmount();
 
-    seam.operations.push(opEvent(new TextOperation().retain(3).insert("z"), "peer"));
+    seam.operations.push(
+      opEvent(new TextOperation().retain(3).insert("z"), "peer"),
+    );
     await flush();
 
     expect(editor.applied.length).toBe(0);
@@ -305,7 +322,9 @@ describe("React hooks drive the SyncSeam (C3, A2)", function () {
     const before = hook.result.current.renderCount;
 
     for (let i = 0; i < 100; i++) {
-      seam.operations.push(opEvent(new TextOperation().retain(i).insert("a"), "peer"));
+      seam.operations.push(
+        opEvent(new TextOperation().retain(i).insert("a"), "peer"),
+      );
     }
     await flush();
 
@@ -321,7 +340,12 @@ describe("React hooks drive the SyncSeam (C3, A2)", function () {
     await flush();
 
     await act(async function () {
-      seam.presence.push({ userId: "bob", cursor: new Cursor(3, 3), color: "#0f0", state: "active" });
+      seam.presence.push({
+        userId: "bob",
+        cursor: new Cursor(3, 3),
+        color: "#0f0",
+        state: "active",
+      });
       await Promise.resolve();
     });
     await flush();
@@ -330,7 +354,12 @@ describe("React hooks drive the SyncSeam (C3, A2)", function () {
     expect(hook.result.current[0].color).toBe("#0f0");
 
     await act(async function () {
-      seam.presence.push({ userId: "bob", cursor: null, color: "#0f0", state: "disconnected" });
+      seam.presence.push({
+        userId: "bob",
+        cursor: null,
+        color: "#0f0",
+        state: "disconnected",
+      });
       await Promise.resolve();
     });
     await flush();
@@ -345,7 +374,12 @@ describe("React hooks drive the SyncSeam (C3, A2)", function () {
     await flush();
 
     await act(async function () {
-      seam.agentive.push({ agentId: "copilot", status: "thinking", ghostDiff: null, explanation: "hm" });
+      seam.agentive.push({
+        agentId: "copilot",
+        status: "thinking",
+        ghostDiff: null,
+        explanation: "hm",
+      });
       await Promise.resolve();
     });
     await flush();
@@ -367,7 +401,12 @@ describe("React hooks drive the SyncSeam (C3, A2)", function () {
     );
     await flush();
     await act(async function () {
-      seam.presence.push({ userId: "carol", cursor: new Cursor(0, 0), color: "#00f", state: "active" });
+      seam.presence.push({
+        userId: "carol",
+        cursor: new Cursor(0, 0),
+        color: "#00f",
+        state: "active",
+      });
       await Promise.resolve();
     });
     await flush();
@@ -386,10 +425,20 @@ describe("React hooks drive the SyncSeam (C3, A2)", function () {
     const adapterB = new PyricSandboxAdapter(ref, "bob", "#00f");
 
     renderHook(function () {
-      return usePyrepadEditor({ adapter: adapterA, editor: cmA, type: "cm5", userId: "alice" });
+      return usePyrepadEditor({
+        adapter: adapterA,
+        editor: cmA,
+        type: "cm5",
+        userId: "alice",
+      });
     });
     renderHook(function () {
-      return usePyrepadEditor({ adapter: adapterB, editor: cmB, type: "cm5", userId: "bob" });
+      return usePyrepadEditor({
+        adapter: adapterB,
+        editor: cmB,
+        type: "cm5",
+        userId: "bob",
+      });
     });
     await act(async function () {
       await new Promise(function (r) {
@@ -411,5 +460,101 @@ describe("React hooks drive the SyncSeam (C3, A2)", function () {
     await adapterA.dispose();
     await adapterB.dispose();
     host.remove();
+  });
+});
+
+describe("usePyrepadEditor reports sync errors (item 6)", function () {
+  afterEach(cleanup);
+
+  it("forwards the adapter's `errors` stream to onError", async function () {
+    const seam = createFakeSeam();
+    seam.errors = new ReactiveStream();
+    const editor = createFakeEditor("abc");
+    const seen = [];
+    renderHook(function () {
+      return usePyrepadEditor({
+        adapter: seam,
+        editor: editor,
+        onError: function (e) {
+          seen.push(e);
+        },
+      });
+    });
+    await flush();
+    seam.errors.push({
+      kind: "invalid-operation",
+      message: "bad",
+      revision: 4,
+    });
+    await flush();
+    expect(seen).toEqual([
+      { kind: "invalid-operation", message: "bad", revision: 4 },
+    ]);
+  });
+
+  it("reports a rejected commit and a failed presence write", async function () {
+    const seam = createFakeSeam();
+    seam.commitOperation = function () {
+      return Promise.reject(new Error("denied"));
+    };
+    seam.broadcastPresence = function () {
+      return Promise.reject(new Error("offline"));
+    };
+    const editor = createFakeEditor("abc");
+    const seen = [];
+    renderHook(function () {
+      return usePyrepadEditor({
+        adapter: seam,
+        editor: editor,
+        onError: function (e) {
+          seen.push(e);
+        },
+      });
+    });
+    await flush();
+    const local = new TextOperation().retain(3).insert("!");
+    editor.fire("change", local, local);
+    editor.fire("cursor", { position: 1, selectionEnd: 1 });
+    await flush();
+
+    expect(
+      seen
+        .map(function (e) {
+          return e.kind;
+        })
+        .sort(),
+    ).toEqual(["commit-failed", "presence-failed"]);
+    const commitError = seen.find(function (e) {
+      return e.kind === "commit-failed";
+    });
+    expect(commitError.cause.message).toBe("denied");
+    expect(commitError.operation).toBe(local);
+  });
+
+  it("reports a remote edit the editor cannot apply instead of dropping it silently", async function () {
+    const seam = createFakeSeam();
+    const editor = createFakeEditor("abc");
+    editor.applyOperation = function () {
+      throw new RangeError("Invalid change range");
+    };
+    const seen = [];
+    renderHook(function () {
+      return usePyrepadEditor({
+        adapter: seam,
+        editor: editor,
+        userId: "me",
+        onError: function (e) {
+          seen.push(e);
+        },
+      });
+    });
+    await flush();
+    seam.operations.push(
+      opEvent(new TextOperation().retain(9).insert("x"), "peer"),
+    );
+    await flush();
+    expect(seen).toHaveLength(1);
+    expect(seen[0].kind).toBe("apply-failed");
+    expect(seen[0].cause).toBeInstanceOf(RangeError);
   });
 });

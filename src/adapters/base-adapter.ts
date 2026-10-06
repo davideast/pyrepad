@@ -61,9 +61,8 @@ export abstract class AbstractSyncAdapter
     customId?: string,
   ): void {
     this.ref = ref;
-    const hasCustomId = Boolean(customId && customId.trim().length > 0);
-    this.userId = hasCustomId
-      ? customId!
+    this.userId = customId?.trim()
+      ? customId
       : prefix + "-" + Math.random().toString(36).substring(2, 6);
     this.userColor = color;
 
@@ -83,6 +82,7 @@ export abstract class AbstractSyncAdapter
     );
     this.presenceHandler.getName = () => this.userName;
     this.presenceHandler.getThrottleMs = () => this.presenceThrottleMs;
+    this.presenceHandler.onError = (e) => this.historyHandler.errors.push(e);
 
     this.agentiveHandler = new AgentiveStreamHandler(this.ref, (event) =>
       this.trigger("agentive", event),
@@ -97,6 +97,13 @@ export abstract class AbstractSyncAdapter
   }
   get agentive() {
     return this.agentiveHandler.stream;
+  }
+  get errors() {
+    return this.historyHandler.errors;
+  }
+  /** The stored history from revision `from` on; see `HistoryStreamHandler.readSince`. */
+  historySince(from: number) {
+    return this.historyHandler.readSince(from);
   }
 
   protected initializeConnection(): void {
@@ -121,10 +128,7 @@ export abstract class AbstractSyncAdapter
     const isDisconnectedOrReady = this.disposed || this.ready;
     if (isDisconnectedOrReady) return;
 
-    const hasRoot = Boolean(this.ref!.root);
-    const connRef = hasRoot
-      ? this.ref!.root!.child(".info/connected")
-      : this.ref!.child(".info/connected");
+    const connRef = (this.ref!.root ?? this.ref!).child(".info/connected");
     const hasOnMethod = Boolean(connRef && typeof connRef.on === "function");
     if (hasOnMethod) {
       connRef.on("value", (snap: SnapLike) =>
@@ -193,11 +197,10 @@ export abstract class AbstractSyncAdapter
     callback?: (err: Error | null, committed?: boolean) => void,
     author?: string,
   ): void {
-    const isNotReady = !this.ready;
-    if (isNotReady) {
-      this.once("ready", () => this.sendOperation(operation, callback, author));
-      return;
-    }
+    if (!this.ready)
+      return this.once("ready", () =>
+        this.sendOperation(operation, callback, author),
+      );
     this.historyHandler.sendOperation(
       operation,
       author || this.userId,
@@ -278,9 +281,8 @@ export abstract class AbstractSyncAdapter
     ghostDiff?: unknown,
     explanation?: string,
   ): Promise<void> {
-    if (typeof eventOrAgentId === "object") {
+    if (typeof eventOrAgentId === "object")
       return this.agentiveHandler.broadcastAgentive(eventOrAgentId);
-    }
     // `status!`: the string overload requires it; TS cannot correlate that here.
     return this.agentiveHandler.broadcastAgentive(
       eventOrAgentId,
@@ -310,8 +312,7 @@ export abstract class AbstractSyncAdapter
   }
 
   dispose(): Promise<void> {
-    const isAlreadyDisposed = this.disposed;
-    if (isAlreadyDisposed) return Promise.resolve();
+    if (this.disposed) return Promise.resolve();
     this.disposed = true;
     this.ready = false;
     this.callbacks = {};

@@ -12,11 +12,13 @@
  * - `presence` events -> `editor.setOtherCursor` / `editor.clearCursor`
  * - `defaultText` seeds the shared document once, when the adapter is ready
  *   and its history is empty.
+ * - the adapter's `errors`, and commits or presence writes that fail, go to
+ *   `onError` (default: `console.warn`).
  *
  * The binding lives in an effect and refs, so edits never cause a React render.
  */
 import { useEffect, useRef, useState, useContext } from "react";
-import { SyncSeam, PresenceEvent } from "../adapters/types.js";
+import { SyncSeam, PresenceEvent, SyncError } from "../adapters/types.js";
 import { AbstractSyncAdapter } from "../adapters/base-adapter.js";
 import { ClientSyncAdapter } from "../adapters/client-sync-adapter.js";
 import { EditorSeam, CursorLike } from "../editors/types.js";
@@ -46,6 +48,8 @@ export interface UsePyrepadEditorOptions {
   userId?: string;
   /** Unused by the hook: the adapter owns the presence colour. */
   userColor?: string;
+  /** Sync failures (refused writes, skipped history, presence errors). */
+  onError?: (error: SyncError) => void;
 }
 
 export interface UsePyrepadEditorResult {
@@ -62,6 +66,11 @@ interface Binding {
   authorId: string;
   editor: unknown;
   getDefaultText(): string | undefined;
+  report(error: SyncError): void;
+}
+
+function reportByDefault(error: SyncError): void {
+  console.warn("pyrepad sync error:", error.message, error);
 }
 
 function isEditorSeam(editor: unknown): editor is EditorSeam {
@@ -115,10 +124,17 @@ function isEditorEmpty(editor: unknown): boolean {
   return true;
 }
 
-function commit(adapter: SyncSeam, op: unknown, authorId: string): void {
-  adapter
-    .commitOperation(op, authorId)
-    .catch((err) => console.warn("usePyrepadEditor commit failed:", err));
+function commit(binding: Binding, op: unknown): void {
+  binding.adapter.commitOperation(op, binding.authorId).catch((cause) => {
+    // The OT client reports its own failures (with a rollback) on `errors`.
+    if (binding.client) return;
+    binding.report({
+      kind: "commit-failed",
+      message: `A local edit could not be saved: ${cause instanceof Error ? cause.message : String(cause)}`,
+      cause,
+      operation: op,
+    });
+  });
 }
 
 function applyPresence(seam: EditorSeam, event: PresenceEvent): void {
@@ -149,11 +165,11 @@ function seedDefaultText(binding: Binding, historyEmpty: boolean): void {
     // Compare-and-set on revision 0: a peer's concurrent seed wins, ours is dropped.
     binding.client
       .seedIfEmpty(op, (seed) => binding.seam.applyOperation(seed))
-      .catch((err) => console.warn("usePyrepadEditor seed failed:", err));
+      .catch(() => {});
     return;
   }
   binding.seam.applyOperation(op);
-  commit(binding.adapter, op, binding.authorId);
+  commit(binding, op);
 }
 
 function bindEditorToSeam(bound: Binding): () => void {
@@ -162,20 +178,39 @@ function bindEditorToSeam(bound: Binding): () => void {
       ? new ClientSyncAdapter(bound.adapter)
       : null;
   const binding = client ? { ...bound, adapter: client, client } : bound;
-  const { adapter, seam, authorId } = binding;
+  const { adapter, seam, authorId, report } = binding;
 
-  const onChange = (op: unknown) => commit(adapter, op, authorId);
+  const onChange = (op: unknown) => commit(binding, op);
   const onCursor = (cursor: unknown) => {
     if (!cursor) return;
-    adapter
-      .broadcastPresence(cursor)
-      .catch((err) => console.warn("usePyrepadEditor presence failed:", err));
+    adapter.broadcastPresence(cursor).catch((cause) =>
+      report({
+        kind: "presence-failed",
+        message: "The cursor position could not be shared.",
+        cause,
+      }),
+    );
   };
+  const stopErrors = adapter.errors
+    ? consumeStream(adapter.errors, report)
+    : () => {};
   seam.on("change", onChange);
   seam.on("cursor", onCursor);
 
   const stopOperations = consumeStream(adapter.operations, (event) => {
-    if (event.author !== authorId) seam.applyOperation(event.operation);
+    if (event.author === authorId) return;
+    try {
+      seam.applyOperation(event.operation);
+    } catch (cause) {
+      report({
+        kind: "apply-failed",
+        message:
+          "A remote edit could not be applied; the editor is out of sync.",
+        cause,
+        revision: event.revision,
+        operation: event.operation,
+      });
+    }
   });
   const stopPresence = consumeStream(adapter.presence, (event) =>
     applyPresence(seam, event),
@@ -189,6 +224,7 @@ function bindEditorToSeam(bound: Binding): () => void {
     seam.off("cursor", onCursor);
     stopOperations();
     stopPresence();
+    stopErrors();
     cancelSeed();
     client?.detach();
   };
@@ -207,6 +243,8 @@ export function usePyrepadEditor(
 
   const defaultTextRef = useRef<string | undefined>(defaultText);
   defaultTextRef.current = defaultText;
+  const onErrorRef = useRef(options.onError);
+  onErrorRef.current = options.onError;
   const renderCountRef = useRef<number>(0);
   const editorAdapterRef = useRef<unknown | null>(null);
   const [isReady, setIsReady] = useState<boolean>(false);
@@ -228,6 +266,7 @@ export function usePyrepadEditor(
       authorId,
       editor,
       getDefaultText: () => defaultTextRef.current,
+      report: (error) => (onErrorRef.current ?? reportByDefault)(error),
     });
     setIsReady(true);
 

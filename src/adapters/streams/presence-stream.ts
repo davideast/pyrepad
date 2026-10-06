@@ -6,6 +6,7 @@ import {
   RefLike,
   SnapLike,
   PresenceEvent,
+  SyncError,
   getSnapKey,
   getSnapVal,
   isValidRef,
@@ -30,6 +31,9 @@ export class PresenceStreamHandler {
   private trailing: ReturnType<typeof setTimeout> | null = null;
   private latest: unknown = null;
   private hasDisconnectCleanup = false;
+
+  /** Receives failed presence writes. */
+  onError: (error: SyncError) => void = () => {};
 
   constructor(
     ref: RefLike | null,
@@ -139,8 +143,12 @@ export class PresenceStreamHandler {
           ...(name ? { name } : {}),
         });
       }
-    } catch (err) {
-      console.warn("Presence write failed:", err);
+    } catch (cause) {
+      this.onError({
+        kind: "presence-failed",
+        message: "The cursor position could not be shared.",
+        cause,
+      });
     }
   }
 
@@ -149,9 +157,14 @@ export class PresenceStreamHandler {
     if (!hasOnDisconnect || this.hasDisconnectCleanup) return;
     this.hasDisconnectCleanup = true;
     const pending = userRef.onDisconnect!().remove();
-    Promise.resolve(pending).catch((err) =>
-      console.warn("Presence onDisconnect registration failed:", err),
-    );
+    Promise.resolve(pending).catch((cause) => {
+      this.hasDisconnectCleanup = false;
+      this.onError({
+        kind: "presence-failed",
+        message: "Disconnect cleanup for this cursor could not be registered.",
+        cause,
+      });
+    });
   }
 
   dispose(): void {

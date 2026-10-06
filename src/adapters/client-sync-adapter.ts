@@ -13,14 +13,22 @@
  *   re-send of the original op.
  * - `seedIfEmpty` commits a seed as a compare-and-set on revision 0: if a peer
  *   claims revision 0 first, the seed is undone locally and never re-sent.
+ * - A refused write rolls every unsaved local edit back to the last server text
+ *   (via `operations`) and reports it on `errors`.
  */
 import { TextOperation } from "../core/index.js";
 import type { AbstractSyncAdapter } from "./base-adapter.js";
 import { ReactiveStream } from "./reactive-stream.js";
-import { OTClient, Synchronized } from "./ot-client.js";
+import {
+  AwaitingConfirm,
+  AwaitingWithBuffer,
+  OTClient,
+  Synchronized,
+} from "./ot-client.js";
 import type {
   AgentivePresenceEvent,
   CommitAck,
+  SyncError,
   SyncSeam,
   TextOperationEvent,
 } from "./types.js";
@@ -29,13 +37,19 @@ type CommitSettle = { resolve(a: CommitAck): void; reject(e: Error): void };
 
 export class ClientSyncAdapter implements SyncSeam {
   readonly operations = new ReactiveStream<TextOperationEvent>();
+  readonly errors = new ReactiveStream<SyncError>();
   private client: OTClient;
+  /** The document at the last revision received; null once it can't be tracked. */
+  private serverText: string | null = "";
+  /** Revisions received, including entries skipped as invalid. */
+  private serverRevision = 0;
   private lastEvent: TextOperationEvent | null = null;
   private inFlight: CommitSettle[] = [];
   private buffered: CommitSettle[] = [];
   private detached = false;
   private seeding = false;
   private readonly stopRaw: () => void;
+  private readonly stopInnerErrors: () => void;
   private pending: { op: TextOperation; settles: CommitSettle[] } | null = null;
   private pendingTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -43,7 +57,15 @@ export class ClientSyncAdapter implements SyncSeam {
     this.client = this.createClient();
     this.stopRaw = inner.operations.subscribe((event) => {
       this.lastEvent = event;
+      this.serverRevision = Math.max(this.serverRevision, event.revision);
+      this.trackServerText(event.operation as TextOperation);
     });
+    const stopErrors = inner.errors?.subscribe((e) => {
+      if (e.kind === "invalid-operation" && e.revision !== undefined)
+        this.serverRevision = Math.max(this.serverRevision, e.revision + 1);
+      this.errors.push(e);
+    });
+    this.stopInnerErrors = stopErrors ?? (() => {});
     inner.on("operation", this.onRemote);
     inner.on("ack", this.onAck);
     inner.on("retry", this.onRetry);
@@ -125,6 +147,59 @@ export class ClientSyncAdapter implements SyncSeam {
     });
   }
 
+  /** Revisions received from the server so far. */
+  get revision(): number {
+    return this.serverRevision;
+  }
+
+  /**
+   * The edits the server has not accepted, relative to the document at
+   * `revision`: `sent` is the op written but unacknowledged, `rest` everything
+   * after it. Null when there are none; undefined when the server text is unknown.
+   */
+  snapshot():
+    | {
+        revision: number;
+        baseLength: number;
+        sent: TextOperation | null;
+        rest: TextOperation | null;
+      }
+    | null
+    | undefined {
+    if (this.serverText === null) return undefined;
+    const state = this.client.state;
+    const sent =
+      state instanceof AwaitingConfirm || state instanceof AwaitingWithBuffer
+        ? state.outstanding
+        : null;
+    let rest = state instanceof AwaitingWithBuffer ? state.buffer : null;
+    const held = this.pending?.op;
+    if (held) rest = rest ? rest.compose(held) : held;
+    if (!sent && !rest) return null;
+    return {
+      revision: this.serverRevision,
+      baseLength: this.serverText.length,
+      sent,
+      rest,
+    };
+  }
+
+  /**
+   * Applies `op` (relative to the document at `revision`) as a local edit the
+   * editor has not seen: it is delivered on `operations` and committed.
+   */
+  replay(op: TextOperation, author = "offline-replay"): Promise<CommitAck> {
+    const unsaved = this.unsavedEdits();
+    const edit = unsaved ? TextOperation.transform(unsaved, op)[1] : op;
+    this.operations.push({
+      revision: this.serverRevision,
+      operation: edit,
+      author,
+      timestamp: Date.now(),
+    });
+    return this.commitOperation(edit);
+  }
+
   broadcastPresence(cursor: unknown): Promise<void> {
     return this.inner.broadcastPresence(cursor);
   }
@@ -161,6 +236,7 @@ export class ClientSyncAdapter implements SyncSeam {
     if (this.pendingTimer) clearTimeout(this.pendingTimer);
     this.pendingTimer = null;
     this.stopRaw();
+    this.stopInnerErrors();
     this.inner.off("operation", this.onRemote);
     this.inner.off("ack", this.onAck);
     this.inner.off("retry", this.onRetry);
@@ -189,11 +265,48 @@ export class ClientSyncAdapter implements SyncSeam {
     });
   }
 
-  /** The op could not be written: drop it and every buffered edit behind it. */
+  private trackServerText(op: TextOperation): void {
+    if (this.serverText === null) return;
+    try {
+      this.serverText = op.apply(this.serverText);
+    } catch {
+      this.serverText = null;
+    }
+  }
+
+  /** Every local edit the server has not accepted, as one op on `serverText`. */
+  private unsavedEdits(): TextOperation | null {
+    const state = this.client.state;
+    let op: TextOperation | null = null;
+    if (state instanceof AwaitingWithBuffer)
+      op = state.outstanding.compose(state.buffer);
+    else if (state instanceof AwaitingConfirm) op = state.outstanding;
+    const held = this.pending?.op;
+    if (held) op = op ? op.compose(held) : held;
+    return op;
+  }
+
+  /** The op could not be written: undo it and every edit behind it, then report. */
   private failInFlight(err: Error): void {
     this.seeding = false;
+    const unsaved = this.unsavedEdits();
     this.rejectAll(err);
     this.client = this.createClient();
+    if (unsaved && this.serverText !== null) {
+      const undo = unsaved.invert(this.serverText);
+      this.operations.push({
+        revision: this.lastEvent ? this.lastEvent.revision : 0,
+        operation: undo,
+        author: "rollback",
+        timestamp: Date.now(),
+      });
+    }
+    this.errors.push({
+      kind: "commit-failed",
+      message: `A local edit could not be saved: ${err.message}`,
+      cause: err,
+      operation: unsaved ?? undefined,
+    });
   }
 
   private rejectAll(err: Error): void {

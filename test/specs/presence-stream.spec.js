@@ -133,3 +133,18 @@ describe("PresenceStreamHandler (P7)", function () {
     expect(log.some((e) => e.op === "set")).toBe(true);
   });
 });
+
+describe("PresenceStreamHandler reports failed writes (item 6)", function () {
+  it("sends a failed presence write to onError", async function () {
+    const { ref } = createFakeRef({
+      setResult: () => Promise.reject(new Error("permission_denied")),
+    });
+    const handler = createHandler(ref);
+    const errors = [];
+    handler.onError = (e) => errors.push(e);
+    await handler.broadcastPresence({ position: 1, selectionEnd: 1 });
+    expect(errors).toHaveLength(1);
+    expect(errors[0].kind).toBe("presence-failed");
+    expect(errors[0].cause.message).toBe("permission_denied");
+  });
+});

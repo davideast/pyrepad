@@ -1,233 +1,98 @@
 /**
- * Offline durable collaborative adapter decorator implementing SyncSeam.
- * Queues unsent edits in an OfflineRevisionQueue, replays them on reconnect after rebasing
- * onto remote history, and reports ops that cannot be rebased via a "conflict" event.
+ * OfflineDurableAdapter: a SyncSeam that keeps unsaved edits across reloads.
+ *
+ * It runs the OT client (`ClientSyncAdapter`) over a network adapter, so live
+ * edits converge exactly as without it, and persists the client's unsaved
+ * edits (with the revision they are based on) whenever they change. After a
+ * reload it reads the history written since, rebases those edits onto it,
+ * delivers them on `operations` and commits them. `whenReady` resolves once
+ * that replay is done; subscribe to `operations` before awaiting it.
  */
 import { TextOperation } from "../../core/index.js";
-import { Emitter } from "../../core/emitter.js";
-import {
-  SyncSeam,
-  CommitAck,
-  AdapterCallbacks,
-  AdapterEvents,
-  TextOperationEvent,
-  PresenceEvent,
-  AgentivePresenceEvent,
-  OfflineConflictEvent,
-} from "../types.js";
+import { ReactiveStream } from "../reactive-stream.js";
+import { ClientSyncAdapter } from "../client-sync-adapter.js";
 import type { AbstractSyncAdapter } from "../base-adapter.js";
-import { StorageEngineSeam, IndexedDBStorageEngine } from "./storage-engine.js";
-import {
-  OfflineRevisionQueue,
-  PendingRevisionRecord,
-} from "./revision-queue.js";
+import type {
+  AgentivePresenceEvent,
+  CommitAck,
+  SyncError,
+  SyncSeam,
+  TextOperationEvent,
+} from "../types.js";
+import { IndexedDBStorageEngine, StorageEngineSeam } from "./storage-engine.js";
+import { rebaseUnsaved, UnsavedSnapshot } from "./unsaved-snapshot.js";
 
-export type { OfflineConflictEvent } from "../types.js";
-
-/** Any network adapter: the rest of AbstractSyncAdapter's API is optional (JS networks may omit it). */
-export type DurableNetwork = SyncSeam &
-  Partial<Omit<AbstractSyncAdapter, keyof SyncSeam>>;
-
-// Dispatch boundary: each event name has its own listener signature (see AdapterEvents).
-type AnyListener = (...args: any[]) => void;
+type Listener = (...args: never[]) => void;
 
 export class OfflineDurableAdapter implements SyncSeam {
-  readonly network: DurableNetwork;
-  readonly queue: OfflineRevisionQueue;
+  readonly operations = new ReactiveStream<TextOperationEvent>();
+  readonly errors = new ReactiveStream<SyncError>();
+  readonly client: ClientSyncAdapter;
+  private readonly storage: StorageEngineSeam;
+  private readonly key: string;
+  private readonly ready: Promise<void>;
+  private readonly stops: (() => void)[];
+  private writes: Promise<void> = Promise.resolve();
+  private persistQueued = false;
+  /** Snapshots wait for the restore, so the saved edits aren't overwritten first. */
+  private restored = false;
   private disposed = false;
-  private currentRevision = 0;
-  private onlineHandler: (() => void) | null = null;
-  private inFlight: Promise<Map<string, CommitAck>> | null = null;
-  private conflicts = new Emitter<{ conflict: [OfflineConflictEvent] }>();
-  public callbacks: AdapterCallbacks = {};
 
   constructor(
-    network: DurableNetwork,
-    storage?: StorageEngineSeam,
-    docId: string = "default_doc",
+    readonly network: AbstractSyncAdapter,
+    storage: StorageEngineSeam = new IndexedDBStorageEngine(),
+    readonly docId: string = "default_doc",
   ) {
-    this.network = network;
-    const engine = storage || new IndexedDBStorageEngine();
-    this.queue = new OfflineRevisionQueue(docId, engine);
-    this.bindNetworkEvents();
-    this.bindGlobalOnlineTrigger();
-  }
-
-  private bindNetworkEvents(): void {
-    if (typeof this.network.on !== "function") return;
-
-    this.network.on("operation", () => {
-      this.currentRevision++;
-    });
-
-    const triggerReconcile = () => {
-      const isActive = !this.disposed;
-      if (isActive) {
-        this.reconcile().catch((err) =>
-          console.warn(
-            "Unexpected error during automatic network reconcile:",
-            err,
-          ),
-        );
-      }
-    };
-
-    this.network.on("ready", triggerReconcile);
-    this.network.on("worker_sync", triggerReconcile);
-  }
-
-  private bindGlobalOnlineTrigger(): void {
-    const hasAddListener =
-      typeof globalThis !== "undefined" &&
-      typeof globalThis.addEventListener === "function";
-    if (!hasAddListener) return;
-
-    this.onlineHandler = () => {
-      const isActive = !this.disposed;
-      if (isActive) {
-        this.reconcile().catch((err) =>
-          console.warn("Unexpected error during global online reconcile:", err),
-        );
-      }
-    };
-    globalThis.addEventListener("online", this.onlineHandler);
-  }
-
-  get operations(): AsyncIterable<TextOperationEvent> {
-    return this.network.operations;
-  }
-  get presence(): AsyncIterable<PresenceEvent> {
-    return this.network.presence;
-  }
-  get agentive(): AsyncIterable<AgentivePresenceEvent> {
-    return this.network.agentive;
-  }
-
-  async commitOperation(
-    operation: unknown,
-    author?: string,
-  ): Promise<CommitAck> {
-    const isDisposed = this.disposed;
-    if (isDisposed) throw new Error("OfflineDurableAdapter is disposed");
-
-    // Every op is enqueued and only ever sent by the single-flight drain, so a
-    // record cannot be committed both directly and by a reconnect replay.
-    const opAuthor = author || "offline-client";
-    const recordId = await this.queue.enqueue(
-      this.currentRevision,
-      operation,
-      opAuthor,
-    );
-
-    let outcome = await this.awaitInFlightOutcome(recordId);
-    if (!outcome && !this.disposed) {
-      outcome = (await this.drainLatched()).get(recordId);
-    }
-    return outcome || { revision: this.currentRevision, committed: false };
-  }
-
-  private async awaitInFlightOutcome(
-    recordId: string,
-  ): Promise<CommitAck | undefined> {
-    // A drain that started before our enqueue may or may not include the record.
-    while (this.inFlight) {
-      const outcomes = await this.inFlight;
-      const outcome = outcomes.get(recordId);
-      if (outcome) return outcome;
-    }
-    return undefined;
-  }
-
-  async reconcile(canonicalRemoteOps?: unknown[]): Promise<number> {
-    const outcomes = await this.drainLatched(canonicalRemoteOps);
-    let reconciledCount = 0;
-    for (const ack of outcomes.values()) {
-      if (ack.committed) reconciledCount++;
-    }
-    return reconciledCount;
-  }
-
-  /** Single-flight latch: concurrent callers join the drain already running. */
-  private drainLatched(
-    canonicalRemoteOps?: unknown[],
-  ): Promise<Map<string, CommitAck>> {
-    if (this.inFlight) return this.inFlight;
-    const run = this.drain(canonicalRemoteOps).finally(() => {
-      if (this.inFlight === run) this.inFlight = null;
-    });
-    this.inFlight = run;
-    return run;
-  }
-
-  private async drain(
-    canonicalRemoteOps?: unknown[],
-  ): Promise<Map<string, CommitAck>> {
-    const outcomes = new Map<string, CommitAck>();
-    if (this.disposed) return outcomes;
-
-    const pending = await this.queue.getPendingRevisions();
-    // A malformed canonical op rejects the drain rather than rebasing on partial history.
-    const remotes = (canonicalRemoteOps || []).map((raw) =>
-      this.parseTextOp(raw),
-    );
-
-    for (const item of pending) {
-      if (this.disposed) break;
-      const ack = await this.reconcileRecord(item, remotes);
-      outcomes.set(item.id, ack);
-    }
-
-    return outcomes;
-  }
-
-  private async reconcileRecord(
-    item: PendingRevisionRecord,
-    remotes: TextOperation[],
-  ): Promise<CommitAck> {
-    const notCommitted = { revision: this.currentRevision, committed: false };
-    let localOp: TextOperation;
-    try {
-      localOp = this.parseTextOp(item.operationJSON);
-      for (let i = 0; i < remotes.length; i++) {
-        const transformed = TextOperation.transform(localOp, remotes[i]);
-        localOp = transformed[0];
-        remotes[i] = transformed[1];
-      }
-    } catch (err) {
-      // Unresolvable: roll the record back and hand the dropped op to the caller.
-      await this.queue.dequeue(item.id);
-      this.conflicts.trigger("conflict", {
-        recordId: item.id,
-        author: item.author,
-        revision: item.revision,
-        operation: item.operationJSON,
-        error: err instanceof Error ? err : new Error(String(err)),
+    this.storage = storage;
+    this.key = `${docId}:unsaved`;
+    this.client = new ClientSyncAdapter(network);
+    this.stops = [
+      this.client.operations.subscribe((event) => {
+        this.operations.push(event);
+        this.persist();
+      }),
+      this.client.errors.subscribe((error) => this.errors.push(error)),
+    ];
+    this.ready = network
+      .whenReady()
+      .then(() => this.restore())
+      .finally(() => {
+        this.restored = true;
+        this.persist();
       });
-      return notCommitted;
-    }
-
-    try {
-      const ack = await this.network.commitOperation(localOp, item.author);
-      const isCommitted = Boolean(ack && ack.committed);
-      if (isCommitted) {
-        await this.queue.dequeue(item.id);
-        this.currentRevision = ack.revision;
-        return ack;
-      }
-      return notCommitted;
-    } catch (_networkError) {
-      // Offline or disposed: the record stays buffered for the next reconcile.
-      return notCommitted;
-    }
+    this.ready.catch(() => {});
   }
 
-  private parseTextOp(payload: unknown): TextOperation {
-    if (payload instanceof TextOperation) return payload;
-    return TextOperation.fromJSON(payload);
+  get presence() {
+    return this.client.presence;
+  }
+  get agentive() {
+    return this.client.agentive;
+  }
+
+  whenReady(): Promise<void> {
+    return this.ready;
+  }
+
+  isHistoryEmpty(): boolean {
+    return this.client.isHistoryEmpty();
+  }
+
+  commitOperation(operation: unknown, _author?: string): Promise<CommitAck> {
+    const ack = this.client.commitOperation(operation);
+    this.persist();
+    ack.then(this.persist, this.persist);
+    return ack;
+  }
+
+  /** Resolves once every snapshot taken so far has been written to storage. */
+  async flush(): Promise<void> {
+    await Promise.resolve();
+    await this.writes;
   }
 
   broadcastPresence(cursor: unknown): Promise<void> {
-    return this.network.broadcastPresence(cursor);
+    return this.client.broadcastPresence(cursor);
   }
 
   broadcastAgentive(event: AgentivePresenceEvent): Promise<void>;
@@ -244,113 +109,109 @@ export class OfflineDurableAdapter implements SyncSeam {
     ghostDiff?: unknown,
     explanation?: string,
   ): Promise<void> {
-    const net = this.network;
-    // `status!`: the string overload requires it; TS cannot correlate that here.
-    return typeof eventOrAgentId === "object"
-      ? net.broadcastAgentive(eventOrAgentId)
-      : net.broadcastAgentive(eventOrAgentId, status!, ghostDiff, explanation);
+    if (typeof eventOrAgentId === "object")
+      return this.client.broadcastAgentive(eventOrAgentId);
+    return this.client.broadcastAgentive(
+      eventOrAgentId,
+      status!,
+      ghostDiff,
+      explanation,
+    );
   }
 
-  whenReady(): Promise<void> {
-    // A JS network written before `whenReady` existed is treated as ready.
-    return this.network.whenReady?.() ?? Promise.resolve();
+  /** The network's own events ("ready", "operation", ...). */
+  on(event: string, listener: Listener): void {
+    this.network.on(event as never, listener);
   }
-
-  // "conflict" is this adapter's own event; every other event is the network's.
-  on(event: keyof AdapterEvents | "conflict", callback: AnyListener): void {
-    if (event === "conflict") this.conflicts.on(event, callback);
-    else this.network.on?.(event, callback);
+  once(event: string, listener: Listener): void {
+    this.network.once(event as never, listener);
   }
-  once(event: keyof AdapterEvents | "conflict", callback: AnyListener): void {
-    if (event === "conflict") this.conflicts.once(event, callback);
-    else this.network.once?.(event, callback);
-  }
-  off(event: keyof AdapterEvents | "conflict", callback?: AnyListener): void {
-    if (event === "conflict") this.conflicts.off(event, callback);
-    else this.network.off?.(event, callback);
-  }
-  trigger<K extends keyof AdapterEvents>(
-    event: K,
-    ...args: AdapterEvents[K]
-  ): void {
-    this.network.trigger?.(event, ...args);
-  }
-
-  registerCallbacks(callbacks: AdapterCallbacks): void {
-    this.callbacks = callbacks || {};
-    this.network.registerCallbacks?.(callbacks);
-  }
-
-  sendOperation(
-    op: TextOperation,
-    cb?: (err: Error | null, committed?: boolean) => void,
-    author?: string,
-  ): void {
-    this.commitOperation(op, author)
-      .then((ack) => {
-        const hasCb = typeof cb === "function";
-        if (hasCb) cb!(null, ack.committed);
-      })
-      .catch((err) => {
-        const hasCb = typeof cb === "function";
-        if (hasCb) cb!(err, false);
-      });
-  }
-
-  sendCursor(cursor: unknown): void {
-    this.network.sendCursor?.(cursor);
-  }
-
-  isHistoryEmpty(): boolean {
-    // A JS network without `isHistoryEmpty` falls back to the revisions seen here.
-    const res = this.network.isHistoryEmpty?.();
-    if (res !== undefined && res !== null) return Boolean(res);
-    return this.currentRevision === 0;
-  }
-
-  setColor(color: string): void {
-    this.network.setColor?.(color);
-  }
-  setUserId(id: string): void {
-    this.network.setUserId?.(id);
-  }
-
-  isDisposed(): boolean {
-    return this.disposed;
+  off(event: string, listener?: Listener): void {
+    this.network.off(event as never, listener);
   }
 
   async dispose(): Promise<void> {
-    const isAlreadyDisposed = this.disposed;
-    if (isAlreadyDisposed) return;
+    if (this.disposed) return;
     this.disposed = true;
-    this.conflicts.off();
+    for (const stop of this.stops) stop();
+    await this.writes;
+    await this.client.dispose();
+  }
 
-    const hasRemoveListener =
-      typeof globalThis !== "undefined" &&
-      typeof globalThis.removeEventListener === "function" &&
-      this.onlineHandler;
-    if (hasRemoveListener) {
-      try {
-        globalThis.removeEventListener("online", this.onlineHandler!);
-      } catch (err) {
-        console.warn(
-          "Unexpected error removing global online event listener:",
-          err,
+  /** Coalesces snapshot writes: one per microtask turn, latest state wins. */
+  private persist = (): void => {
+    if (this.persistQueued || this.disposed || !this.restored) return;
+    this.persistQueued = true;
+    queueMicrotask(() => {
+      this.persistQueued = false;
+      const snap = this.client.snapshot();
+      if (snap === undefined) return;
+      const record: UnsavedSnapshot | null = snap && {
+        docId: this.docId,
+        revision: snap.revision,
+        baseLength: snap.baseLength,
+        sent: snap.sent ? (snap.sent.toJSON() as unknown[]) : null,
+        rest: snap.rest ? (snap.rest.toJSON() as unknown[]) : null,
+        savedAt: Date.now(),
+      };
+      this.writes = this.writes
+        .then(() =>
+          record
+            ? this.storage.put(this.key, record)
+            : this.storage.delete(this.key),
+        )
+        .catch((cause) =>
+          this.report("Unsaved edits could not be stored offline.", cause),
         );
+    });
+  };
+
+  /** Replays the edits a previous session left unsaved. */
+  private async restore(): Promise<void> {
+    const saved = (await this.storage.get(this.key)) as UnsavedSnapshot | null;
+    if (!saved || this.disposed) return;
+    try {
+      const op = await this.rebase(saved);
+      if (this.disposed) return;
+      if (op) {
+        this.client.replay(op).then(this.persist, this.persist);
+      } else {
+        await this.storage.delete(this.key);
       }
+    } catch (cause) {
+      this.report("Edits saved offline could not be restored.", cause, saved);
     }
+  }
 
-    try {
-      this.queue.dispose();
-    } catch (err) {
-      console.warn("Unexpected error disposing OfflineRevisionQueue:", err);
+  private async rebase(saved: UnsavedSnapshot): Promise<TextOperation | null> {
+    // Read until the stored history covers every revision the client has applied.
+    for (;;) {
+      const head = this.client.revision;
+      if (saved.revision > head)
+        throw new Error("The saved edits are newer than the document.");
+      const { entries, userId } = await this.network.historySince(
+        saved.revision,
+      );
+      if (this.client.revision !== head) continue;
+      const needed = head - saved.revision;
+      if (entries.length < needed)
+        throw new Error("The document history is incomplete.");
+      return rebaseUnsaved(saved, entries.slice(0, needed), userId).op;
     }
+  }
 
-    try {
-      await this.network.dispose();
-    } catch (err) {
-      console.warn("Unexpected error disposing wrapped network adapter:", err);
-    }
+  private report(
+    message: string,
+    cause: unknown,
+    saved?: UnsavedSnapshot,
+  ): void {
+    this.errors.push({
+      kind: "reconcile-failed",
+      message,
+      cause,
+      revision: saved?.revision,
+      operation: saved ? { sent: saved.sent, rest: saved.rest } : undefined,
+    });
   }
 }
 

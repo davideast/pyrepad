@@ -107,9 +107,15 @@ for await (const { author, operation } of adapter.operations) {
 
 Other adapters: `PyricSandboxAdapter(ref, userId, color)` for a Pyric sandbox reference,
 `SharedWorkerAdapter(ref, userId, color, port)` for cross-tab sync over a worker port, and
-`OfflineDurableAdapter(network, storage?, docId?)`, which wraps any of them and queues commits in
-IndexedDB while offline. It emits a `conflict` event (`OfflineConflictEvent`) for a queued edit
-that cannot be rebased.
+`OfflineDurableAdapter(network, storage?, docId?)`, which wraps any of them. It runs the OT
+client, saves your unsaved edits to IndexedDB whenever they change, and after a reload rebases
+them onto the history written since and replays them. Subscribe to `operations` before awaiting
+`whenReady()`, which resolves once that replay is done.
+
+Every adapter reports failures on its `errors` stream (`SyncError`: `commit-failed`,
+`invalid-operation`, `reconcile-failed`, `presence-failed`, `apply-failed`) instead of throwing
+or only logging. A refused write is rolled back in the editor and reported with the dropped
+operation. `usePyrepadEditor` takes an `onError` callback for these.
 
 AI agents publish their status and proposed edits on the separate `agentive` stream, so they never
 delay document edits:
